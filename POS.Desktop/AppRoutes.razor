@@ -1,18 +1,45 @@
-<CascadingAuthenticationState>
-    <Router AppAssembly="@typeof(AppRoutes).Assembly">
-        <Found Context="routeData">
-            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
-                <NotAuthorized>
-                    <Login />
-                </NotAuthorized>
-            </AuthorizeRouteView>
-            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-        </Found>
-        <NotFound>
-            <LayoutView Layout="@typeof(MainLayout)">
-                <p role="alert">Sorry, there's nothing at this address.</p>
-            </LayoutView>
-        </NotFound>
-    </Router>
-</CascadingAuthenticationState>
+@inject LicenseStateContainer LicenseState
+@implements IDisposable
+
+@if (!LicenseState.IsLicensed)
+{
+    <Activation />
+}
+else
+{
+    <CascadingAuthenticationState>
+        <Router AppAssembly="@typeof(AppRoutes).Assembly">
+            <Found Context="routeData">
+                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                    <NotAuthorized>
+                        <Login />
+                    </NotAuthorized>
+                </AuthorizeRouteView>
+                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+            </Found>
+            <NotFound>
+                <LayoutView Layout="@typeof(MainLayout)">
+                    <p role="alert">Sorry, there's nothing at this address.</p>
+                </LayoutView>
+            </NotFound>
+        </Router>
+    </CascadingAuthenticationState>
+}
+
+@code {
+    protected override void OnInitialized()
+    {
+        LicenseState.OnLicenseStateChanged += OnLicenseChanged;
+    }
+
+    private void OnLicenseChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        LicenseState.OnLicenseStateChanged -= OnLicenseChanged;
+    }
+}
 

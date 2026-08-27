@@ -27,73 +27,8 @@ public static class IdentityDataSeeder
             }
         }
 
-        // 2. Seed Default Admin User
-        var adminUser = await userManager.FindByNameAsync("admin");
-        if (adminUser is null)
-        {
-            adminUser = new ApplicationUser
-            { 
-                UserName = "admin",
-                Email = "admin@pos.local",
-                FullName = "System Administrator",
-                PhoneNumber = "+201000000000",
-                EmailConfirmed = true,
-                PhoneNumberConfirmed = true,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            var result = await userManager.CreateAsync(adminUser, "Admin123!");
-            if (result.Succeeded)
-            {
-                await userManager.AddToRoleAsync(adminUser, "Admin");
-            }
-        }
-
-        // 3. Seed Default Cashier User
-        var cashierUser = await userManager.FindByNameAsync("cashier");
-        if (cashierUser is null)
-        {
-            cashierUser = new ApplicationUser
-            {
-                UserName = "cashier",
-                Email = "cashier@pos.local",
-                FullName = "Default Cashier",
-                PhoneNumber = "+201000000000",
-                EmailConfirmed = true,
-                PhoneNumberConfirmed = true,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            var result = await userManager.CreateAsync(cashierUser, "Cashier123!");
-            if (result.Succeeded)
-            {
-                await userManager.AddToRoleAsync(cashierUser, "Cashier");
-            }
-        }
-
-        // 4. seed Default Manager User
-        var managerUser = await userManager.FindByNameAsync("manager");
-        if (managerUser is null)
-        {
-            managerUser = new ApplicationUser
-            {
-                UserName = "manager",
-                Email = "manager@pos.local",
-                FullName = "Default Manager",
-                PhoneNumber = "+201000000001",
-                EmailConfirmed = true,
-                PhoneNumberConfirmed = true,
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            var result = await userManager.CreateAsync(managerUser, "Manager123!");
-            if (result.Succeeded)
-            {
-                await userManager.AddToRoleAsync(managerUser, "Manager");
-            }
-        }
+        // The first administrator is created by the one-time setup flow.
+        // Do not seed credentials here: otherwise a new installation never
+        // reaches the initial setup screen and ships with known credentials.
     }
 }

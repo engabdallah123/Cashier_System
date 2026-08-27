@@ -1,6 +1,8 @@
 using Identity.Application.Auth.Commands.Login;
 using Identity.Application.Auth.Commands.RefreshToken;
 using Identity.Application.Auth.Commands.Register;
+using Identity.Application.Auth.Commands.SetupInitialAdmin;
+using Identity.Application.Auth.Queries.GetInitialSetupStatus;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,6 +17,26 @@ namespace POS.WebAPI.Controllers.Auth
         public AuthController(IMediator sender)
         {
             _sender = sender;
+        }
+
+        [HttpGet("initial-setup-required")]
+        public async Task<IActionResult> CheckInitialSetupRequired(CancellationToken ct)
+        {
+            var result = await _sender.Send(new GetInitialSetupStatusQuery(), ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return Ok(new { setupRequired = result.Value });
+        }
+
+        [HttpPost("setup-admin")]
+        public async Task<IActionResult> SetupInitialAdmin([FromBody] SetupInitialAdminCommand command, CancellationToken ct)
+        {
+            var result = await _sender.Send(command, ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return Ok(result.Value);
         }
 
         [HttpPost("login")]

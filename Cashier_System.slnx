@@ -57,5 +57,12 @@
     <Project Path="POS.Shared.Application/POS.Shared.Application.csproj" />
     <Project Path="POS.Shared.Domain/POS.Shared.Domain.csproj" />
     <Project Path="POS.Shared.Infrastructre/POS.Shared.Infrastructre.csproj" />
+    <Project Path="POS.Licensing/POS.Licensing.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="POS.Licensing.Tests/POS.Licensing.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="POS.LicenseGenerator/POS.LicenseGenerator.csproj" />
   </Folder>
 </Solution>

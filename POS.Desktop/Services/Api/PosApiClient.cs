@@ -28,6 +28,38 @@ namespace POS.Desktop.Services.Api
         }
 
         // Auth
+        public async Task<bool> CheckInitialSetupRequiredAsync()
+        {
+            try
+            {
+                var res = await _http.GetFromJsonAsync<InitialSetupStatusResponse>("api/auth/initial-setup-required");
+                return res?.SetupRequired ?? false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<(AuthResponse? Auth, string? Error)> SetupInitialAdminAsync(SetupAdminRequest request)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/auth/setup-admin", request);
+                if (res.IsSuccessStatusCode)
+                {
+                    var auth = await res.Content.ReadFromJsonAsync<AuthResponse>();
+                    return (auth, null);
+                }
+                var err = await res.Content.ReadAsStringAsync();
+                return (null, ExtractErrorMessage(err, "فشل إنشاء حساب المدير المسؤول."));
+            }
+            catch (Exception ex)
+            {
+                return (null, ex.Message);
+            }
+        }
+
         public async Task<AuthResponse?> LoginAsync(LoginRequest request)
         {
             try
@@ -936,4 +968,6 @@ namespace POS.Desktop.Services.Api
     public record RoleItemDto(string Id, string Name);
     public record CreateUserRequestModel(string FullName, string UserName, string Email, string Password, string? Phone, string Role);
     public record UpdateUserRoleRequestModel(string Role);
+    public record InitialSetupStatusResponse(bool SetupRequired);
+    public record SetupAdminRequest(string FullName, string UserName, string? Email, string? Phone, string Password, string? StoreName = null);
 }

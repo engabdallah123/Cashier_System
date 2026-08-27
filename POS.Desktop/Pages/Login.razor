@@ -5,69 +5,267 @@
 @inject CustomAuthStateProvider AuthState
 @inject NavigationManager Nav
 
-<div style="height: 100vh; display: flex; align-items: center; justify-content: center; background-color: var(--bg-primary);">
-    <div class="card" style="width: 420px; padding: 2.25rem;">
-        <div class="text-center" style="text-align: center; margin-bottom: 1.75rem;">
-            <i class="fa-solid fa-cash-register" style="font-size: 3rem; color: var(--accent-blue);"></i>
-            <h2 style="margin-top: 0.75rem; font-weight: 700; font-size: 1.5rem;">تسجيل الدخول للنظام</h2>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;">أدخل اسم المستخدم وكلمة المرور للبدء</p>
+<div style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at top right, #1e1b4b 0%, #0f172a 100%); padding: 1.5rem;">
+
+    @if (isCheckingSetup)
+    {
+        <div class="card text-center" style="width: 420px; padding: 3rem; background: rgba(30, 41, 59, 0.95); border: 1px solid rgba(255,255,255,0.1); border-radius: 1rem; color: #fff;">
+            <i class="fa-solid fa-spinner fa-spin" style="font-size: 2.5rem; color: #6366f1;"></i>
+            <p class="mt-3 text-muted">جاري الاتصال بخدمة النظام وقاعدة البيانات...</p>
         </div>
-
-        @if (!string.IsNullOrEmpty(errorMessage))
-        {
-            <div style="background-color: rgba(239,68,68,0.2); border: 1px solid var(--accent-red); color: #f87171; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1.25rem;">
-                <i class="fa-solid fa-triangle-exclamation me-1"></i> @errorMessage
-            </div>
-        }
-
-        <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
-            <div class="form-group" style="margin-bottom: 1.25rem;">
-                <label>اسم المستخدم</label>
-                <InputText @bind-Value="loginModel.Username" class="form-control" placeholder="admin / cashier" />
-            </div>
-
-            <div class="form-group" style="margin-bottom: 1.75rem;">
-                <label>كلمة المرور</label>
-                <InputText @bind-Value="loginModel.Password" type="password" class="form-control" placeholder="******" />
+    }
+    else if (isSetupRequired)
+    {
+        <!-- First-Time Admin Setup Wizard -->
+        <div class="card" style="width: 500px; padding: 2.5rem; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1rem; box-shadow: 0 20px 40px rgba(0,0,0,0.5); color: #f8fafc;">
+            <div class="text-center" style="text-align: center; margin-bottom: 1.5rem;">
+                <div style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #4f46e5, #6366f1); display: inline-flex; align-items: center; justify-content: center; font-size: 1.8rem; color: #fff; margin-bottom: 0.75rem; box-shadow: 0 8px 20px rgba(99,102,241,0.4);">
+                    <i class="fa-solid fa-user-shield"></i>
+                </div>
+                <h2 style="font-weight: 700; font-size: 1.4rem; margin: 0; color: #fff;">تهيئة حساب المدير</h2>
+                <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.35rem;">إنشاء أو تسجيل حساب المدير المسؤول (Administrator)</p>
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.9rem;" disabled="@isLoading">
-                @if (isLoading)
-                {
-                    <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري التحقق...</span>
-                }
-                else
-                {
-                    <i class="fa-solid fa-right-to-bracket me-1"></i> <span>تسجيل الدخول</span>
-                }
-            </button>
-        </EditForm>
-    </div>
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div style="background-color: rgba(239,68,68,0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1.25rem;">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i> @errorMessage
+                </div>
+            }
+
+            <EditForm Model="setupModel" OnValidSubmit="HandleInitialSetup">
+                <div class="form-group mb-3">
+                    <label style="font-size: 0.85rem; font-weight: 600; color: #cbd5e1; margin-bottom: 0.3rem; display: block;">الاسم بالكامل *</label>
+                    <InputText @bind-Value="setupModel.FullName" class="form-control" placeholder="مثال: أحمد محمد (المدير)" />
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 form-group mb-3">
+                        <label style="font-size: 0.85rem; font-weight: 600; color: #cbd5e1; margin-bottom: 0.3rem; display: block;">اسم المستخدم للدخول *</label>
+                        <InputText @bind-Value="setupModel.UserName" class="form-control" placeholder="مثال: admin" />
+                    </div>
+                    <div class="col-md-6 form-group mb-3">
+                        <label style="font-size: 0.85rem; font-weight: 600; color: #cbd5e1; margin-bottom: 0.3rem; display: block;">رقم الهاتف</label>
+                        <InputText @bind-Value="setupModel.Phone" class="form-control" placeholder="01xxxxxxxxx" />
+                    </div>
+                </div>
+
+                <div class="form-group mb-3">
+                    <label style="font-size: 0.85rem; font-weight: 600; color: #cbd5e1; margin-bottom: 0.3rem; display: block;">البريد الإلكتروني (اختياري)</label>
+                    <InputText @bind-Value="setupModel.Email" class="form-control" placeholder="admin@pos.local" />
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 form-group mb-3">
+                        <label style="font-size: 0.85rem; font-weight: 600; color: #cbd5e1; margin-bottom: 0.3rem; display: block;">كلمة المرور *</label>
+                        <InputText @bind-Value="setupModel.Password" type="password" class="form-control" placeholder="6 أحرف أو أرقام على الأقل" />
+                    </div>
+                    <div class="col-md-6 form-group mb-3">
+                        <label style="font-size: 0.85rem; font-weight: 600; color: #cbd5e1; margin-bottom: 0.3rem; display: block;">تأكيد كلمة المرور *</label>
+                        <InputText @bind-Value="setupModel.ConfirmPassword" type="password" class="form-control" placeholder="تأكيد كلمة المرور" />
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary mt-2" style="width: 100%; padding: 0.85rem; font-weight: 600; background: linear-gradient(135deg, #4f46e5, #6366f1); border: none; border-radius: 0.5rem;" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الإنشاء والتهيئة...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check-circle me-1"></i> <span>حفظ وإنشاء الحساب والدخول للنظام</span>
+                    }
+                </button>
+
+            </EditForm>
+        </div>
+    }
+    else
+    {
+        <!-- Standard Login Card -->
+        <div class="card" style="width: 420px; padding: 2.25rem; background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 1rem; box-shadow: 0 20px 40px rgba(0,0,0,0.5); color: #f8fafc;">
+            <div class="text-center" style="text-align: center; margin-bottom: 1.5rem;">
+                <div style="width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #4f46e5, #6366f1); display: inline-flex; align-items: center; justify-content: center; font-size: 1.8rem; color: #fff; margin-bottom: 0.75rem; box-shadow: 0 8px 20px rgba(99,102,241,0.4);">
+                    <i class="fa-solid fa-cash-register"></i>
+                </div>
+                <h2 style="margin-top: 0.5rem; font-weight: 700; font-size: 1.4rem; color: #fff;">تسجيل الدخول للنظام</h2>
+                <p style="color: #94a3b8; font-size: 0.85rem; margin-top: 0.25rem;">أدخل اسم المستخدم وكلمة المرور للبدء</p>
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div style="background-color: rgba(239,68,68,0.2); border: 1px solid #ef4444; color: #fca5a5; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1.25rem;">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i> @errorMessage
+                </div>
+            }
+
+            <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600; color: #cbd5e1; margin-bottom: 0.3rem; display: block;">اسم المستخدم</label>
+                    <InputText @bind-Value="loginModel.Username" class="form-control" placeholder="admin" />
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.75rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600; color: #cbd5e1; margin-bottom: 0.3rem; display: block;">كلمة المرور</label>
+                    <InputText @bind-Value="loginModel.Password" type="password" class="form-control" placeholder="******" />
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.9rem; font-weight: 600; background: linear-gradient(135deg, #4f46e5, #6366f1); border: none; border-radius: 0.5rem;" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري التحقق...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-right-to-bracket me-1"></i> <span>تسجيل الدخول</span>
+                    }
+                </button>
+
+            </EditForm>
+        </div>
+    }
 </div>
 
 @code {
-    private LoginRequest loginModel = new("admin", "Admin123!");
+    public class SetupAdminFormModel
+    {
+        public string FullName { get; set; } = "المدير المسؤول";
+        public string UserName { get; set; } = "admin";
+        public string? Email { get; set; } = "admin@pos.local";
+        public string? Phone { get; set; }
+        public string Password { get; set; } = "Admin123!";
+        public string ConfirmPassword { get; set; } = "Admin123!";
+    }
+
+    public class LoginFormModel
+    {
+        public string Username { get; set; } = "admin";
+        public string Password { get; set; } = "Admin123!";
+    }
+
+    private LoginFormModel loginModel = new();
+    private SetupAdminFormModel setupModel = new();
     private string? errorMessage;
     private bool isLoading;
+    private bool isCheckingSetup = true;
+    private bool isSetupRequired = false;
 
-    private async Task HandleLogin()
+    protected override async Task OnInitializedAsync()
     {
+        await CheckSetup();
+    }
+
+    private async Task CheckSetup()
+    {
+        isCheckingSetup = true;
+        errorMessage = null;
+        try
+        {
+            isSetupRequired = await ApiClient.CheckInitialSetupRequiredAsync();
+        }
+        catch (Exception ex)
+        {
+            isSetupRequired = false;
+        }
+        finally
+        {
+            isCheckingSetup = false;
+        }
+    }
+
+    private async Task HandleInitialSetup()
+    {
+        if (string.IsNullOrWhiteSpace(setupModel.FullName) || string.IsNullOrWhiteSpace(setupModel.UserName) || string.IsNullOrWhiteSpace(setupModel.Password))
+        {
+            errorMessage = "الرجاء إدخال كافة الحقول المطلوبة.";
+            return;
+        }
+
+        if (setupModel.Password.Length < 6)
+        {
+            errorMessage = "كلمة المرور يجب ألا تقل عن 6 أحرف أو أرقام.";
+            return;
+        }
+
+        if (setupModel.Password != setupModel.ConfirmPassword)
+        {
+            errorMessage = "كلمة المرور وتأكيد كلمة المرور غير متطابقتين.";
+            return;
+        }
+
         isLoading = true;
         errorMessage = null;
 
         try
         {
-            var res = await ApiClient.LoginAsync(loginModel);
+            var req = new SetupAdminRequest(
+                setupModel.FullName,
+                setupModel.UserName,
+                setupModel.Email,
+                setupModel.Phone,
+                setupModel.Password
+            );
+
+            var (auth, error) = await ApiClient.SetupInitialAdminAsync(req);
+            if (auth is not null)
+            {
+                var role = string.IsNullOrWhiteSpace(auth.Role) ? "Admin" : auth.Role;
+                Guid.TryParse(auth.UserId, out var userId);
+                AuthState.MarkUserAsAuthenticated(auth.AccessToken, auth.FullName ?? string.Empty, role, userId);
+                Nav.NavigateTo("/");
+            }
+            else
+            {
+                // If already setup or other notice, try logging in directly
+                var loginRes = await ApiClient.LoginAsync(new LoginRequest(setupModel.UserName, setupModel.Password));
+                if (loginRes is not null)
+                {
+                    var role = string.IsNullOrWhiteSpace(loginRes.Role) ? "Admin" : loginRes.Role;
+                    Guid.TryParse(loginRes.UserId, out var userId);
+                    AuthState.MarkUserAsAuthenticated(loginRes.AccessToken, loginRes.FullName ?? string.Empty, role, userId);
+                    Nav.NavigateTo("/");
+                }
+                else
+                {
+                    errorMessage = error ?? "فشل إنشاء أو تسجيل الدخول بحساب المدير.";
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"حدث خطأ: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task HandleLogin()
+    {
+        if (string.IsNullOrWhiteSpace(loginModel.Username) || string.IsNullOrWhiteSpace(loginModel.Password))
+        {
+            errorMessage = "الرجاء إدخال اسم المستخدم وكلمة المرور.";
+            return;
+        }
+
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var req = new LoginRequest(loginModel.Username, loginModel.Password);
+            var res = await ApiClient.LoginAsync(req);
             if (res is not null)
             {
-                var role = string.IsNullOrWhiteSpace(res.Role) ? "Cashier" : res.Role;
+                var role = string.IsNullOrWhiteSpace(res.Role) ? "Admin" : res.Role;
                 Guid.TryParse(res.UserId, out var userId);
                 AuthState.MarkUserAsAuthenticated(res.AccessToken, res.FullName ?? string.Empty, role, userId);
                 Nav.NavigateTo("/");
             }
             else
             {
-                errorMessage = "اسم المستخدم أو كلمة المرور غير صحيحة.";
+                errorMessage = "اسم المستخدم أو كلمة المرور غير صحيحة، أو تعذر الاتصال بقاعدة البيانات.";
             }
         }
         catch (Exception ex)

@@ -1,0 +1,430 @@
+@page "/activation"
+@using System.IO
+@inject LicenseStateContainer LicenseState
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="activation-page-container">
+    <div class="activation-card">
+        <!-- Header -->
+        <div class="activation-header">
+            <div class="activation-icon-wrapper">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <h2 class="activation-title">تفعيل نظام الكاشير</h2>
+            <p class="activation-subtitle">POS Supermarket Cashier System — ترخيص البرنامج</p>
+        </div>
+
+        <!-- Machine ID Box -->
+        <div class="machine-id-section">
+            <label class="section-label">معرّف هذا الجهاز (Machine ID):</label>
+            <div class="machine-id-box">
+                <span class="machine-id-text">@LicenseState.MachineId</span>
+                <button type="button" class="btn btn-copy" @onclick="CopyMachineId" title="نسخ معرّف الجهاز">
+                    <i class="fa-regular @(isCopied ? "fa-circle-check text-success" : "fa-copy")"></i>
+                    <span>@(isCopied ? "تم النسخ!" : "نسخ")</span>
+                </button>
+            </div>
+            <small class="text-muted d-block mt-1">
+                <i class="fa-solid fa-circle-info me-1"></i>
+                أرسل هذا المعرّف للشركة المزوّدة للحصول على ملف الترخيص المعتمد الخاص بك.
+            </small>
+        </div>
+
+        <!-- License Status Display -->
+        <div class="license-status-card @(LicenseState.IsLicensed ? "status-valid" : "status-invalid")">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <span class="status-badge @(LicenseState.IsLicensed ? "badge-success" : "badge-danger")">
+                        <i class="fa-solid @(LicenseState.IsLicensed ? "fa-check-circle" : "fa-triangle-exclamation") me-1"></i>
+                        @(LicenseState.IsLicensed ? "الترخيص مفعل وصالح" : GetStatusArabic(LicenseState.CurrentResult.Status))
+                    </span>
+                </div>
+                @if (LicenseState.IsLicensed && LicenseState.CurrentResult.Payload != null)
+                {
+                    <span class="text-muted" style="font-size: 0.85rem;">
+                        @(LicenseState.CurrentResult.RemainingDays.HasValue ? $"متبقي {LicenseState.CurrentResult.RemainingDays} يوم" : "مدى الحياة")
+                    </span>
+                }
+            </div>
+
+            @if (LicenseState.IsLicensed && LicenseState.CurrentResult.Payload != null)
+            {
+                <div class="license-details-grid mt-3">
+                    <div class="detail-item">
+                        <span class="detail-label">العميل:</span>
+                        <span class="detail-value">@LicenseState.CurrentResult.Payload.CustomerName</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">نوع الترخيص:</span>
+                        <span class="detail-value">@LicenseState.CurrentResult.Payload.LicenseType</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">تاريخ الانتهاء:</span>
+                        <span class="detail-value">@(LicenseState.CurrentResult.Payload.ExpiresAtUtc.HasValue ? LicenseState.CurrentResult.Payload.ExpiresAtUtc.Value.ToString("yyyy-MM-dd") : "غير محدد (دائم)")</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">رقم الترخيص:</span>
+                        <span class="detail-value text-truncate" title="@LicenseState.CurrentResult.Payload.LicenseId">@LicenseState.CurrentResult.Payload.LicenseId</span>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <p class="status-message mt-2 mb-0">@LicenseState.CurrentResult.Message</p>
+            }
+        </div>
+
+        <!-- Import / Upload Section -->
+        <div class="activation-action-section mt-4">
+            <label class="section-label">تفعيل بواسطة ملف ترخيص (.lic):</label>
+            <div class="file-upload-dropzone">
+                <InputFile OnChange="HandleFileSelected" accept=".lic,.json" id="licenseFileInput" class="d-none" />
+                <label for="licenseFileInput" class="btn btn-select-file">
+                    <i class="fa-solid fa-file-import me-2"></i>
+                    <span>اختيار ملف الترخيص (Browse .lic)</span>
+                </label>
+                @if (!string.IsNullOrEmpty(selectedFileName))
+                {
+                    <div class="selected-file-info mt-2">
+                        <i class="fa-solid fa-file-lines me-1 text-primary"></i>
+                        <span>@selectedFileName</span>
+                    </div>
+                }
+            </div>
+
+            @if (!string.IsNullOrEmpty(feedbackMessage))
+            {
+                <div class="alert @(isSuccess ? "alert-success" : "alert-danger") mt-3 mb-0" role="alert">
+                    <i class="fa-solid @(isSuccess ? "fa-check-circle" : "fa-circle-exclamation") me-2"></i>
+                    @feedbackMessage
+                </div>
+            }
+
+            <div class="action-buttons mt-4 d-flex gap-2">
+                @if (!string.IsNullOrEmpty(licenseFileContent))
+                {
+                    <button type="button" class="btn btn-primary flex-grow-1" @onclick="ProcessActivation" disabled="@isProcessing">
+                        @if (isProcessing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                            <span>جاري التفعيل...</span>
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-key me-2"></i>
+                            <span>تأكيد التفعيل</span>
+                        }
+                    </button>
+                }
+
+                @if (LicenseState.IsLicensed)
+                {
+                    <button type="button" class="btn btn-success flex-grow-1" @onclick="GoToApp">
+                        <i class="fa-solid fa-cash-register me-2"></i>
+                        <span>الدخول إلى النظام</span>
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" @onclick="RemoveLicense" title="إزالة الترخيص">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .activation-page-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at top right, #1e1b4b 0%, #0f172a 100%);
+        padding: 1.5rem;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .activation-card {
+        background: rgba(30, 41, 59, 0.95);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+        width: 100%;
+        max-width: 580px;
+        padding: 2.2rem;
+        color: #f8fafc;
+    }
+    .activation-header {
+        text-align: center;
+        margin-bottom: 1.8rem;
+    }
+    .activation-icon-wrapper {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #4f46e5, #6366f1);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        color: #ffffff;
+        box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+        margin-bottom: 1rem;
+    }
+    .activation-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin: 0;
+        color: #ffffff;
+    }
+    .activation-subtitle {
+        font-size: 0.85rem;
+        color: #94a3b8;
+        margin-top: 0.3rem;
+    }
+    .section-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #cbd5e1;
+        margin-bottom: 0.4rem;
+        display: block;
+    }
+    .machine-id-box {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 10px;
+        padding: 0.65rem 1rem;
+    }
+    .machine-id-text {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #38bdf8;
+        letter-spacing: 1px;
+    }
+    .btn-copy {
+        background: #1e293b;
+        color: #e2e8f0;
+        border: 1px solid #475569;
+        border-radius: 6px;
+        padding: 0.35rem 0.75rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        transition: all 0.2s;
+    }
+    .btn-copy:hover {
+        background: #334155;
+        color: #ffffff;
+    }
+    .license-status-card {
+        border-radius: 12px;
+        padding: 1rem 1.2rem;
+        margin-top: 1.2rem;
+    }
+    .status-valid {
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .status-invalid {
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .status-badge {
+        font-size: 0.85rem;
+        font-weight: 700;
+        padding: 0.3rem 0.7rem;
+        border-radius: 6px;
+        display: inline-block;
+    }
+    .badge-success {
+        background: #059669;
+        color: #ffffff;
+    }
+    .badge-danger {
+        background: #dc2626;
+        color: #ffffff;
+    }
+    .status-message {
+        font-size: 0.85rem;
+        color: #fca5a5;
+    }
+    .license-details-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.6rem;
+    }
+    .detail-item {
+        background: rgba(15, 23, 42, 0.6);
+        padding: 0.45rem 0.75rem;
+        border-radius: 6px;
+        display: flex;
+        flex-direction: column;
+    }
+    .detail-label {
+        font-size: 0.7rem;
+        color: #94a3b8;
+    }
+    .detail-value {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #f1f5f9;
+    }
+    .file-upload-dropzone {
+        border: 2px dashed #475569;
+        border-radius: 12px;
+        padding: 1.5rem;
+        text-align: center;
+        background: #0f172a;
+        transition: border-color 0.2s;
+    }
+    .file-upload-dropzone:hover {
+        border-color: #6366f1;
+    }
+    .btn-select-file {
+        background: linear-gradient(135deg, #4f46e5, #6366f1);
+        color: #ffffff;
+        font-weight: 600;
+        font-size: 0.9rem;
+        padding: 0.65rem 1.4rem;
+        border-radius: 8px;
+        cursor: pointer;
+        display: inline-block;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        transition: all 0.2s;
+    }
+    .btn-select-file:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(99, 102, 241, 0.45);
+    }
+    .selected-file-info {
+        font-size: 0.85rem;
+        color: #94a3b8;
+    }
+</style>
+
+@code {
+    private bool isCopied = false;
+    private bool isProcessing = false;
+    private string? selectedFileName;
+    private string? licenseFileContent;
+    private string? feedbackMessage;
+    private bool isSuccess = false;
+
+    protected override void OnInitialized()
+    {
+        LicenseState.OnLicenseStateChanged += StateHasChanged;
+    }
+
+    private async Task CopyMachineId()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", LicenseState.MachineId);
+            isCopied = true;
+            StateHasChanged();
+            await Task.Delay(2500);
+            isCopied = false;
+            StateHasChanged();
+        }
+        catch
+        {
+            // Clipboard fallback
+        }
+    }
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        try
+        {
+            var file = e.File;
+            if (file != null)
+            {
+                selectedFileName = file.Name;
+                using var stream = file.OpenReadStream(maxAllowedSize: 1024 * 1024);
+                using var reader = new StreamReader(stream);
+                licenseFileContent = await reader.ReadToEndAsync();
+                feedbackMessage = null;
+                StateHasChanged();
+
+                // Automatically attempt activation upon selecting file
+                await ProcessActivation();
+            }
+        }
+        catch (Exception ex)
+        {
+            feedbackMessage = $"فشل قراءة الملف: {ex.Message}";
+            isSuccess = false;
+        }
+    }
+
+    private async Task ProcessActivation()
+    {
+        if (string.IsNullOrWhiteSpace(licenseFileContent))
+        {
+            feedbackMessage = "الرجاء اختيار ملف الترخيص أولاً.";
+            isSuccess = false;
+            return;
+        }
+
+        isProcessing = true;
+        feedbackMessage = null;
+        StateHasChanged();
+
+        await Task.Delay(300); // UI feedback
+
+        var result = LicenseState.ActivateFromJson(licenseFileContent);
+
+        if (result.IsValid)
+        {
+            isSuccess = true;
+            feedbackMessage = "تم تفعيل البرنامج بنجاح! يمكنك الآن الدخول واستخدام النظام.";
+        }
+        else
+        {
+            isSuccess = false;
+            feedbackMessage = result.Message;
+        }
+
+        isProcessing = false;
+        StateHasChanged();
+    }
+
+    private void RemoveLicense()
+    {
+        LicenseState.RemoveLicense();
+        licenseFileContent = null;
+        selectedFileName = null;
+        feedbackMessage = "تمت إزالة الترخيص بنجاح.";
+        isSuccess = true;
+        StateHasChanged();
+    }
+
+    private void GoToApp()
+    {
+        Nav.NavigateTo("/");
+    }
+
+    private string GetStatusArabic(LicenseValidationStatus status) => status switch
+    {
+        LicenseValidationStatus.Missing => "غير مفعّل (الترخيص مفقود)",
+        LicenseValidationStatus.Expired => "منتهي الصلاحية",
+        LicenseValidationStatus.MachineMismatch => "غير مسجل لهذا الجهاز",
+        LicenseValidationStatus.InvalidSignature => "توقيع غير صالح أو ملف معدّل",
+        LicenseValidationStatus.ClockRollbackDetected => "تم اكتشاف تراجع في ساعة النظام",
+        LicenseValidationStatus.ProductMismatch => "عدم تطابق اسم المنتج",
+        LicenseValidationStatus.VersionNotSupported => "إصدار غير مدعوم بالترخيص",
+        _ => "ترخيص غير صالح"
+    };
+
+    public void Dispose()
+    {
+        LicenseState.OnLicenseStateChanged -= StateHasChanged;
+    }
+}
