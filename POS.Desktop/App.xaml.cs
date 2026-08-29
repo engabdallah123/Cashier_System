@@ -96,6 +96,8 @@ namespace POS.Desktop
                 // Not running, try to launch local WebAPI process
             }
 
+            EnsureLocalDbStarted();
+
             try
             {
                 var appDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -129,6 +131,27 @@ namespace POS.Desktop
             catch
             {
                 // Fallback silently if unable to auto-start process
+            }
+        }
+
+        private static void EnsureLocalDbStarted()
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "sqllocaldb",
+                    Arguments = "start MSSQLLocalDB",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+                using var proc = Process.Start(psi);
+                proc?.WaitForExit(3000);
+            }
+            catch
+            {
+                // Fallback silently if sqllocaldb CLI is unavailable
             }
         }
 

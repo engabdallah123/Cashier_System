@@ -8,21 +8,32 @@
 else
 {
     <CascadingAuthenticationState>
-        <Router AppAssembly="@typeof(AppRoutes).Assembly">
-            <Found Context="routeData">
-                <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
-                    <NotAuthorized>
-                        <Login />
-                    </NotAuthorized>
-                </AuthorizeRouteView>
-                <FocusOnNavigate RouteData="@routeData" Selector="h1" />
-            </Found>
-            <NotFound>
-                <LayoutView Layout="@typeof(MainLayout)">
-                    <p role="alert">Sorry, there's nothing at this address.</p>
+        <AuthorizeView Context="authGlobalCtx">
+            <Authorized>
+                <Router AppAssembly="@typeof(AppRoutes).Assembly">
+                    <Found Context="routeData">
+                        <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)">
+                            <NotAuthorized Context="notAuthRouteCtx">
+                                <LayoutView Layout="@typeof(AuthLayout)">
+                                    <Login />
+                                </LayoutView>
+                            </NotAuthorized>
+                        </AuthorizeRouteView>
+                        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+                    </Found>
+                    <NotFound>
+                        <LayoutView Layout="@typeof(MainLayout)">
+                            <p role="alert">الصفحة غير موجودة.</p>
+                        </LayoutView>
+                    </NotFound>
+                </Router>
+            </Authorized>
+            <NotAuthorized Context="notAuthGlobalCtx">
+                <LayoutView Layout="@typeof(AuthLayout)">
+                    <Login />
                 </LayoutView>
-            </NotFound>
-        </Router>
+            </NotAuthorized>
+        </AuthorizeView>
     </CascadingAuthenticationState>
 }
 
@@ -42,4 +53,3 @@ else
         LicenseState.OnLicenseStateChanged -= OnLicenseChanged;
     }
 }
-

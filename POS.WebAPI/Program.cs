@@ -44,7 +44,7 @@ namespace POS.WebAPI
             var builder = WebApplication.CreateBuilder(args);
 
             // Configure URLs explicitly for production service & desktop app
-            builder.WebHost.UseUrls("http://localhost:5000", "http://127.0.0.1:5000", "https://localhost:7198");
+            builder.WebHost.UseUrls("http://localhost:5000", "https://localhost:7198");
 
             // Configure as Windows Service
             builder.Host.UseWindowsService(options =>

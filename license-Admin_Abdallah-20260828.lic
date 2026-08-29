@@ -1,0 +1,17 @@
+﻿{
+  "Payload": {
+    "LicenseId": "34426F06-AFA1-4B1D-9768-68F3D4E02A2E",
+    "Product": "POS Supermarket Cashier System",
+    "CustomerName": "Admin Abdallah",
+    "MachineId": "POS-FD6C-EC29-31DD-AF38",
+    "LicenseType": 3,
+    "IssuedAtUtc": "2026-08-28T23:10:05.3814412Z",
+    "ExpiresAtUtc": null,
+    "Version": "1.0.0",
+    "MinSupportedVersion": null,
+    "MaxSupportedVersion": null,
+    "Features": null,
+    "Notes": null
+  },
+  "Signature": "LGxzboMsHQ1BAp4qS0kKgtlm55w+YNLDdKSLMveC9YszMixirMiNG/V3z51oUJggk/Q7oQGJwI2qW7zPiZ1SswZAnVxXVtUf/bGqLRr6EoVJB1MrQxvsD7CQWqGUfwaZFl8EO1lqYv1FqBJu9DyBGZmInKbdU5iWWXziw8utaUs4KV8VTD3knlLoPlgCrKnEggFQi1CxyNiGL1i1ATCprgxa4XvrS4PidncgNkKTqu3sRqNvnEx1yFDKg3pJnR0SA0rOBeG3SB82bAKpdRrkPR4EAuo7F+wFslUjXtII6M85XiwykI6xEZ24PKcZY5ZIox2euEnW4L6aIo/0pyA8sMiE8MmJ/S9G+xipHxI/P0ox5CecF/UxtQyacb5ThE65QhG1kbNvDSyiWyJFNzIaT/Qno90UxNUw9B1vRLjzPt/haYFP9q+FE0doTD0NrTFpgdf56ITrdoS51gOlUzvRYT8JE2cwvnXd7JRvG+aCKEzRIfSaFsJew1kI9E0cau4A"
+}
