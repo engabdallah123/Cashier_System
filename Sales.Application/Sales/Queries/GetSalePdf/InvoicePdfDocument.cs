@@ -1,3 +1,4 @@
+using System.Globalization;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
@@ -7,6 +8,7 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
 {
     public class InvoicePdfDocument : IDocument
     {
+        private static readonly CultureInfo ArabicCulture = new("ar-EG");
         private readonly ReceiptResponse _receipt;
         private readonly bool _isThermal;
 
@@ -35,80 +37,148 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
             container.Page(page =>
             {
                 page.ContinuousSize(80, Unit.Millimetre);
-                page.Margin(4, Unit.Millimetre);
+                page.Margin(3, Unit.Millimetre);
                 page.PageColor(Colors.White);
-                page.DefaultTextStyle(x => x.FontSize(8).FontFamily("Arial"));
+                page.DefaultTextStyle(x => x.FontSize(8).FontFamily("Cairo", "Segoe UI", "Tahoma"));
 
                 page.Content().Column(column =>
                 {
-                    // Store Header
-                    column.Item().AlignCenter().Text(_receipt.StoreName).FontSize(13).Bold();
-                    if (!string.IsNullOrWhiteSpace(_receipt.Address))
-                        column.Item().AlignCenter().Text(_receipt.Address).FontSize(7.5f).FontColor(Colors.Grey.Darken2);
-                    if (!string.IsNullOrWhiteSpace(_receipt.Phone))
-                        column.Item().AlignCenter().Text($"Tel: {_receipt.Phone}").FontSize(7.5f).FontColor(Colors.Grey.Darken2);
-
-                    column.Item().PaddingVertical(3).LineHorizontal(1).LineColor(Colors.Black);
-
-                    // Receipt Info
-                    column.Item().AlignCenter().Text("SALES RECEIPT / فاتورة مبيعات").FontSize(9).Bold();
-                    column.Item().Row(row =>
+                    // 1. Brand Logo (takes full width of the receipt)
+                    if (_receipt.LogoBytes != null && _receipt.LogoBytes.Length > 0)
                     {
-                        row.RelativeItem().Text($"Inv #: {_receipt.InvoiceNumber}").FontSize(8).Bold();
-                        row.RelativeItem().AlignRight().Text($"{_receipt.SaleDate:yyyy/MM/dd HH:mm}").FontSize(7.5f);
+                        column.Item().PaddingBottom(3).Image(_receipt.LogoBytes).FitWidth();
+                    }
+                    else if (!string.IsNullOrWhiteSpace(_receipt.StoreName))
+                    {
+                        // 2. Store / Branch Name (fallback when logo is absent)
+                        column.Item().AlignCenter().Text(_receipt.StoreName).FontSize(12).Bold();
+                    }
+
+                    // 3. Address
+                    if (!string.IsNullOrWhiteSpace(_receipt.Address))
+                        column.Item().AlignCenter().Text(_receipt.Address).FontSize(8.5f).FontColor(Colors.Grey.Darken3);
+
+                    // 4. Phone / Hotline
+                    if (!string.IsNullOrWhiteSpace(_receipt.Phone))
+                        column.Item().AlignCenter().Text(_receipt.Phone).FontSize(8.5f).FontColor(Colors.Grey.Darken3);
+
+                    // 5. Boxed Order Number
+                    int orderNum = _receipt.OrderNumber > 0 ? _receipt.OrderNumber : 1;
+                    column.Item().PaddingTop(4).AlignCenter().Border(1.5f).BorderColor(Colors.Black).PaddingVertical(3).PaddingHorizontal(16)
+                        .Text(FormatRtl($"الطلب # {orderNum}")).FontSize(14).ExtraBold();
+
+                    // 6. Print Time
+                    var now = DateTime.Now;
+                    string nowPeriod = now.Hour >= 12 ? "م" : "ص";
+                    column.Item().PaddingTop(3).AlignCenter().Text(t =>
+                    {
+                        t.Span(FormatRtl($"وقت الطباعة: {now:yyyy/MM/dd}  \u202A{now:hh:mm:ss}\u202C {nowPeriod}")).FontSize(7.5f);
                     });
 
-                    if (!string.IsNullOrWhiteSpace(_receipt.CashierName))
-                        column.Item().Text($"Cashier: {_receipt.CashierName}").FontSize(7.5f);
-                    if (!string.IsNullOrWhiteSpace(_receipt.CustomerName))
-                        column.Item().Text($"Customer: {_receipt.CustomerName}").FontSize(7.5f);
-                    column.Item().Text($"Payment: {_receipt.PaymentMethod}").FontSize(7.5f);
+                    // 7. Divider Line
+                    column.Item().PaddingVertical(3).LineHorizontal(0.5f).LineColor(Colors.Black);
 
-                    column.Item().PaddingVertical(3).LineHorizontal(1).LineColor(Colors.Black);
+                    // 8. Invoice Details
+                    string shortInvNum = ExtractShortInvoiceNumber(_receipt.InvoiceNumber, orderNum);
+                    string? orderType = !string.IsNullOrWhiteSpace(_receipt.OrderType) && _receipt.OrderType != "POS Desktop Sale"
+                        ? _receipt.OrderType
+                        : null;
 
-                    // Items Table
+                    column.Item().Row(r =>
+                    {
+                        if (!string.IsNullOrWhiteSpace(orderType))
+                        {
+                            r.RelativeItem().AlignLeft().Text(FormatRtl(orderType)).FontSize(8).Bold();
+                        }
+                        else
+                        {
+                            r.RelativeItem();
+                        }
+                        r.RelativeItem().AlignRight().Text(FormatRtl($"فاتورة # {shortInvNum}")).FontSize(8).Bold();
+                    });
+
+                    var saleDate = _receipt.SaleDate.ToLocalTime();
+                    string salePeriod = saleDate.Hour >= 12 ? "م" : "ص";
+                    column.Item().AlignRight().Text(t =>
+                    {
+                        t.Span(FormatRtl($"التاريخ: {saleDate:yyyy/MM/dd}  \u202A{saleDate:hh:mm:ss}\u202C {salePeriod}")).FontSize(7.5f);
+                    });
+
+                    string cashier = string.IsNullOrWhiteSpace(_receipt.CashierName) ? "الكاشير" : _receipt.CashierName;
+                    column.Item().Row(r =>
+                    {
+                        r.RelativeItem().AlignLeft().Text(FormatRtl($"المنشئ: {cashier}")).FontSize(7.5f);
+                        r.RelativeItem().AlignRight().Text(FormatRtl($"المغلق: {cashier}")).FontSize(7.5f);
+                    });
+
+                    // 9. Divider Line
+                    column.Item().PaddingVertical(3).LineHorizontal(0.5f).LineColor(Colors.Black);
+
+                    // 10. Items Table
                     column.Item().Table(table =>
                     {
                         table.ColumnsDefinition(columns =>
                         {
-                            columns.RelativeColumn(3);   // Item
-                            columns.RelativeColumn(1);   // Qty
-                            columns.RelativeColumn(1.5f); // Price
-                            columns.RelativeColumn(1.5f); // Total
+                            columns.ConstantColumn(40);   // الكمية والوحدة
+                            columns.RelativeColumn(1);   // المنتج ونوع البيع
+                            columns.ConstantColumn(64);  // السعر الإجمالي
                         });
 
                         table.Header(header =>
                         {
-                            header.Cell().Text("Item").Bold().FontSize(7.5f);
-                            header.Cell().AlignRight().Text("Qty").Bold().FontSize(7.5f);
-                            header.Cell().AlignRight().Text("Price").Bold().FontSize(7.5f);
-                            header.Cell().AlignRight().Text("Total").Bold().FontSize(7.5f);
+                            header.Cell().BorderBottom(0.5f).BorderColor(Colors.Black).PaddingBottom(2).AlignLeft().Text("الكمية").FontSize(7.5f).Bold();
+                            header.Cell().BorderBottom(0.5f).BorderColor(Colors.Black).PaddingBottom(2).AlignCenter().Text("المنتج").FontSize(7.5f).Bold();
+                            header.Cell().BorderBottom(0.5f).BorderColor(Colors.Black).PaddingBottom(2).AlignRight().Text("السعر").FontSize(7.5f).Bold();
                         });
 
-                        foreach (var item in _receipt.Items)
+                        for (int i = 0; i < _receipt.Items.Count; i++)
                         {
-                            table.Cell().Text(item.ProductName ?? "Item").FontSize(7.5f);
-                            table.Cell().AlignRight().Text($"{item.Quantity:G29}").FontSize(7.5f);
-                            table.Cell().AlignRight().Text($"{item.UnitPrice:N2}").FontSize(7.5f);
-                            table.Cell().AlignRight().Text($"{item.Total:N2}").FontSize(7.5f).Bold();
+                            var item = _receipt.Items[i];
+                            bool isLast = i == _receipt.Items.Count - 1;
+                            string unitLabel = !string.IsNullOrWhiteSpace(item.UnitName) ? item.UnitName : "قطعة";
+
+                            var cellStyle = (IContainer cell) =>
+                            {
+                                var c = cell;
+                                if (!isLast)
+                                {
+                                    c = c.BorderBottom(0.5f).BorderColor(Colors.Grey.Lighten2);
+                                }
+                                return c.PaddingTop(3.5f).PaddingBottom(3.5f);
+                            };
+
+                            cellStyle(table.Cell()).AlignLeft().Text(FormatRtl($"{item.Quantity:G29} {unitLabel}")).FontSize(7.5f).SemiBold();
+
+                            cellStyle(table.Cell()).AlignRight().Column(col =>
+                            {
+                                string typeBadge = !string.IsNullOrEmpty(item.PriceType) ? $" [{item.PriceType}]" : "";
+                                col.Item().Text(FormatRtl($"{item.ProductName ?? "صنف"}{typeBadge}")).FontSize(8).Bold();
+                                if (!string.IsNullOrWhiteSpace(item.PackagingInfo) && item.PackagingInfo.Contains("كرتونة"))
+                                {
+                                    col.Item().Text(FormatRtl($"التعبئة: {item.PackagingInfo}")).FontSize(6.8f).FontColor(Colors.Grey.Darken2);
+                                }
+                            });
+
+                            cellStyle(table.Cell()).AlignRight().Text($"{item.Total:N2} {_receipt.Currency}").FontSize(8).SemiBold();
                         }
                     });
 
-                    column.Item().PaddingVertical(3).LineHorizontal(1).LineColor(Colors.Black);
+                    // 11. Divider Line
+                    column.Item().PaddingVertical(3).LineHorizontal(0.5f).LineColor(Colors.Black);
 
-                    // Totals Summary
+                    // 12. Totals & Payment
                     column.Item().Row(r =>
                     {
-                        r.RelativeItem().Text("Subtotal:");
-                        r.ConstantItem(70).AlignRight().Text($"{_receipt.SubTotal:N2} {_receipt.Currency}");
+                        r.RelativeItem().AlignRight().Text("الإجمالي").FontSize(9.5f).Bold();
+                        r.ConstantItem(75).AlignRight().Text($"{_receipt.TotalAmount:N2} {_receipt.Currency}").FontSize(9.5f).Bold();
                     });
 
                     if (_receipt.DiscountAmount > 0)
                     {
                         column.Item().Row(r =>
                         {
-                            r.RelativeItem().Text("Discount:");
-                            r.ConstantItem(70).AlignRight().Text($"-{_receipt.DiscountAmount:N2} {_receipt.Currency}");
+                            r.RelativeItem().AlignRight().Text("الخصم").FontSize(8);
+                            r.ConstantItem(75).AlignRight().Text($"-{_receipt.DiscountAmount:N2} {_receipt.Currency}").FontSize(8);
                         });
                     }
 
@@ -116,46 +186,68 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                     {
                         column.Item().Row(r =>
                         {
-                            r.RelativeItem().Text("Tax:");
-                            r.ConstantItem(70).AlignRight().Text($"+{_receipt.TaxAmount:N2} {_receipt.Currency}");
+                            r.RelativeItem().AlignRight().Text("الضريبة").FontSize(8);
+                            r.ConstantItem(75).AlignRight().Text($"+{_receipt.TaxAmount:N2} {_receipt.Currency}").FontSize(8);
                         });
                     }
-
-                    column.Item().PaddingVertical(2).LineHorizontal(1).LineColor(Colors.Black);
 
                     column.Item().Row(r =>
                     {
-                        r.RelativeItem().Text("Grand Total:").FontSize(9.5f).Bold();
-                        r.ConstantItem(80).AlignRight().Text($"{_receipt.TotalAmount:N2} {_receipt.Currency}").FontSize(9.5f).Bold();
+                        r.RelativeItem().AlignRight().Text(FormatRtl($"الدفع - {_receipt.PaymentMethod}")).FontSize(8.5f).SemiBold();
+                        r.ConstantItem(75).AlignRight().Text($"{(_receipt.PaidAmount > 0 ? _receipt.PaidAmount : _receipt.TotalAmount):N2} {_receipt.Currency}").FontSize(8.5f).SemiBold();
                     });
 
-                    if (_receipt.PaidAmount > 0)
+                    if (_receipt.ChangeAmount > 0)
                     {
                         column.Item().Row(r =>
                         {
-                            r.RelativeItem().Text("Paid:");
-                            r.ConstantItem(70).AlignRight().Text($"{_receipt.PaidAmount:N2} {_receipt.Currency}");
-                        });
-                        column.Item().Row(r =>
-                        {
-                            r.RelativeItem().Text("Change:");
-                            r.ConstantItem(70).AlignRight().Text($"{_receipt.ChangeAmount:N2} {_receipt.Currency}");
+                            r.RelativeItem().AlignRight().Text("الباقي").FontSize(8);
+                            r.ConstantItem(75).AlignRight().Text($"{_receipt.ChangeAmount:N2} {_receipt.Currency}").FontSize(8);
                         });
                     }
 
-                    column.Item().PaddingVertical(4).LineHorizontal(1).LineColor(Colors.Black);
+                    var totalQty = (int)_receipt.Items.Sum(i => i.Quantity);
+                    column.Item().PaddingTop(5).PaddingBottom(3).AlignCenter().Layers(layers =>
+                    {
+                        layers.Layer().Svg("<svg viewBox='0 0 100 30' preserveAspectRatio='none' xmlns='http://www.w3.org/2000/svg'><rect x='1' y='1' width='98' height='28' rx='14' ry='14' fill='none' stroke='black' stroke-width='2'/></svg>");
 
-                    // Footer message
+                        layers.PrimaryLayer().PaddingVertical(3).PaddingHorizontal(14).Text(t =>
+                        {
+                            t.Span(FormatRtl("إجمالي عدد المنتجات: ")).FontSize(9).Bold();
+                            t.Span($"{totalQty}").FontSize(10.5f).ExtraBold();
+                        });
+                    });
+
+                    // 13. Footer Line & Message
+                    column.Item().PaddingVertical(3).LineHorizontal(0.5f).LineColor(Colors.Black);
+
                     if (!string.IsNullOrWhiteSpace(_receipt.InvoiceFooterMessage))
                     {
-                        column.Item().AlignCenter().Text(_receipt.InvoiceFooterMessage).FontSize(7.5f).Italic();
+                        column.Item().AlignCenter().Text(FormatRtl(_receipt.InvoiceFooterMessage)).FontSize(8).SemiBold();
                     }
                     else
                     {
-                        column.Item().AlignCenter().Text("Thank you for your visit! / شكراً لزيارتكم").FontSize(8).Bold();
+                        column.Item().AlignCenter().Text(FormatRtl("شكراً لزيارتكم!")).FontSize(8).SemiBold();
                     }
                 });
             });
+        }
+
+        private static string FormatRtl(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+            return $"\u202B\u200F{text}\u200F\u202C";
+        }
+
+        private static string ExtractShortInvoiceNumber(string invoiceNumber, int orderNumber)
+        {
+            if (string.IsNullOrWhiteSpace(invoiceNumber)) return orderNumber.ToString();
+            var parts = invoiceNumber.Split('-');
+            if (parts.Length == 3)
+            {
+                return parts[^1];
+            }
+            return invoiceNumber.Replace("INV-", "");
         }
 
         private void ComposeA4(IDocumentContainer container)
@@ -166,7 +258,7 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                     page.Size(PageSizes.A4);
                     page.Margin(36);
                     page.PageColor(Colors.White);
-                    page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Arial"));
+                    page.DefaultTextStyle(x => x.FontSize(10).FontFamily("Cairo", "Segoe UI", "Arial"));
 
                     page.Header().Element(ComposeHeader);
                     page.Content().Element(ComposeContent);
@@ -176,10 +268,15 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
 
         private void ComposeHeader(IContainer container)
         {
-            var titleStyle = TextStyle.Default.FontSize(20).Bold().FontColor(Colors.Blue.Darken3);
+            var titleStyle = TextStyle.Default.FontSize(20).Bold().FontFamily("Cairo", "Segoe UI", "Arial").FontColor(Colors.Blue.Darken3);
 
             container.Row(row =>
             {
+                if (_receipt.LogoBytes != null && _receipt.LogoBytes.Length > 0)
+                {
+                    row.ConstantItem(70).MaxHeight(60).PaddingRight(10).Image(_receipt.LogoBytes).FitArea();
+                }
+
                 row.RelativeItem().Column(column =>
                 {
                     column.Item().Text(_receipt.StoreName).Style(titleStyle);
@@ -230,7 +327,7 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                     {
                         columns.ConstantColumn(25);  // #
                         columns.RelativeColumn(4);   // Item
-                        columns.RelativeColumn(1);   // Qty
+                        columns.RelativeColumn(2);   // Qty & Packaging
                         columns.RelativeColumn(2);   // Price
                         columns.RelativeColumn(2);   // Total
                     });
@@ -239,7 +336,7 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                     {
                         header.Cell().Element(HeaderCellStyle).Text("#");
                         header.Cell().Element(HeaderCellStyle).Text("Item Description");
-                        header.Cell().Element(HeaderCellStyle).AlignRight().Text("Qty");
+                        header.Cell().Element(HeaderCellStyle).AlignRight().Text("Qty / Unit");
                         header.Cell().Element(HeaderCellStyle).AlignRight().Text("Unit Price");
                         header.Cell().Element(HeaderCellStyle).AlignRight().Text("Total");
 
@@ -255,11 +352,20 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                         table.Cell().Element(c => CellStyle(c, bg)).Text(index.ToString());
                         table.Cell().Element(c => CellStyle(c, bg)).Column(col =>
                         {
-                            col.Item().Text(item.ProductName ?? "Item").Bold();
+                            col.Item().Row(r =>
+                            {
+                                r.RelativeItem().Text(item.ProductName ?? "Item").Bold();
+                                if (!string.IsNullOrWhiteSpace(item.PriceType))
+                                {
+                                    r.AutoItem().Text($" [{item.PriceType}]").FontSize(8.5f).Bold().FontColor(item.PriceType == "جملة" ? Colors.Orange.Darken2 : Colors.Blue.Darken2);
+                                }
+                            });
                             if (!string.IsNullOrWhiteSpace(item.Barcode))
                                 col.Item().Text($"Barcode: {item.Barcode}").FontSize(8).FontColor(Colors.Grey.Darken1);
                         });
-                        table.Cell().Element(c => CellStyle(c, bg)).AlignRight().Text($"{item.Quantity:N2}");
+
+                        string qtyDisplay = !string.IsNullOrWhiteSpace(item.PackagingInfo) ? item.PackagingInfo : $"{item.Quantity:N2} {item.UnitName ?? "قطعة"}";
+                        table.Cell().Element(c => CellStyle(c, bg)).AlignRight().Text(qtyDisplay);
                         table.Cell().Element(c => CellStyle(c, bg)).AlignRight().Text($"{item.UnitPrice:N2} {_receipt.Currency}");
                         table.Cell().Element(c => CellStyle(c, bg)).AlignRight().Text($"{item.Total:N2} {_receipt.Currency}").Bold();
 

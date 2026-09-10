@@ -1,6 +1,8 @@
 using Identity.Application.Auth.Commands.Register;
 using Identity.Application.Users.Commands.ActivateUser;
 using Identity.Application.Users.Commands.DeactivateUser;
+using Identity.Application.Users.Commands.DeleteUser;
+using Identity.Application.Users.Commands.ResetPassword;
 using Identity.Application.Users.Commands.UpdateUserRole;
 using Identity.Application.Users.Queries.GetUserById;
 using Identity.Application.Users.Queries.GetUsers;
@@ -66,6 +68,17 @@ namespace POS.WebAPI.Controllers.Identity
             return NoContent();
         }
 
+        [HttpDelete("{id}")]
+        [Authorize(Roles = "Admin,Manager,Administrator")]
+        public async Task<IActionResult> Delete(string id, CancellationToken ct)
+        {
+            var result = await _sender.Send(new DeleteUserCommand(id), ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return NoContent();
+        }
+
         [HttpPut("{id}/activate")]
         [Authorize(Roles = "Admin,Manager,Administrator")]
         public async Task<IActionResult> Activate(string id, CancellationToken ct)
@@ -87,5 +100,19 @@ namespace POS.WebAPI.Controllers.Identity
 
             return NoContent();
         }
+
+        [HttpPut("{id}/reset-password")]
+        [Authorize(Roles = "Admin,Manager,Administrator")]
+        public async Task<IActionResult> ResetPassword(string id, [FromBody] ResetPasswordRequest request, CancellationToken ct)
+        {
+            var command = new ResetPasswordCommand(id, request.NewPassword);
+            var result = await _sender.Send(command, ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return NoContent();
+        }
     }
+
+    public record ResetPasswordRequest(string NewPassword);
 }

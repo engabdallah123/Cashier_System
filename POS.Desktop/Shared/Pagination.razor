@@ -52,9 +52,17 @@
     [Parameter] public int CurrentPage { get; set; } = 1;
     [Parameter] public int TotalItems { get; set; }
     [Parameter] public int PageSize { get; set; } = 10;
-    [Parameter] public int[] PageSizeOptions { get; set; } = new[] { 5, 10, 20, 50, 100 };
+    [Parameter] public int[] PageSizeOptions { get; set; } = new[] { 5, 10, 15, 20, 50, 100 };
     [Parameter] public EventCallback<int> OnPageChanged { get; set; }
     [Parameter] public EventCallback<int> OnPageSizeChanged { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (PageSize > 0 && !PageSizeOptions.Contains(PageSize))
+        {
+            PageSizeOptions = PageSizeOptions.Append(PageSize).OrderBy(x => x).ToArray();
+        }
+    }
 
     private int TotalPages => Math.Max(1, (int)Math.Ceiling((double)TotalItems / PageSize));
     private int StartIndex => TotalItems == 0 ? 0 : (CurrentPage - 1) * PageSize + 1;

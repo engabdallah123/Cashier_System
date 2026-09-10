@@ -1,6 +1,5 @@
 using Identity.Application.Auth.Commands.Login;
 using Identity.Application.Auth.Commands.RefreshToken;
-using Identity.Application.Auth.Commands.Register;
 using Identity.Application.Auth.Commands.SetupInitialAdmin;
 using Identity.Application.Auth.Queries.GetInitialSetupStatus;
 using MediatR;
@@ -49,15 +48,6 @@ namespace POS.WebAPI.Controllers.Auth
             return Ok(result.Value);
         }
 
-        [HttpPost("register")]
-        public async Task<IActionResult> Register([FromBody] RegisterCommand command, CancellationToken ct)
-        {
-            var result = await _sender.Send(command, ct);
-            if (result.IsFailure)
-                return BadRequest(result.Error);
-
-            return Ok(result.Value);
-        }
 
         [HttpPost("refresh-token")]
         public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenCommand command, CancellationToken ct)

@@ -9,7 +9,8 @@ namespace Purchases.Application.Purchases.Commands.CreatePurchase
         decimal Discount = 0,
         decimal Tax = 0,
         DateTime? ExpiryDate = null,
-        string? BatchNumber = null);
+        string? BatchNumber = null,
+        string? Unit = null);
 
     public sealed record CreatePurchaseCommand(
         string InvoiceNumber,
@@ -21,5 +22,6 @@ namespace Purchases.Application.Purchases.Commands.CreatePurchase
         decimal TaxAmount = 0,
         decimal PaidAmount = 0,
         int PaymentMethod = 1,
-        string? Notes = null) : ICommand<Guid>;
+        string? Notes = null,
+        DateTime? PurchaseDate = null) : ICommand<Guid>;
 }

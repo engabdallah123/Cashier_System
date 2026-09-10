@@ -33,6 +33,8 @@ namespace Inventory.Application.Catalog.Products.Commands.CreateProduct
                 request.CategoryId, request.UnitId,
                 request.PurchasePrice, request.SellingPrice, request.WholesalePrice,
                 request.SupplierId, request.Description,
+                request.BaseUnit, request.ParentUnit, request.ConversionFactor,
+                request.ShelfLifeDays, request.ExpiryAlertDays,
                 request.ReorderLevel, request.MaxStockLevel,
                 request.IsWeighable, request.IsActive, request.TrackExpiry,
                 request.TaxRate, request.ImageUrl);
@@ -41,11 +43,6 @@ namespace Inventory.Application.Catalog.Products.Commands.CreateProduct
                 return Result<Guid>.Failure(productResult.Error);
 
             var product = productResult.Value!;
-
-            if (request.InitialStock > 0)
-            {
-                product.AdjustStock(request.InitialStock, allowNegativeStock: true);
-            }
 
             await _unitOfWork.ProductRepository.AddAsync(product, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);

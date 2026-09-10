@@ -4,6 +4,6 @@ namespace Inventory.Application.Catalog.Categories.Commands.CreateCategory
 {
     public sealed record CreateCategoryCommand(
         string NameAr,
-        string NameEn,
+        string? NameEn = null,
         Guid? ParentCategoryId = null) : ICommand<Guid>;
 }

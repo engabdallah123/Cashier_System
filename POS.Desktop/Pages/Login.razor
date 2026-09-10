@@ -11,7 +11,7 @@
     <!-- Top Theme Switcher & Status -->
     <div class="pos-auth-topbar">
         <div class="pos-brand-badge">
-            <i class="fa-solid fa-cash-register me-2 text-indigo"></i>
+            <i class="fa-solid fa-cash-register text-indigo brand-icon"></i>
             <span>نظام الكاشير المطور</span>
         </div>
         <button type="button" class="btn-theme-toggle" @onclick="ToggleTheme" title="تبديل المظهر (فاتح / داكن)">
@@ -35,7 +35,7 @@
                 </div>
             </div>
         }
-        else if (isSetupRequired)
+        else if (isSetupRequired && systemRequiresSetup)
         {
             <!-- First-Time Admin Setup Wizard -->
             <div class="pos-auth-card pos-setup-card">
@@ -62,7 +62,7 @@
                             <label class="pos-label">الاسم بالكامل <span class="required">*</span></label>
                             <div class="pos-input-wrapper">
                                 <i class="fa-solid fa-id-card pos-input-icon"></i>
-                                <InputText @bind-Value="setupModel.FullName" class="pos-input" placeholder="مثال: عبد الله إبراهيم" />
+                                <InputText @bind-Value="setupModel.FullName" class="pos-input" placeholder="مثال: مدير النظام" />
                             </div>
                         </div>
 
@@ -98,7 +98,7 @@
                             <label class="pos-label">كلمة المرور <span class="required">*</span></label>
                             <div class="pos-input-wrapper">
                                 <i class="fa-solid fa-lock pos-input-icon"></i>
-                                <InputText @bind-Value="setupModel.Password" type="@(showSetupPassword ? "text" : "password")" class="pos-input" placeholder="6 أحرف أو أرقام على الأقل" />
+                                <InputText @bind-Value="setupModel.Password" type="@(showSetupPassword ? "text" : "password")" class="pos-input" placeholder="كلمة المرور (مثال: admin أو 123)" />
                                 <button type="button" class="btn-toggle-eye" @onclick="() => showSetupPassword = !showSetupPassword" tabindex="-1">
                                     <i class="fa-solid @(showSetupPassword ? "fa-eye-slash" : "fa-eye")"></i>
                                 </button>
@@ -191,10 +191,20 @@
                 </EditForm>
 
                 <div class="pos-auth-footer d-flex justify-content-between align-items-center">
-                    <button type="button" class="btn-link-action" @onclick="() => isSetupRequired = true">
-                        <i class="fa-solid fa-user-plus me-1"></i>
-                        <span>إنشاء حساب مدير جديد</span>
-                    </button>
+                    @if (systemRequiresSetup)
+                    {
+                        <button type="button" class="btn-link-action" @onclick="() => isSetupRequired = true">
+                            <i class="fa-solid fa-user-shield me-1"></i>
+                            <span>تهيئة حساب المدير الأول</span>
+                        </button>
+                    }
+                    else
+                    {
+                        <span style="font-size: 0.8rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 0.35rem;">
+                            <i class="fa-solid fa-shield-halved text-indigo"></i>
+                            <span>نظام محمي ومشفّر</span>
+                        </span>
+                    }
                     <button type="button" class="btn-link-action" @onclick="CheckSetup">
                         <i class="fa-solid fa-rotate me-1"></i>
                         <span>فحص الاتصال</span>
@@ -259,6 +269,12 @@
         color: var(--text-primary);
         display: flex;
         align-items: center;
+        gap: 0.65rem;
+    }
+
+    .pos-brand-badge .brand-icon {
+        margin-left: 0.4rem;
+        margin-right: 0.2rem;
     }
 
     .text-indigo {
@@ -580,6 +596,7 @@
     private string? errorMessage;
     private bool isLoading;
     private bool isCheckingSetup = true;
+    private bool systemRequiresSetup = false;
     private bool isSetupRequired = false;
     private bool showLoginPassword = false;
     private bool showSetupPassword = false;
@@ -621,10 +638,12 @@
         errorMessage = null;
         try
         {
-            isSetupRequired = await ApiClient.CheckInitialSetupRequiredAsync();
+            systemRequiresSetup = await ApiClient.CheckInitialSetupRequiredAsync();
+            isSetupRequired = systemRequiresSetup;
         }
         catch (Exception ex)
         {
+            systemRequiresSetup = false;
             isSetupRequired = false;
             errorMessage = $"تعذر الاتصال بخدمة الـ Backend: {ex.Message}";
         }
@@ -642,9 +661,9 @@
             return;
         }
 
-        if (setupModel.Password.Length < 6)
+        if (setupModel.Password.Length < 3)
         {
-            errorMessage = "كلمة المرور يجب ألا تقل عن 6 خانات (أحرف أو أرقام).";
+            errorMessage = "كلمة المرور يجب ألا تقل عن 3 خانات (مثل admin أو 123).";
             return;
         }
 

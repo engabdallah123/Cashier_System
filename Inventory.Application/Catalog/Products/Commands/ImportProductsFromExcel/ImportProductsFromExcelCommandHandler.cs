@@ -108,8 +108,15 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                     unitMap[u.Symbol.Trim()] = u;
             }
 
-            var allExistingProducts = await _unitOfWork.ProductRepository.GetAllAsync();
-            var productMap = allExistingProducts.ToDictionary(p => p.Barcode.Trim(), StringComparer.OrdinalIgnoreCase);
+            var allExistingProducts = await _unitOfWork.ProductRepository.GetAllAsync(cancellationToken);
+            var productMap = new Dictionary<string, Product>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in allExistingProducts)
+            {
+                if (!string.IsNullOrWhiteSpace(p.Barcode))
+                {
+                    productMap[p.Barcode.Trim()] = p;
+                }
+            }
 
             // 3. Open Excel Workbook
             using var excelStream = new MemoryStream(excelBytes);
@@ -131,23 +138,38 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
 
             // 4. Dynamic Column Header Detection (Row 1)
             var headerRow = worksheet.Row(1);
-            int lastCellNum = Math.Max(16, headerRow.LastCellUsed()?.Address.ColumnNumber ?? 16);
+            int lastCellNum = Math.Max(20, headerRow.LastCellUsed()?.Address.ColumnNumber ?? 20);
 
-            int imageColIndex = -1;
-            int descColIndex = -1;
+            var colMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
             for (int col = 1; col <= lastCellNum; col++)
             {
-                var hText = GetCellValue(headerRow.Cell(col)).ToLowerInvariant();
-                if (imageColIndex == -1 && (hText.Contains("صورة") || hText.Contains("صوره") || hText.Contains("image") || hText.Contains("url") || hText.Contains("رابط")))
-                {
-                    imageColIndex = col;
-                }
-                else if (descColIndex == -1 && (hText.Contains("وصف") || hText.Contains("description") || hText.Contains("تفاصيل")))
-                {
-                    descColIndex = col;
-                }
+                var h = GetCellValue(headerRow.Cell(col)).Trim().ToLowerInvariant();
+                if (string.IsNullOrEmpty(h)) continue;
+
+                if (!colMap.ContainsKey("barcode") && (h.Contains("باركود") || h.Contains("barcode"))) colMap["barcode"] = col;
+                else if (!colMap.ContainsKey("nameAr") && (h.Contains("عربي") || h.Contains("namear") || (h.Contains("اسم") && !h.Contains("انجليز") && !h.Contains("إنجليز")))) colMap["nameAr"] = col;
+                else if (!colMap.ContainsKey("nameEn") && (h.Contains("انجليز") || h.Contains("إنجليز") || h.Contains("nameen") || h.Contains("english"))) colMap["nameEn"] = col;
+                else if (!colMap.ContainsKey("category") && (h.Contains("تصنيف") || h.Contains("فئة") || h.Contains("category"))) colMap["category"] = col;
+                else if (!colMap.ContainsKey("parentUnit") && (h.Contains("كبرى") || h.Contains("تعبئة") || h.Contains("تعبئه") || h.Contains("كرتون") || h.Contains("باكت") || h.Contains("parentunit"))) colMap["parentUnit"] = col;
+                else if (!colMap.ContainsKey("baseUnit") && (h.Contains("صغرى") || h.Contains("اساسية") || h.Contains("أساسية") || h.Contains("وحدة") || h.Contains("unit") || h.Contains("baseunit"))) colMap["baseUnit"] = col;
+                else if (!colMap.ContainsKey("conversionFactor") && (h.Contains("معامل") || h.Contains("تحويل") || h.Contains("قطع") || h.Contains("factor"))) colMap["conversionFactor"] = col;
+                else if (!colMap.ContainsKey("purchasePrice") && (h.Contains("شراء") || h.Contains("تكلفة") || h.Contains("تكلفه") || h.Contains("cost") || h.Contains("purchase"))) colMap["purchasePrice"] = col;
+                else if (!colMap.ContainsKey("wholesalePrice") && (h.Contains("جملة") || h.Contains("جمله") || h.Contains("wholesale"))) colMap["wholesalePrice"] = col;
+                else if (!colMap.ContainsKey("sellingPrice") && (h.Contains("بيع") || h.Contains("قطاعي") || h.Contains("price") || h.Contains("selling"))) colMap["sellingPrice"] = col;
+                else if (!colMap.ContainsKey("initialStock") && (h.Contains("أولي") || h.Contains("اولي") || h.Contains("مخزون") || h.Contains("رصيد") || h.Contains("stock") || h.Contains("qty"))) colMap["initialStock"] = col;
+                else if (!colMap.ContainsKey("reorderLevel") && (h.Contains("طلب") || h.Contains("reorder"))) colMap["reorderLevel"] = col;
+                else if (!colMap.ContainsKey("maxStockLevel") && (h.Contains("أقصى") || h.Contains("اقصى") || h.Contains("max"))) colMap["maxStockLevel"] = col;
+                else if (!colMap.ContainsKey("taxRate") && (h.Contains("ضريب") || h.Contains("tax"))) colMap["taxRate"] = col;
+                else if (!colMap.ContainsKey("isWeighable") && (h.Contains("وزن") || h.Contains("ميزان") || h.Contains("weigh"))) colMap["isWeighable"] = col;
+                else if (!colMap.ContainsKey("shelfLifeDays") && (h.Contains("مدة") || h.Contains("مده") || h.Contains("ايام") || h.Contains("أيام") || h.Contains("days"))) colMap["shelfLifeDays"] = col;
+                else if (!colMap.ContainsKey("trackExpiry") && (h.Contains("صلاحية") || h.Contains("صلاحيه") || h.Contains("انتهاء") || h.Contains("expiry"))) colMap["trackExpiry"] = col;
+                else if (!colMap.ContainsKey("expiryAlertDays") && (h.Contains("تنبيه") || h.Contains("alert"))) colMap["expiryAlertDays"] = col;
+                else if (!colMap.ContainsKey("imageUrl") && (h.Contains("صورة") || h.Contains("صوره") || h.Contains("image") || h.Contains("url") || h.Contains("رابط"))) colMap["imageUrl"] = col;
+                else if (!colMap.ContainsKey("description") && (h.Contains("وصف") || h.Contains("description") || h.Contains("تفاصيل"))) colMap["description"] = col;
             }
+
+            int GetCol(string key, int fallback) => colMap.TryGetValue(key, out int col) ? col : fallback;
 
             int lastRow = range.LastRow().RowNumber();
             result.TotalRows = lastRow - 1; // Exclude header
@@ -161,52 +183,43 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
             {
                 var row = worksheet.Row(rowNum);
 
-                string barcode = GetCellValue(row.Cell(1));
-                string nameAr = GetCellValue(row.Cell(2));
-                string nameEn = GetCellValue(row.Cell(3));
-                string categoryName = GetCellValue(row.Cell(4));
-                string unitName = GetCellValue(row.Cell(5));
+                string barcode = GetCellValue(row.Cell(GetCol("barcode", 1)));
+                string nameAr = GetCellValue(row.Cell(GetCol("nameAr", 2)));
+                string nameEn = GetCellValue(row.Cell(GetCol("nameEn", 3)));
+                string categoryName = GetCellValue(row.Cell(GetCol("category", 4)));
+                
+                string baseUnit = colMap.ContainsKey("baseUnit") ? GetCellValue(row.Cell(colMap["baseUnit"])) : GetCellValue(row.Cell(5));
+                if (string.IsNullOrWhiteSpace(baseUnit)) baseUnit = "قطعة";
 
-                decimal purchasePrice = ParseDecimal(GetCellValue(row.Cell(6)), 0);
-                decimal sellingPrice = ParseDecimal(GetCellValue(row.Cell(7)), 0);
-                decimal wholesalePrice = ParseDecimal(GetCellValue(row.Cell(8)), 0);
-                decimal initialStock = ParseDecimal(GetCellValue(row.Cell(9)), 0);
-                decimal reorderLevel = ParseDecimal(GetCellValue(row.Cell(10)), 5);
-                decimal maxStockLevel = ParseDecimal(GetCellValue(row.Cell(11)), 100);
-                decimal taxRate = ParseDecimal(GetCellValue(row.Cell(12)), 0);
+                string parentUnit = colMap.ContainsKey("parentUnit") ? GetCellValue(row.Cell(colMap["parentUnit"])) : "كرتونة";
+                if (string.IsNullOrWhiteSpace(parentUnit)) parentUnit = "كرتونة";
 
-                bool isWeighable = ParseBool(GetCellValue(row.Cell(13)));
-                bool trackExpiry = ParseBool(GetCellValue(row.Cell(14)));
+                int conversionFactor = colMap.ContainsKey("conversionFactor")
+                    ? (int)ParseDecimal(GetCellValue(row.Cell(colMap["conversionFactor"])), 1)
+                    : 1;
+                if (conversionFactor < 1) conversionFactor = 1;
 
-                string col15 = GetCellValue(row.Cell(15));
-                string col16 = GetCellValue(row.Cell(16));
+                decimal purchasePrice = colMap.ContainsKey("purchasePrice") ? ParseDecimal(GetCellValue(row.Cell(colMap["purchasePrice"])), 0) : ParseDecimal(GetCellValue(row.Cell(6)), 0);
+                decimal sellingPrice = colMap.ContainsKey("sellingPrice") ? ParseDecimal(GetCellValue(row.Cell(colMap["sellingPrice"])), 0) : ParseDecimal(GetCellValue(row.Cell(7)), 0);
+                decimal wholesalePrice = colMap.ContainsKey("wholesalePrice") ? ParseDecimal(GetCellValue(row.Cell(colMap["wholesalePrice"])), 0) : ParseDecimal(GetCellValue(row.Cell(8)), 0);
+                decimal initialStock = colMap.ContainsKey("initialStock") ? ParseDecimal(GetCellValue(row.Cell(colMap["initialStock"])), 0) : ParseDecimal(GetCellValue(row.Cell(9)), 0);
+                decimal reorderLevel = colMap.ContainsKey("reorderLevel") ? ParseDecimal(GetCellValue(row.Cell(colMap["reorderLevel"])), 5) : ParseDecimal(GetCellValue(row.Cell(10)), 5);
+                decimal maxStockLevel = colMap.ContainsKey("maxStockLevel") ? ParseDecimal(GetCellValue(row.Cell(colMap["maxStockLevel"])), 100) : ParseDecimal(GetCellValue(row.Cell(11)), 100);
+                decimal taxRate = colMap.ContainsKey("taxRate") ? ParseDecimal(GetCellValue(row.Cell(colMap["taxRate"])), 0) : ParseDecimal(GetCellValue(row.Cell(12)), 0);
 
-                string? rawImageUrl = null;
-                string? description = null;
+                bool isWeighable = colMap.ContainsKey("isWeighable") ? ParseBool(GetCellValue(row.Cell(colMap["isWeighable"]))) : ParseBool(GetCellValue(row.Cell(13)));
+                bool trackExpiry = colMap.ContainsKey("trackExpiry") ? ParseBool(GetCellValue(row.Cell(colMap["trackExpiry"]))) : ParseBool(GetCellValue(row.Cell(14)));
+                int shelfLifeDays = colMap.ContainsKey("shelfLifeDays") ? (int)ParseDecimal(GetCellValue(row.Cell(colMap["shelfLifeDays"])), 0) : 0;
+                int expiryAlertDays = colMap.ContainsKey("expiryAlertDays") ? (int)ParseDecimal(GetCellValue(row.Cell(colMap["expiryAlertDays"])), 3) : 3;
 
-                // Priority 1: Check dynamic header column for Image URL
-                if (imageColIndex > 0)
-                {
-                    var imgVal = GetCellValue(row.Cell(imageColIndex));
-                    if (!string.IsNullOrWhiteSpace(imgVal))
-                    {
-                        rawImageUrl = imgVal;
-                    }
-                }
-
-                // Priority 2: Check dynamic header column for Description
-                if (descColIndex > 0)
-                {
-                    var descVal = GetCellValue(row.Cell(descColIndex));
-                    if (!string.IsNullOrWhiteSpace(descVal))
-                    {
-                        description = descVal;
-                    }
-                }
+                string? rawImageUrl = colMap.ContainsKey("imageUrl") ? GetCellValue(row.Cell(colMap["imageUrl"]), checkHyperlink: true) : null;
+                string? description = colMap.ContainsKey("description") ? GetCellValue(row.Cell(colMap["description"])) : null;
 
                 // Fallback smart detection if header matching did not yield an image URL
                 if (string.IsNullOrWhiteSpace(rawImageUrl))
                 {
+                    string col15 = GetCellValue(row.Cell(15), checkHyperlink: true);
+                    string col16 = GetCellValue(row.Cell(16), checkHyperlink: true);
                     if (IsPossibleImageUrl(col15))
                     {
                         rawImageUrl = col15;
@@ -217,10 +230,9 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                         rawImageUrl = col16;
                         if (string.IsNullOrWhiteSpace(description)) description = col15;
                     }
-                    else
+                    else if (string.IsNullOrWhiteSpace(description))
                     {
-                        if (string.IsNullOrWhiteSpace(description))
-                            description = !string.IsNullOrWhiteSpace(col15) ? col15 : col16;
+                        description = !string.IsNullOrWhiteSpace(col15) ? col15 : col16;
                     }
                 }
 
@@ -315,7 +327,7 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
 
                 // 2. Resolve Unit
                 Guid unitId;
-                string uKey = string.IsNullOrWhiteSpace(unitName) ? "قطعة" : unitName.Trim();
+                string uKey = string.IsNullOrWhiteSpace(baseUnit) ? "قطعة" : baseUnit.Trim();
 
                 if (unitMap.TryGetValue(uKey, out var unit))
                 {
@@ -369,9 +381,12 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                     var updateRes = existingProduct.Update(
                         barcode, nameAr, nameEn, description,
                         categoryId, unitId, null,
+                        baseUnit, parentUnit, conversionFactor,
+                        shelfLifeDays > 0 ? shelfLifeDays : existingProduct.ShelfLifeDays,
+                        expiryAlertDays > 0 ? expiryAlertDays : existingProduct.ExpiryAlertDays,
                         purchasePrice, sellingPrice, wholesalePrice,
                         reorderLevel, maxStockLevel,
-                        isWeighable, isActive: true, trackExpiry, taxRate,
+                        isWeighable, true, trackExpiry, taxRate,
                         finalImageUrl);
 
                     if (updateRes.IsFailure)
@@ -406,8 +421,10 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                         categoryId, unitId,
                         purchasePrice, sellingPrice, wholesalePrice,
                         null, description,
+                        baseUnit, parentUnit, conversionFactor,
+                        shelfLifeDays, expiryAlertDays,
                         reorderLevel, maxStockLevel,
-                        isWeighable, isActive: true, trackExpiry, taxRate, resolvedImageUrl);
+                        isWeighable, true, trackExpiry, taxRate, resolvedImageUrl);
 
                     if (productRes.IsFailure)
                     {
@@ -435,24 +452,35 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
             }
 
             // Bulk Insert Categories and Units if any missing ones were auto-created
-            if (newCategoriesToAdd.Any())
+            if (newCategoriesToAdd.Count > 0)
             {
                 await _unitOfWork.CategoryRepository.AddRangeAsync(newCategoriesToAdd);
             }
 
-            if (newUnitsToAdd.Any())
+            if (newUnitsToAdd.Count > 0)
             {
                 await _unitOfWork.UnitRepository.AddRangeAsync(newUnitsToAdd);
             }
 
-            // Bulk Insert Products using AddRangeAsync
-            if (newProductsToAdd.Any())
+            if (newCategoriesToAdd.Count > 0 || newUnitsToAdd.Count > 0)
             {
-                await _unitOfWork.ProductRepository.AddRangeAsync(newProductsToAdd);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
 
-            // Save all changes in a single high-performance Bulk commit
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            // Chunked Insert Products for fast database performance
+            const int BatchSize = 500;
+            for (int i = 0; i < newProductsToAdd.Count; i += BatchSize)
+            {
+                var batch = newProductsToAdd.Skip(i).Take(BatchSize).ToList();
+                await _unitOfWork.ProductRepository.AddRangeAsync(batch, cancellationToken);
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+
+            // If there were modified products that were not in newProductsToAdd, save any remaining tracked changes
+            if (request.UpdateExisting)
+            {
+                await _unitOfWork.SaveChangesAsync(cancellationToken);
+            }
 
             await _cacheService.RemoveByPrefixAsync("products_", cancellationToken);
             await _cacheService.RemoveByPrefixAsync("product_", cancellationToken);
@@ -549,50 +577,37 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                    v.Contains("/images/") || v.Contains("/image/") || v.Contains("/img/");
         }
 
-        private static string GetCellValue(IXLCell cell)
+        private static string GetCellValue(IXLCell cell, bool checkHyperlink = false)
         {
             if (cell == null || cell.IsEmpty()) return string.Empty;
 
-            // 1. Extract URL address if cell contains an Excel Hyperlink object
-            try
-            {
-                if (cell.HasHyperlink)
-                {
-                    var hyperlink = cell.GetHyperlink();
-                    if (hyperlink != null)
-                    {
-                        var address = hyperlink.ExternalAddress?.ToString()?.Trim();
-                        if (!string.IsNullOrWhiteSpace(address))
-                        {
-                            return address;
-                        }
+            // Direct string conversion first (instantaneous, avoids XML relation scans)
+            var val = cell.Value;
+            if (val.IsBlank) return string.Empty;
 
-                        var href = hyperlink.InternalAddress?.Trim();
-                        if (!string.IsNullOrWhiteSpace(href))
+            var text = val.ToString()?.Trim() ?? string.Empty;
+
+            if (checkHyperlink || string.IsNullOrEmpty(text))
+            {
+                try
+                {
+                    if (cell.HasHyperlink)
+                    {
+                        var hyperlink = cell.GetHyperlink();
+                        if (hyperlink != null)
                         {
-                            return href;
+                            var address = hyperlink.ExternalAddress?.ToString()?.Trim();
+                            if (!string.IsNullOrWhiteSpace(address)) return address;
+
+                            var href = hyperlink.InternalAddress?.Trim();
+                            if (!string.IsNullOrWhiteSpace(href)) return href;
                         }
                     }
                 }
+                catch { }
             }
-            catch { }
 
-            // 2. Try formatted cell string
-            try
-            {
-                var formatted = cell.GetFormattedString();
-                if (!string.IsNullOrWhiteSpace(formatted)) return formatted.Trim();
-            }
-            catch { }
-
-            // 3. Fallback to raw string / value
-            var rawStr = cell.GetValue<string>()?.Trim();
-            if (!string.IsNullOrWhiteSpace(rawStr)) return rawStr;
-
-            var valStr = cell.Value.ToString()?.Trim();
-            if (!string.IsNullOrWhiteSpace(valStr)) return valStr;
-
-            return string.Empty;
+            return text;
         }
 
         private static decimal ParseDecimal(string val, decimal defaultValue)

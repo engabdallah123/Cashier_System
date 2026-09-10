@@ -1,4 +1,6 @@
 using Inventory.Application.Catalog.Products.Commands.ActivateProduct;
+using Inventory.Application.Catalog.Products.Commands.ApplyProductPrices;
+using Inventory.Application.Batches.Queries.GetProductBatches;
 using Inventory.Application.Catalog.Products.Commands.CreateProduct;
 using Inventory.Application.Catalog.Products.Commands.DeactivateProduct;
 using Inventory.Application.Catalog.Products.Commands.DeleteProduct;
@@ -15,6 +17,10 @@ using POS.Shared.Application.IService;
 
 namespace POS.WebAPI.Controllers.Inventory
 {
+    public sealed record ApplyProductPricesRequest(
+        decimal CostPrice,
+        decimal SellingPrice,
+        decimal WholesalePrice);
     public class CreateProductRequest
     {
         public string Barcode { get; set; } = default!;
@@ -24,10 +30,14 @@ namespace POS.WebAPI.Controllers.Inventory
         public Guid CategoryId { get; set; }
         public Guid UnitId { get; set; }
         public Guid? SupplierId { get; set; }
+        public string BaseUnit { get; set; } = "قطعة";
+        public string? ParentUnit { get; set; } = "كرتونة";
+        public int ConversionFactor { get; set; } = 1;
+        public int ShelfLifeDays { get; set; } = 0;
+        public int ExpiryAlertDays { get; set; } = 3;
         public decimal PurchasePrice { get; set; }
         public decimal SellingPrice { get; set; }
         public decimal WholesalePrice { get; set; }
-        public decimal InitialStock { get; set; } = 0;
         public decimal ReorderLevel { get; set; } = 5;
         public decimal MaxStockLevel { get; set; } = 100;
         public bool IsWeighable { get; set; }
@@ -69,15 +79,32 @@ namespace POS.WebAPI.Controllers.Inventory
                 request.CategoryId, request.UnitId,
                 request.PurchasePrice, request.SellingPrice, request.WholesalePrice,
                 request.SupplierId, request.Description,
+                request.BaseUnit, request.ParentUnit, request.ConversionFactor,
+                request.ShelfLifeDays, request.ExpiryAlertDays,
                 request.ReorderLevel, request.MaxStockLevel,
                 request.IsWeighable, request.IsActive, request.TrackExpiry,
-                request.TaxRate, imageUrl, request.InitialStock);
+                request.TaxRate, imageUrl);
 
             var result = await _sender.Send(command, ct);
             if (result.IsFailure)
                 return BadRequest(result.Error);
 
             return CreatedAtAction(nameof(GetById), new { id = result.Value }, result.Value);
+        }
+
+        [HttpPost("upload-image")]
+        [Authorize(Roles = "Admin,Manager,Cashier")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UploadImage(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest(new { message = "لم يتم تحديد أي ملف صورة." });
+
+            var uploadResult = await _fileService.UploadFileAsync(file, "uploads/products");
+            if (uploadResult.IsFailure)
+                return BadRequest(uploadResult.Error);
+
+            return Ok(new { imageUrl = uploadResult.Value });
         }
 
         [HttpPost("json")]
@@ -199,6 +226,29 @@ namespace POS.WebAPI.Controllers.Inventory
                 result.Value,
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 "Products_Import_Template.xlsx");
+        }
+
+        [HttpPut("{id:guid}/prices")]
+        [Authorize(Roles = "Admin,Manager")]
+        public async Task<IActionResult> ApplyPrices(Guid id, [FromBody] ApplyProductPricesRequest request, CancellationToken ct)
+        {
+            var command = new ApplyProductPricesCommand(id, request.CostPrice, request.SellingPrice, request.WholesalePrice);
+            var result = await _sender.Send(command, ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return Ok(new { success = true, message = "تم تطبيق وتحديث أسعار المنتج بنجاح." });
+        }
+
+        [HttpGet("{id:guid}/batches")]
+        public async Task<IActionResult> GetBatches(Guid id, CancellationToken ct)
+        {
+            var query = new GetProductBatchesQuery(id);
+            var result = await _sender.Send(query, ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return Ok(result.Value);
         }
     }
 }

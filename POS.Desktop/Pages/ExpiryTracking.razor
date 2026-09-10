@@ -1,0 +1,1291 @@
+@page "/expiry"
+@page "/purchases/expiry"
+@page "/inventory/expiry"
+@using Microsoft.AspNetCore.Authorization
+@using global::POS.Desktop.Services.Api
+@attribute [Authorize]
+@inject PosApiClient ApiClient
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div>
+    <div class="page-header">
+        <div>
+            <h2 class="page-title">
+                <i class="fa-solid fa-hourglass-half me-2 text-amber"></i> إدارة الصلاحية والهالك والتوالف
+            </h2>
+            <p class="page-subtitle">مراقبة تواريخ انتهاء الصلاحية للمخزون، تسجيل الهالك والتوالف وحساب الخسائر بسعر التكلفة</p>
+        </div>
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-danger" @onclick="OpenManualWasteModal" style="box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);">
+                <i class="fa-solid fa-trash-can me-1"></i> تسجيل هالك / تالف جديد
+            </button>
+            <button class="btn btn-secondary" @onclick="RefreshActiveTab" disabled="@isLoading" title="تحديث البيانات">
+                <i class="fa-solid fa-arrows-rotate me-1 @(isLoading ? "fa-spin" : "")"></i> تحديث
+            </button>
+            <NavLink href="purchases" class="btn btn-secondary">
+                <i class="fa-solid fa-truck-ramp-box me-1"></i> فواتير المشتريات
+            </NavLink>
+            <NavLink href="products" class="btn btn-primary">
+                <i class="fa-solid fa-box me-1"></i> كتالوج المخزون
+            </NavLink>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; flex-wrap: wrap;">
+        <button class="btn @(activeTab == "expiry" ? "btn-primary" : "btn-secondary")" @onclick='() => SwitchTab("expiry")'>
+            <i class="fa-solid fa-calendar-xmark me-1"></i> متابعة صلاحية الدفعات (@expiringProducts.Count)
+        </button>
+        <button class="btn @(activeTab == "waste" ? "btn-primary" : "btn-secondary")" @onclick='() => SwitchTab("waste")'>
+            <i class="fa-solid fa-clipboard-list me-1"></i> سجل وتاريخ الهالك والتوالف (@(wasteReport?.TotalRecordsCount ?? 0))
+        </button>
+    </div>
+
+    @if (activeTab == "expiry")
+    {
+        <!-- Summary KPI Cards -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+            <div class="card" style="padding: 1.1rem; border-right: 4px solid var(--accent-red); background: var(--bg-card); display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(239, 68, 68, 0.15); color: var(--accent-red); display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+                    <i class="fa-solid fa-circle-exclamation"></i>
+                </div>
+                <div>
+                    <div style="font-size: 0.82rem; color: var(--text-secondary); font-weight: 600;">منتهية الصلاحية (بالمخزن)</div>
+                    <div style="font-size: 1.6rem; font-weight: 800; color: var(--accent-red); line-height: 1.2;">
+                        @expiringProducts.Count(p => p.DaysRemaining < 0 && !p.IsDepleted && p.BatchRemainingQuantity > 0)
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="padding: 1.1rem; border-right: 4px solid var(--accent-amber); background: var(--bg-card); display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <div>
+                    <div style="font-size: 0.82rem; color: var(--text-secondary); font-weight: 600;">ستنتهي قريباً (≤ 30 يوم)</div>
+                    <div style="font-size: 1.6rem; font-weight: 800; color: var(--accent-amber); line-height: 1.2;">
+                        @expiringProducts.Count(p => p.DaysRemaining >= 0 && p.DaysRemaining <= 30 && !p.IsDepleted && p.BatchRemainingQuantity > 0)
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="padding: 1.1rem; border-right: 4px solid var(--accent-emerald); background: var(--bg-card); display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+                    <i class="fa-solid fa-shield-check"></i>
+                </div>
+                <div>
+                    <div style="font-size: 0.82rem; color: var(--text-secondary); font-weight: 600;">صالحة وفترة كافية</div>
+                    <div style="font-size: 1.6rem; font-weight: 800; color: var(--accent-emerald); line-height: 1.2;">
+                        @expiringProducts.Count(p => p.DaysRemaining > 30 && !p.IsDepleted && p.BatchRemainingQuantity > 0)
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="padding: 1.1rem; border-right: 4px solid #64748b; background: var(--bg-card); display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(100, 116, 139, 0.15); color: #94a3b8; display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+                    <i class="fa-solid fa-box-archive"></i>
+                </div>
+                <div>
+                    <div style="font-size: 0.82rem; color: var(--text-secondary); font-weight: 600;">تم إهلاكها / مستهلكة</div>
+                    <div style="font-size: 1.6rem; font-weight: 800; color: #94a3b8; line-height: 1.2;">
+                        @expiringProducts.Count(p => p.IsDepleted || p.BatchRemainingQuantity <= 0)
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="padding: 1.1rem; border-right: 4px solid var(--accent-indigo); background: var(--bg-card); display: flex; align-items: center; gap: 1rem;">
+                <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(99, 102, 241, 0.15); color: var(--accent-indigo); display: flex; align-items: center; justify-content: center; font-size: 1.4rem;">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                </div>
+                <div>
+                    <div style="font-size: 0.82rem; color: var(--text-secondary); font-weight: 600;">إجمالي البنود المتتبعة</div>
+                    <div style="font-size: 1.6rem; font-weight: 800; color: var(--text-primary); line-height: 1.2;">
+                        @expiringProducts.Count
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search & Filter Bar -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 1rem;">
+            <div class="search-box" style="max-width: 380px; flex: 1;">
+                <i class="fa-solid fa-search"></i>
+                <input @bind="searchQuery" @bind:event="oninput" @onkeyup="FilterData" placeholder="ابحث باسم المنتج أو الباركود أو رقم التشغيلة أو المورد..." />
+            </div>
+
+            <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                <button class="btn btn-sm @(statusFilter == "all" ? "btn-primary" : "btn-secondary")" @onclick='() => SetFilter("all")'>
+                    الكل (@expiringProducts.Count)
+                </button>
+                <button class="btn btn-sm @(statusFilter == "expired" ? "btn-danger" : "btn-secondary")" @onclick='() => SetFilter("expired")'>
+                    🔴 منتهية الصلاحية بالمخزن (@expiringProducts.Count(p => p.DaysRemaining < 0 && !p.IsDepleted && p.BatchRemainingQuantity > 0))
+                </button>
+                <button class="btn btn-sm @(statusFilter == "soon" ? "btn-warning" : "btn-secondary")" @onclick='() => SetFilter("soon")'>
+                    🟡 ستنتهي قريباً (@expiringProducts.Count(p => p.DaysRemaining >= 0 && p.DaysRemaining <= 30 && !p.IsDepleted && p.BatchRemainingQuantity > 0))
+                </button>
+                <button class="btn btn-sm @(statusFilter == "valid" ? "btn-success" : "btn-secondary")" @onclick='() => SetFilter("valid")'>
+                    🟢 صالحة (@expiringProducts.Count(p => p.DaysRemaining > 30 && !p.IsDepleted && p.BatchRemainingQuantity > 0))
+                </button>
+                <button class="btn btn-sm @(statusFilter == "depleted" ? "btn-primary" : "btn-secondary")" style="@(statusFilter == "depleted" ? "background: #475569; border-color: #64748b;" : "")" @onclick='() => SetFilter("depleted")'>
+                    ⚪ تم إهلاكها / مستهلكة (@expiringProducts.Count(p => p.IsDepleted || p.BatchRemainingQuantity <= 0))
+                </button>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>اسم المنتج</th>
+                        <th>الباركود</th>
+                        <th>تاريخ الصلاحية</th>
+                        <th>الحالة</th>
+                        <th>الأيام المتبقية</th>
+                        <th>كمية الدفعة (Batch)</th>
+                        <th>إجمالي المخزن</th>
+                        <th>رقم التشغيلة (Batch)</th>
+                        <th>فاتورة الشراء</th>
+                        <th>المورد</th>
+                        <th style="text-align: center; width: 120px;">الإجراء</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (isLoading)
+                    {
+                        <tr>
+                            <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                                <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
+                                <p style="margin-top: 0.5rem;">جاري فحص وتحديث سجلات الصلاحية...</p>
+                            </td>
+                        </tr>
+                    }
+                    else if (!filteredList.Any())
+                    {
+                        <tr>
+                            <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                                <i class="fa-solid fa-shield-check" style="font-size: 2.5rem; color: var(--accent-emerald); margin-bottom: 0.5rem; display: block;"></i>
+                                <div style="font-size: 1rem; font-weight: 700; color: var(--text-primary);">لا توجد دفعات مسجلة تطابق فلتر البحث المحدد.</div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in PagedItems)
+                        {
+                            bool isDepleted = item.IsDepleted || item.BatchRemainingQuantity <= 0;
+                            bool isExpired = item.DaysRemaining < 0 && !isDepleted;
+                            bool isSoon = item.DaysRemaining >= 0 && item.DaysRemaining <= 30 && !isDepleted;
+
+                            <tr style="background: @(isDepleted ? "rgba(100, 116, 139, 0.12)" : isExpired ? "rgba(239, 68, 68, 0.05)" : isSoon ? "rgba(245, 158, 11, 0.05)" : "transparent"); opacity: @(isDepleted ? "0.85" : "1");">
+                                <td style="font-weight: 700; color: @(isDepleted ? "#94a3b8" : "var(--text-primary)");">
+                                    @item.ProductName
+                                </td>
+                                <td><code>@(string.IsNullOrWhiteSpace(item.Barcode) ? "-" : item.Barcode)</code></td>
+                                <td style="font-weight: 700; color: @(isDepleted ? "#94a3b8" : isExpired ? "var(--accent-red)" : isSoon ? "var(--accent-amber)" : "var(--accent-emerald)");">
+                                    <i class="fa-regular fa-calendar-xmark me-1"></i> @item.ExpiryDate.ToString("yyyy-MM-dd")
+                                </td>
+                                <td>
+                                    @if (isDepleted)
+                                    {
+                                        if (item.WastedQuantity > 0)
+                                        {
+                                            <span class="badge" style="background: #475569; color: #f8fafc;">
+                                                <i class="fa-solid fa-trash-can me-1"></i> تم الإهلاك بالكامل
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge" style="background: #64748b; color: #f8fafc;">
+                                                <i class="fa-solid fa-box-archive me-1"></i> نفدت الكمية (مُباع)
+                                            </span>
+                                        }
+                                    }
+                                    else if (isExpired)
+                                    {
+                                        <span class="badge badge-red"><i class="fa-solid fa-circle-xmark me-1"></i> منتهية الصلاحية</span>
+                                    }
+                                    else if (isSoon)
+                                    {
+                                        <span class="badge badge-amber"><i class="fa-solid fa-triangle-exclamation me-1"></i> ستنتهي قريباً</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-green"><i class="fa-solid fa-circle-check me-1"></i> صالحة</span>
+                                    }
+                                </td>
+                                <td style="font-weight: 700; color: @(isDepleted ? "#94a3b8" : isExpired ? "var(--accent-red)" : isSoon ? "var(--accent-amber)" : "var(--text-secondary)");">
+                                    @(isExpired ? $"منتهية منذ {Math.Abs(item.DaysRemaining)} يوم" : isSoon ? $"باقي {item.DaysRemaining} يوم فقط" : isDepleted ? (item.DaysRemaining < 0 ? $"انتهت منذ {Math.Abs(item.DaysRemaining)} يوم" : $"متبقي {item.DaysRemaining} يوم") : $"باقي {item.DaysRemaining} يوم")
+                                </td>
+                                <!-- كمية الدفعة (Batch) -->
+                                <td>
+                                    @if (isDepleted)
+                                    {
+                                        <span style="font-weight: 700; color: #94a3b8;">
+                                            0 من @item.BatchOriginalQuantity.ToString("N0") قطعة
+                                        </span>
+                                        @if (item.WastedQuantity > 0)
+                                        {
+                                            <div style="font-size: 0.72rem; color: #f87171;">(مُهلك: @item.WastedQuantity.ToString("N0"))</div>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-indigo" style="font-size: 0.85rem; font-weight: 700;">
+                                            <i class="fa-solid fa-boxes-stacked me-1"></i> @item.BatchRemainingQuantity.ToString("N0") قطعة
+                                        </span>
+                                        @if (item.BatchOriginalQuantity > item.BatchRemainingQuantity)
+                                        {
+                                            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
+                                                (أصلها @item.BatchOriginalQuantity.ToString("N0"))
+                                            </div>
+                                        }
+                                    }
+                                </td>
+                                <!-- إجمالي المخزن الكلي للمنتج -->
+                                <td style="font-weight: 700; color: @(isDepleted ? "#cbd5e1" : "var(--text-primary)");">
+                                    @item.TotalProductStock.ToString("N0") قطعة
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.BatchNumber))
+                                    {
+                                        <span class="badge badge-indigo" style="font-family: monospace;">@item.BatchNumber</span>
+                                    }
+                                    else
+                                    {
+                                        <span style="color: var(--text-muted);">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.InvoiceNumber))
+                                    {
+                                        <code style="background: rgba(255,255,255,0.05); padding: 0.15rem 0.4rem; border-radius: 4px;">@item.InvoiceNumber</code>
+                                    }
+                                    else
+                                    {
+                                        <span style="color: var(--text-muted);">-</span>
+                                    }
+                                </td>
+                                <td style="color: var(--text-secondary);">
+                                    @(string.IsNullOrWhiteSpace(item.SupplierName) ? "-" : item.SupplierName)
+                                </td>
+                                <td style="text-align: center;">
+                                    @if (isDepleted)
+                                    {
+                                        <button class="btn btn-sm btn-secondary" style="font-size: 0.78rem; padding: 0.28rem 0.65rem; background: #475569; border: 1px solid #64748b; color: #f8fafc;" title="عرض تفاصيل الدفعة وحركات الهالك" @onclick="() => OpenBatchDetailsModal(item)">
+                                            <i class="fa-solid fa-eye me-1"></i> تفاصيل
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-danger" style="font-size: 0.78rem; padding: 0.28rem 0.65rem;" title="تسجيل إهلاك هذه الدفعة" @onclick="() => PreselectBatchForWaste(item)">
+                                            <i class="fa-solid fa-trash-can me-1"></i> إهلاك
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <Pagination CurrentPage="@currentPage" TotalItems="@filteredList.Count" PageSize="@pageSize" OnPageChanged="@(p => currentPage = p)" OnPageSizeChanged="HandlePageSizeChanged" />
+    }
+    else if (activeTab == "waste")
+    {
+        <!-- Waste Report Summary Banner -->
+        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <div style="font-size: 0.9rem; color: var(--text-secondary); font-weight: 600;">
+                    <i class="fa-solid fa-triangle-exclamation text-red me-1"></i> إجمالي خسائر وتكاليف الهالك المسجلة:
+                </div>
+                <div style="font-size: 1.8rem; font-weight: 800; color: var(--accent-red); margin-top: 0.25rem;">
+                    @((wasteReport?.TotalLossAmount ?? 0).ToString("N2")) ج.م
+                </div>
+                <small style="color: var(--text-muted);">محسوبة بدقة وفقاً لتكلفة سعر الشراء للوحدة لكل تشغيلة</small>
+            </div>
+            <div style="font-size: 0.9rem; color: var(--text-secondary);">
+                عدد حركات الإهلاك: <strong style="color: var(--text-primary);">@(wasteReport?.TotalRecordsCount ?? 0)</strong> حركة
+            </div>
+        </div>
+
+        <!-- Waste Filters -->
+        <div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap;">
+            <div class="search-box" style="flex: 1; min-width: 250px;">
+                <i class="fa-solid fa-search"></i>
+                <input @bind="wasteSearchQuery" @bind:event="oninput" placeholder="بحث بالاسم أو الباركود أو التشغيلة..." />
+            </div>
+            <div style="min-width: 180px;">
+                <select class="form-select" @bind="wasteReasonFilter" @bind:after="LoadWasteReportAsync">
+                    <option value="">-- كافة الأسباب --</option>
+                    <option value="انتهاء صلاحية">انتهاء صلاحية (Expired)</option>
+                    <option value="تلف سوء تخزين">تلف سوء تخزين</option>
+                    <option value="كسر أو تلف أثناء النقل">كسر أو تلف أثناء النقل</option>
+                    <option value="تالف تصنيع / عيب منتج">تالف تصنيع / عيب منتج</option>
+                    <option value="أخرى">أخرى</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Waste Table -->
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>التاريخ والوقت</th>
+                        <th>اسم المنتج</th>
+                        <th>الباركود</th>
+                        <th>رقم التشغيلة</th>
+                        <th style="text-align: center;">الكمية المهلكة</th>
+                        <th>الوحدة</th>
+                        <th>تكلفة الوحدة (شراء)</th>
+                        <th>إجمالي الخسارة</th>
+                        <th>سبب الهالك</th>
+                        <th>المصدر</th>
+                        <th>ملاحظات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (isLoadingWaste)
+                    {
+                        <tr>
+                            <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                                <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
+                                <p style="margin-top: 0.5rem;">جاري تحميل سجل الهالك...</p>
+                            </td>
+                        </tr>
+                    }
+                    else if (!FilteredWasteItems.Any())
+                    {
+                        <tr>
+                            <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                                <i class="fa-solid fa-box-open" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 0.5rem; display: block;"></i>
+                                <div style="font-size: 1rem; font-weight: 700; color: var(--text-primary);">لا توجد حركات إهلاك مسجلة تطابق البحث.</div>
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var w in PagedWasteItems)
+                        {
+                            <tr>
+                                <td style="white-space: nowrap; font-size: 0.85rem;">@w.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td style="font-weight: 700; color: var(--text-primary);">@w.ProductName</td>
+                                <td><code>@(string.IsNullOrWhiteSpace(w.ProductBarcode) ? "-" : w.ProductBarcode)</code></td>
+                                <td><code>@(string.IsNullOrWhiteSpace(w.BatchNumber) ? "افتراضي" : w.BatchNumber)</code></td>
+                                <td style="text-align: center; font-weight: 700; color: var(--accent-red);">@w.Quantity.ToString("N0")</td>
+                                <td>@(w.Unit == "carton" ? "كرتونة" : "قطعة")</td>
+                                <td style="color: var(--text-secondary);">@w.UnitCost.ToString("N2") ج.م</td>
+                                <td style="font-weight: 700; color: var(--accent-red);">@w.TotalCost.ToString("N2") ج.م</td>
+                                <td><span class="badge badge-amber">@w.Reason</span></td>
+                                <td>
+                                    @if (w.Source == "Notification")
+                                    {
+                                        <span class="badge badge-purple"><i class="fa-solid fa-bell me-1"></i> إشعار</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-blue"><i class="fa-solid fa-hand me-1"></i> يدوي</span>
+                                    }
+                                </td>
+                                <td style="font-size: 0.82rem; color: var(--text-secondary); max-width: 200px;">
+                                    @(string.IsNullOrWhiteSpace(w.Notes) ? "-" : w.Notes)
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <Pagination CurrentPage="@wasteCurrentPage" TotalItems="@FilteredWasteItems.Count()" PageSize="@pageSize" OnPageChanged="@(p => wasteCurrentPage = p)" OnPageSizeChanged="HandleWastePageSizeChanged" />
+    }
+</div>
+
+<!-- Manual Record Waste Modal -->
+@if (showManualWasteModal)
+{
+    <div class="modal-overlay" @onclick="CloseManualWasteModal">
+        <div class="modal-card" style="width: 580px; max-width: 95vw;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--accent-red);">
+                    <i class="fa-solid fa-trash-can me-2"></i>
+                    تسجيل هالك وتوالف المخزون
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseManualWasteModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(manualWasteError))
+                {
+                    <div class="alert alert-danger" style="margin-bottom: 1rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @manualWasteError
+                    </div>
+                }
+
+                <!-- Barcode Scanner Input with Auto-focus -->
+                <div class="form-group" style="margin-bottom: 1rem; background: rgba(99, 102, 241, 0.07); padding: 0.85rem; border-radius: 8px; border: 1px dashed var(--accent-indigo);">
+                    <label class="form-label" style="font-weight: 700; color: var(--accent-indigo); display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem;">
+                        <span><i class="fa-solid fa-barcode me-1"></i> مسح باركود المنتج (سكانر أو كتابة)</span>
+                        <span style="font-size: 0.75rem; font-weight: normal; color: var(--text-secondary);">اضغط Enter للتحديد التلقائي</span>
+                    </label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input id="waste-barcode-input"
+                               type="text"
+                               class="form-control"
+                               placeholder="مرر الباركود بالسكانر أو اكتب الباركود واضغط Enter..."
+                               @bind="wasteBarcodeQuery"
+                               @bind:event="oninput"
+                               @onkeyup="HandleWasteBarcodeKeyUp"
+                               style="font-size: 1rem; font-weight: 700;" />
+                        <button type="button" class="btn btn-primary" @onclick="SearchProductByBarcodeAsync" title="بحث بالباركود">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" style="font-weight: 600;">أو اختر المنتج من القائمة <span class="text-red">*</span></label>
+                    <select class="form-select" value="@selectedWasteProductId" @onchange="OnWasteProductSelected">
+                        <option value="">-- اختر المنتج من المخزن --</option>
+                        @foreach (var prod in allProducts)
+                        {
+                            <option value="@prod.Id.ToString()">@prod.NameAr - (المتاح: @prod.QuantityInStock.ToString("N0") @prod.BaseUnit)</option>
+                        }
+                    </select>
+                </div>
+
+                @if (selectedWasteProduct != null)
+                {
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label" style="font-weight: 600;">اختر الدفعة / التشغيلة المراد الإهلاك منها <span class="text-red">*</span></label>
+                        @if (isLoadingBatches)
+                        {
+                            <div style="font-size: 0.85rem; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin me-1"></i> جاري تحميل دفعات المنتج...</div>
+                        }
+                        else if (!productBatches.Any())
+                        {
+                            <div class="alert alert-warning" style="font-size: 0.85rem; margin-bottom: 0;">
+                                لا توجد دفعات نشطة بمخزون متبقي لهذا المنتج!
+                            </div>
+                        }
+                        else
+                        {
+                            <select class="form-select" value="@selectedWasteBatchId" @onchange="OnWasteBatchSelected">
+                                <option value="">-- اختر الدفعة --</option>
+                                @foreach (var b in productBatches)
+                                {
+                                    <option value="@b.Id.ToString()">
+                                        دفعة: @(string.IsNullOrWhiteSpace(b.BatchNumber) ? "افتراضي" : b.BatchNumber) |
+                                        متبقي: @b.RemainingQuantity.ToString("N0") قطعة |
+                                        صلاحية: @(b.ExpiryDate?.ToString("yyyy-MM-dd") ?? "غير محدد") |
+                                        تكلفة: @b.UnitCost.ToString("N2") ج.م
+                                    </option>
+                                }
+                            </select>
+                        }
+                    </div>
+
+                    @if (selectedWasteBatch != null)
+                    {
+                        <div style="background: rgba(99, 102, 241, 0.08); border-radius: 0.5rem; padding: 0.85rem; margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                                <span>الكمية المتبقية بالدفعة:</span>
+                                <strong>@selectedWasteBatch.RemainingQuantity.ToString("N0") قطعة</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.35rem;">
+                                <span>تكلفة شراء القطعة الواحدة:</span>
+                                <strong style="color: var(--accent-blue);">@selectedWasteBatch.UnitCost.ToString("N2") ج.م</strong>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(selectedWasteProduct.ParentUnit) && selectedWasteProduct.ConversionFactor > 1)
+                            {
+                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary);">
+                                    <span>معامل الكرتونة:</span>
+                                    <span>1 @selectedWasteProduct.ParentUnit = @selectedWasteProduct.ConversionFactor @selectedWasteProduct.BaseUnit</span>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-weight: 600;">الوحدة</label>
+                                <select class="form-select" @bind="wasteSelectedUnit">
+                                    <option value="piece">@(string.IsNullOrWhiteSpace(selectedWasteProduct.BaseUnit) ? "قطعة" : selectedWasteProduct.BaseUnit)</option>
+                                    @if (!string.IsNullOrWhiteSpace(selectedWasteProduct.ParentUnit) && selectedWasteProduct.ConversionFactor > 1)
+                                    {
+                                        <option value="carton">@selectedWasteProduct.ParentUnit (كرتونة = @selectedWasteProduct.ConversionFactor قطعة)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label class="form-label" style="font-weight: 600;">الكمية التالفة <span class="text-red">*</span></label>
+                                <input type="number" step="1" min="1" class="form-control" style="font-size: 1.1rem; font-weight: 700;" @bind="wasteInputQuantity" />
+                            </div>
+                        </div>
+
+                        <!-- Cost Preview -->
+                        <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 0.5rem; padding: 0.75rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.85rem; color: var(--text-secondary);">إجمالي خسارة الهالك المتوقعة (بسعر الشراء):</span>
+                            <span style="font-size: 1.1rem; font-weight: 800; color: var(--accent-red);">
+                                @CalculatedLossAmount.ToString("N2") ج.م
+                            </span>
+                        </div>
+                    }
+
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label" style="font-weight: 600;">سبب الهالك</label>
+                        <select class="form-select" @bind="wasteModalReason">
+                            <option value="انتهاء صلاحية">انتهاء صلاحية (Expired)</option>
+                            <option value="تلف سوء تخزين">تلف سوء تخزين</option>
+                            <option value="كسر أو تلف أثناء النقل">كسر أو تلف أثناء النقل</option>
+                            <option value="تالف تصنيع / عيب منتج">تالف تصنيع / عيب منتج</option>
+                            <option value="أخرى">أخرى</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" style="font-weight: 600;">ملاحظات إضافية</label>
+                        <textarea class="form-control" rows="2" placeholder="اكتب تفاصيل أو أسباب إضافية..." @bind="wasteModalNotes"></textarea>
+                    </div>
+                }
+            </div>
+
+            <div class="modal-footer" style="display: flex; justify-content: space-between;">
+                <button type="button" class="btn btn-secondary" @onclick="CloseManualWasteModal" disabled="@isSubmittingManualWaste">
+                    إلغاء
+                </button>
+                <button type="button" class="btn btn-danger" @onclick="SubmitManualWaste" disabled="@(!CanSubmitManualWaste || isSubmittingManualWaste)">
+                    @if (isSubmittingManualWaste)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        <span>جاري الحفظ وخصم المخزون...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-trash-can me-1"></i>
+                        <span>تأكيد تسجيل الهالك</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Batch Details Modal -->
+@if (showBatchDetailsModal && selectedBatchDetail != null)
+{
+    <div class="modal-overlay" @onclick="CloseBatchDetailsModal">
+        <div class="modal-card" style="width: 720px; max-width: 95vw;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fa-solid fa-eye text-indigo"></i>
+                        <span>تفاصيل الدفعة وسجل الهالك</span>
+                    </h3>
+                    <div style="font-size: 0.85rem; color: var(--text-muted); margin-top: 0.25rem;">
+                        @selectedBatchDetail.ProductName - كود الباركود: <code>@(string.IsNullOrWhiteSpace(selectedBatchDetail.Barcode) ? "-" : selectedBatchDetail.Barcode)</code>
+                    </div>
+                </div>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseBatchDetailsModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <!-- 4 KPI Cards for Batch Quantities -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+                    <div class="card" style="padding: 0.85rem; background: var(--bg-card); text-align: center; border-radius: 8px;">
+                        <div style="font-size: 0.78rem; color: var(--text-secondary);">الكمية الأصلية للدفعة</div>
+                        <div style="font-size: 1.3rem; font-weight: 800; color: var(--text-primary); margin-top: 0.2rem;">
+                            @selectedBatchDetail.BatchOriginalQuantity.ToString("N0") <small style="font-size: 0.75rem;">قطعة</small>
+                        </div>
+                    </div>
+                    <div class="card" style="padding: 0.85rem; background: var(--bg-card); text-align: center; border-radius: 8px;">
+                        <div style="font-size: 0.78rem; color: var(--text-secondary);">المتبقي بالدفعة</div>
+                        <div style="font-size: 1.3rem; font-weight: 800; color: @(selectedBatchDetail.BatchRemainingQuantity <= 0 ? "#ef4444" : "#10b981"); margin-top: 0.2rem;">
+                            @selectedBatchDetail.BatchRemainingQuantity.ToString("N0") <small style="font-size: 0.75rem;">قطعة</small>
+                        </div>
+                    </div>
+                    <div class="card" style="padding: 0.85rem; background: var(--bg-card); text-align: center; border-radius: 8px;">
+                        <div style="font-size: 0.78rem; color: var(--text-secondary);">إجمالي رصيد المخزن</div>
+                        <div style="font-size: 1.3rem; font-weight: 800; color: var(--accent-indigo); margin-top: 0.2rem;">
+                            @selectedBatchDetail.TotalProductStock.ToString("N0") <small style="font-size: 0.75rem;">قطعة</small>
+                        </div>
+                    </div>
+                    <div class="card" style="padding: 0.85rem; background: var(--bg-card); text-align: center; border-radius: 8px;">
+                        <div style="font-size: 0.78rem; color: var(--text-secondary);">إجمالي الهالك المسجل</div>
+                        <div style="font-size: 1.3rem; font-weight: 800; color: var(--accent-red); margin-top: 0.2rem;">
+                            @selectedBatchDetail.WastedQuantity.ToString("N0") <small style="font-size: 0.75rem;">قطعة</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Batch Details Info List -->
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; font-size: 0.88rem;">
+                        <div>
+                            <span style="color: var(--text-secondary);">رقم التشغيلة (Batch):</span>
+                            <strong style="color: var(--text-primary); margin-right: 0.4rem;">
+                                <code>@(string.IsNullOrWhiteSpace(selectedBatchDetail.BatchNumber) ? "افتراضي" : selectedBatchDetail.BatchNumber)</code>
+                            </strong>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-secondary);">تكلفة الشراء (للقطعة):</span>
+                            <strong style="color: var(--accent-blue); margin-right: 0.4rem;">@selectedBatchDetail.UnitCost.ToString("N2") ج.م</strong>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-secondary);">تاريخ انتهاء الصلاحية:</span>
+                            <strong style="color: var(--text-primary); margin-right: 0.4rem;">
+                                @selectedBatchDetail.ExpiryDate.ToString("yyyy-MM-dd")
+                            </strong>
+                            <small style="color: @(selectedBatchDetail.DaysRemaining < 0 ? "var(--accent-red)" : "var(--accent-amber)");">
+                                (@(selectedBatchDetail.DaysRemaining < 0 ? $"منتهية منذ {Math.Abs(selectedBatchDetail.DaysRemaining)} يوم" : $"متبقي {selectedBatchDetail.DaysRemaining} يوم"))
+                            </small>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-secondary);">حالة الدفعة:</span>
+                            @if (selectedBatchDetail.IsDepleted || selectedBatchDetail.BatchRemainingQuantity <= 0)
+                            {
+                                if (selectedBatchDetail.WastedQuantity > 0)
+                                {
+                                    <span class="badge" style="background: #475569; color: #f8fafc; margin-right: 0.4rem;">
+                                        <i class="fa-solid fa-trash-can me-1"></i> تم الإهلاك بالكامل
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge" style="background: #64748b; color: #f8fafc; margin-right: 0.4rem;">
+                                        <i class="fa-solid fa-box-archive me-1"></i> نفدت الكمية (مُباع)
+                                    </span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="badge badge-green" style="margin-right: 0.4rem;"><i class="fa-solid fa-circle-check me-1"></i> نشطة بالمخزن</span>
+                            }
+                        </div>
+                        <div>
+                            <span style="color: var(--text-secondary);">فاتورة الشراء:</span>
+                            <span style="color: var(--text-primary); margin-right: 0.4rem;">@(string.IsNullOrWhiteSpace(selectedBatchDetail.InvoiceNumber) ? "-" : selectedBatchDetail.InvoiceNumber)</span>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-secondary);">المورد:</span>
+                            <span style="color: var(--text-primary); margin-right: 0.4rem;">@(string.IsNullOrWhiteSpace(selectedBatchDetail.SupplierName) ? "-" : selectedBatchDetail.SupplierName)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Waste Movements Section -->
+                <div>
+                    <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between;">
+                        <span><i class="fa-solid fa-clipboard-list me-1 text-red"></i> حركات الإهلاك المسجلة لهذه الدفعة (@selectedBatchWasteItems.Count)</span>
+                        @if (selectedBatchWasteItems.Any())
+                        {
+                            <span style="font-size: 0.85rem; color: var(--accent-red); font-weight: 800;">
+                                إجمالي الخسارة: @selectedBatchWasteItems.Sum(w => w.TotalCost).ToString("N2") ج.م
+                            </span>
+                        }
+                    </h4>
+
+                    @if (isLoadingBatchDetails)
+                    {
+                        <div style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                            <i class="fa-solid fa-spinner fa-spin me-1"></i> جاري فحص حركات الهالك...
+                        </div>
+                    }
+                    else if (!selectedBatchWasteItems.Any())
+                    {
+                        <div class="alert alert-info" style="font-size: 0.88rem; margin-bottom: 0;">
+                            <i class="fa-solid fa-circle-info me-1"></i>
+                            لا توجد حركات إهلاك مسجلة على هذه الدفعة (الكميات المستهلكة تم تصريفها وبيعها عبر فواتير المبيعات).
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+                            <table class="data-table" style="font-size: 0.83rem;">
+                                <thead>
+                                    <tr>
+                                        <th>تاريخ الإهلاك</th>
+                                        <th style="text-align: center;">الكمية المهلكة</th>
+                                        <th>تكلفة الوحدة</th>
+                                        <th>إجمالي الخسارة</th>
+                                        <th>السبب</th>
+                                        <th>المصدر</th>
+                                        <th>ملاحظات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var w in selectedBatchWasteItems)
+                                    {
+                                        <tr>
+                                            <td style="white-space: nowrap;">@w.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                            <td style="text-align: center; font-weight: 700; color: var(--accent-red);">
+                                                @w.Quantity.ToString("N0") @(w.Unit == "carton" ? "كرتونة" : "قطعة")
+                                            </td>
+                                            <td>@w.UnitCost.ToString("N2") ج.م</td>
+                                            <td style="font-weight: 700; color: var(--accent-red);">@w.TotalCost.ToString("N2") ج.م</td>
+                                            <td><span class="badge badge-amber">@w.Reason</span></td>
+                                            <td>
+                                                @if (w.Source == "Notification")
+                                                {
+                                                    <span class="badge badge-purple"><i class="fa-solid fa-bell me-1"></i> إشعار الداش بورد</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge badge-blue"><i class="fa-solid fa-hand me-1"></i> يدوي</span>
+                                                }
+                                            </td>
+                                            <td style="max-width: 160px; color: var(--text-secondary);">
+                                                @(string.IsNullOrWhiteSpace(w.Notes) ? "-" : w.Notes)
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="modal-footer" style="display: flex; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" @onclick="CloseBatchDetailsModal">
+                    إغلاق
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // Persistent state across navigation & sessions
+    private static int _savedPageSize = 10;
+    private static string _savedStatusFilter = "all";
+    private static string _savedActiveTab = "expiry";
+
+    private string activeTab = _savedActiveTab; // expiry, waste
+
+    // Batch Details Modal State
+    private bool showBatchDetailsModal = false;
+    private ExpiringProductDto? selectedBatchDetail;
+    private List<WasteItemDto> selectedBatchWasteItems = new();
+    private bool isLoadingBatchDetails = false;
+
+    // Expiry Tab State
+    private List<ExpiringProductDto> expiringProducts = new();
+    private List<ExpiringProductDto> filteredList = new();
+    private string searchQuery = string.Empty;
+    private string statusFilter = _savedStatusFilter;
+    private bool isLoading = true;
+    private int currentPage = 1;
+    private int pageSize = _savedPageSize;
+    private IEnumerable<ExpiringProductDto> PagedItems =>
+        filteredList.Skip((currentPage - 1) * pageSize).Take(pageSize);
+
+    // Waste Report Tab State
+    private WasteReportResponse? wasteReport;
+    private bool isLoadingWaste = false;
+    private string wasteSearchQuery = string.Empty;
+    private string wasteReasonFilter = string.Empty;
+    private int wasteCurrentPage = 1;
+
+    private IEnumerable<WasteItemDto> FilteredWasteItems =>
+        wasteReport?.Items.Where(w =>
+            string.IsNullOrWhiteSpace(wasteSearchQuery) ||
+            (w.ProductName?.Contains(wasteSearchQuery, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (w.ProductBarcode?.Contains(wasteSearchQuery, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (w.BatchNumber?.Contains(wasteSearchQuery, StringComparison.OrdinalIgnoreCase) ?? false))
+        ?? Enumerable.Empty<WasteItemDto>();
+
+    private IEnumerable<WasteItemDto> PagedWasteItems =>
+        FilteredWasteItems.Skip((wasteCurrentPage - 1) * pageSize).Take(pageSize);
+
+    // Manual Waste Modal State
+    private bool showManualWasteModal = false;
+    private string wasteBarcodeQuery = string.Empty;
+    private List<ProductDto> allProducts = new();
+    private string selectedWasteProductId = string.Empty;
+    private ProductDto? selectedWasteProduct;
+    private List<ProductBatchDto> productBatches = new();
+    private bool isLoadingBatches = false;
+    private string selectedWasteBatchId = string.Empty;
+    private ProductBatchDto? selectedWasteBatch;
+    private string wasteSelectedUnit = "piece";
+    private decimal wasteInputQuantity = 1;
+    private string wasteModalReason = "انتهاء صلاحية";
+    private string wasteModalNotes = string.Empty;
+    private bool isSubmittingManualWaste = false;
+    private string? manualWasteError = null;
+
+    private decimal CalculatedLossAmount
+    {
+        get
+        {
+            if (selectedWasteBatch == null || wasteInputQuantity <= 0) return 0;
+            decimal baseQty = wasteSelectedUnit == "carton" && selectedWasteProduct != null && selectedWasteProduct.ConversionFactor > 0
+                ? wasteInputQuantity * selectedWasteProduct.ConversionFactor
+                : wasteInputQuantity;
+            return baseQty * selectedWasteBatch.UnitCost;
+        }
+    }
+
+    private bool CanSubmitManualWaste =>
+        selectedWasteProduct != null &&
+        selectedWasteBatch != null &&
+        wasteInputQuantity > 0 &&
+        CalculatedPieces <= selectedWasteBatch.RemainingQuantity;
+
+    private decimal CalculatedPieces =>
+        wasteSelectedUnit == "carton" && selectedWasteProduct != null && selectedWasteProduct.ConversionFactor > 0
+            ? wasteInputQuantity * selectedWasteProduct.ConversionFactor
+            : wasteInputQuantity;
+
+    protected override async Task OnInitializedAsync()
+    {
+        activeTab = _savedActiveTab;
+        pageSize = _savedPageSize;
+        statusFilter = _savedStatusFilter;
+
+        await LoadData();
+        await LoadAllProductsAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var stored = await JS.InvokeAsync<string>("getPosSetting", "expiry_pageSize", _savedPageSize.ToString());
+                if (int.TryParse(stored, out var ps) && ps > 0 && ps != pageSize)
+                {
+                    pageSize = ps;
+                    _savedPageSize = ps;
+                    EnsureValidPage();
+                    StateHasChanged();
+                }
+            }
+            catch { }
+        }
+    }
+
+    private async Task HandlePageSizeChanged(int newSize)
+    {
+        pageSize = newSize;
+        _savedPageSize = newSize;
+        currentPage = 1;
+        EnsureValidPage();
+        try
+        {
+            await JS.InvokeVoidAsync("setPosSetting", "expiry_pageSize", newSize.ToString());
+        }
+        catch { }
+    }
+
+    private async Task HandleWastePageSizeChanged(int newSize)
+    {
+        pageSize = newSize;
+        _savedPageSize = newSize;
+        wasteCurrentPage = 1;
+        EnsureValidWastePage();
+        try
+        {
+            await JS.InvokeVoidAsync("setPosSetting", "expiry_pageSize", newSize.ToString());
+        }
+        catch { }
+    }
+
+    private async Task SwitchTab(string tab)
+    {
+        activeTab = tab;
+        _savedActiveTab = tab;
+        if (tab == "waste" && wasteReport == null)
+        {
+            await LoadWasteReportAsync();
+        }
+    }
+
+    private async Task RefreshActiveTab()
+    {
+        if (activeTab == "expiry")
+            await LoadData();
+        else
+            await LoadWasteReportAsync();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            expiringProducts = await ApiClient.GetExpiringProductsAsync(null);
+            FilterData();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading expiring products: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadWasteReportAsync()
+    {
+        isLoadingWaste = true;
+        try
+        {
+            wasteReport = await ApiClient.GetWasteReportAsync(reason: string.IsNullOrWhiteSpace(wasteReasonFilter) ? null : wasteReasonFilter);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading waste report: {ex.Message}");
+        }
+        finally
+        {
+            isLoadingWaste = false;
+        }
+    }
+
+    private async Task LoadAllProductsAsync()
+    {
+        try
+        {
+            allProducts = await ApiClient.GetProductsAsync();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading products: {ex.Message}");
+        }
+    }
+
+    private void SetFilter(string filter)
+    {
+        statusFilter = filter;
+        _savedStatusFilter = filter;
+        FilterData();
+    }
+
+    private void FilterData()
+    {
+        currentPage = 1;
+        var query = expiringProducts.AsEnumerable();
+
+        if (statusFilter == "expired")
+        {
+            query = query.Where(p => p.DaysRemaining < 0 && !p.IsDepleted && p.BatchRemainingQuantity > 0);
+        }
+        else if (statusFilter == "soon")
+        {
+            query = query.Where(p => p.DaysRemaining >= 0 && p.DaysRemaining <= 30 && !p.IsDepleted && p.BatchRemainingQuantity > 0);
+        }
+        else if (statusFilter == "valid")
+        {
+            query = query.Where(p => p.DaysRemaining > 30 && !p.IsDepleted && p.BatchRemainingQuantity > 0);
+        }
+        else if (statusFilter == "depleted")
+        {
+            query = query.Where(p => p.IsDepleted || p.BatchRemainingQuantity <= 0);
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchQuery))
+        {
+            query = query.Where(p =>
+                (p.ProductName != null && p.ProductName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) ||
+                (p.Barcode != null && p.Barcode.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) ||
+                (p.BatchNumber != null && p.BatchNumber.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) ||
+                (p.SupplierName != null && p.SupplierName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) ||
+                (p.InvoiceNumber != null && p.InvoiceNumber.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))
+            );
+        }
+
+        filteredList = query.OrderBy(p => p.DaysRemaining).ToList();
+        EnsureValidPage();
+    }
+
+    private void EnsureValidPage()
+    {
+        int maxPage = Math.Max(1, (int)Math.Ceiling((double)filteredList.Count / pageSize));
+        if (currentPage > maxPage) currentPage = maxPage;
+    }
+
+    private void EnsureValidWastePage()
+    {
+        int maxPage = Math.Max(1, (int)Math.Ceiling((double)FilteredWasteItems.Count() / pageSize));
+        if (wasteCurrentPage > maxPage) wasteCurrentPage = maxPage;
+    }
+
+    private async Task OpenManualWasteModal()
+    {
+        manualWasteError = null;
+        wasteBarcodeQuery = string.Empty;
+        selectedWasteProductId = string.Empty;
+        selectedWasteProduct = null;
+        productBatches.Clear();
+        selectedWasteBatchId = string.Empty;
+        selectedWasteBatch = null;
+        wasteInputQuantity = 1;
+        wasteSelectedUnit = "piece";
+        wasteModalReason = "انتهاء صلاحية";
+        wasteModalNotes = string.Empty;
+        showManualWasteModal = true;
+        if (!allProducts.Any()) await LoadAllProductsAsync();
+
+        StateHasChanged();
+        await Task.Yield();
+        try
+        {
+            await JS.InvokeVoidAsync("focusElementById", "waste-barcode-input", 120);
+        }
+        catch { }
+    }
+
+    private async Task HandleWasteBarcodeKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SearchProductByBarcodeAsync();
+        }
+    }
+
+    private async Task SearchProductByBarcodeAsync()
+    {
+        var barcode = wasteBarcodeQuery?.Trim();
+        if (string.IsNullOrWhiteSpace(barcode)) return;
+
+        if (!allProducts.Any()) await LoadAllProductsAsync();
+
+        var prod = allProducts.FirstOrDefault(p => string.Equals(p.Barcode, barcode, StringComparison.OrdinalIgnoreCase));
+        if (prod == null)
+        {
+            try
+            {
+                prod = await ApiClient.GetProductByBarcodeAsync(barcode);
+                if (prod != null && !allProducts.Any(p => p.Id == prod.Id))
+                {
+                    allProducts.Add(prod);
+                }
+            }
+            catch { }
+        }
+
+        if (prod != null)
+        {
+            manualWasteError = null;
+            selectedWasteProductId = prod.Id.ToString();
+            await HandleProductSelection(prod.Id);
+            wasteBarcodeQuery = string.Empty;
+        }
+        else
+        {
+            manualWasteError = $"لم يتم العثور على أي منتج بالباركود: {barcode}";
+        }
+    }
+
+    private async Task PreselectBatchForWaste(ExpiringProductDto item)
+    {
+        if (item.IsDepleted || item.BatchRemainingQuantity <= 0)
+        {
+            await OpenBatchDetailsModal(item);
+            return;
+        }
+
+        await OpenManualWasteModal();
+        selectedWasteProductId = item.ProductId.ToString();
+        await HandleProductSelection(item.ProductId);
+
+        // Pre-select the exact batch
+        if (item.BatchId != Guid.Empty)
+        {
+            var targetBatch = productBatches.FirstOrDefault(b => b.Id == item.BatchId);
+            if (targetBatch != null)
+            {
+                selectedWasteBatch = targetBatch;
+                selectedWasteBatchId = targetBatch.Id.ToString();
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(item.BatchNumber))
+        {
+            var targetBatch = productBatches.FirstOrDefault(b => string.Equals(b.BatchNumber, item.BatchNumber, StringComparison.OrdinalIgnoreCase));
+            if (targetBatch != null)
+            {
+                selectedWasteBatch = targetBatch;
+                selectedWasteBatchId = targetBatch.Id.ToString();
+            }
+        }
+
+        if (selectedWasteBatch != null)
+        {
+            wasteInputQuantity = selectedWasteBatch.RemainingQuantity;
+        }
+        else
+        {
+            wasteInputQuantity = item.BatchRemainingQuantity;
+        }
+
+        wasteSelectedUnit = "piece";
+        wasteModalReason = item.DaysRemaining < 0 ? "انتهاء صلاحية" : "تلف سوء تخزين";
+        wasteModalNotes = $"إهلاك من جدول متابعة الصلاحية - تشغيلة رقم: {item.BatchNumber}";
+        StateHasChanged();
+    }
+
+    private async Task OpenBatchDetailsModal(ExpiringProductDto item)
+    {
+        selectedBatchDetail = item;
+        showBatchDetailsModal = true;
+        isLoadingBatchDetails = true;
+        selectedBatchWasteItems.Clear();
+        StateHasChanged();
+
+        try
+        {
+            if (wasteReport == null)
+            {
+                await LoadWasteReportAsync();
+            }
+
+            if (wasteReport?.Items != null)
+            {
+                selectedBatchWasteItems = wasteReport.Items.Where(w =>
+                    (item.BatchId != Guid.Empty && w.InventoryBatchId == item.BatchId) ||
+                    (!string.IsNullOrWhiteSpace(item.BatchNumber) && string.Equals(w.BatchNumber, item.BatchNumber, StringComparison.OrdinalIgnoreCase)) ||
+                    (w.ProductId == item.ProductId && item.WastedQuantity > 0 && Math.Abs(w.Quantity - item.WastedQuantity) < 0.01m)
+                ).OrderByDescending(w => w.CreatedAt).ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading batch details: {ex.Message}");
+        }
+        finally
+        {
+            isLoadingBatchDetails = false;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseBatchDetailsModal()
+    {
+        showBatchDetailsModal = false;
+        selectedBatchDetail = null;
+        selectedBatchWasteItems.Clear();
+    }
+
+    private void CloseManualWasteModal()
+    {
+        showManualWasteModal = false;
+        manualWasteError = null;
+        wasteBarcodeQuery = string.Empty;
+    }
+
+    private async Task OnWasteProductSelected(ChangeEventArgs e)
+    {
+        var idStr = e.Value?.ToString();
+        selectedWasteProductId = idStr ?? string.Empty;
+        if (Guid.TryParse(idStr, out var prodId))
+        {
+            await HandleProductSelection(prodId);
+        }
+        else
+        {
+            selectedWasteProduct = null;
+            productBatches.Clear();
+            selectedWasteBatch = null;
+        }
+    }
+
+    private async Task HandleProductSelection(Guid prodId)
+    {
+        selectedWasteProduct = allProducts.FirstOrDefault(p => p.Id == prodId);
+        selectedWasteBatchId = string.Empty;
+        selectedWasteBatch = null;
+        isLoadingBatches = true;
+        StateHasChanged();
+
+        try
+        {
+            var batches = await ApiClient.GetProductBatchesAsync(prodId);
+            productBatches = batches.Where(b => b.RemainingQuantity > 0).ToList();
+            if (productBatches.Any())
+            {
+                // Auto select first batch
+                selectedWasteBatch = productBatches.First();
+                selectedWasteBatchId = selectedWasteBatch.Id.ToString();
+            }
+        }
+        catch (Exception ex)
+        {
+            manualWasteError = $"فشل تحميل دفعات المنتج: {ex.Message}";
+        }
+        finally
+        {
+            isLoadingBatches = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OnWasteBatchSelected(ChangeEventArgs e)
+    {
+        var batchIdStr = e.Value?.ToString();
+        selectedWasteBatchId = batchIdStr ?? string.Empty;
+        if (Guid.TryParse(batchIdStr, out var batchId))
+        {
+            selectedWasteBatch = productBatches.FirstOrDefault(b => b.Id == batchId);
+        }
+        else
+        {
+            selectedWasteBatch = null;
+        }
+    }
+
+    private async Task SubmitManualWaste()
+    {
+        if (!CanSubmitManualWaste || selectedWasteProduct == null || selectedWasteBatch == null)
+        {
+            manualWasteError = "يرجى استيفاء كافة الحقول والتأكد من أن الكمية المدخلة لا تتجاوز الرصيد المتبقي بالدفعة.";
+            return;
+        }
+
+        isSubmittingManualWaste = true;
+        manualWasteError = null;
+
+        try
+        {
+            var req = new RecordWasteRequest(
+                selectedWasteProduct.Id,
+                selectedWasteBatch.Id,
+                wasteInputQuantity,
+                wasteSelectedUnit,
+                wasteModalReason,
+                wasteModalNotes,
+                Source: "Manual"
+            );
+
+            var (success, _, error) = await ApiClient.RecordWasteAsync(req);
+            if (success)
+            {
+                CloseManualWasteModal();
+                await LoadData();
+                await LoadWasteReportAsync();
+            }
+            else
+            {
+                manualWasteError = error ?? "فشل تسجيل الهالك.";
+            }
+        }
+        catch (Exception ex)
+        {
+            manualWasteError = $"حدث خطأ غير متوقع: {ex.Message}";
+        }
+        finally
+        {
+            isSubmittingManualWaste = false;
+            StateHasChanged();
+        }
+    }
+}

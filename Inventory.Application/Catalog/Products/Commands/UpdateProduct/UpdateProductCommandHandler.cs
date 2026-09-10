@@ -26,13 +26,22 @@ namespace Inventory.Application.Catalog.Products.Commands.UpdateProduct
             if (product is null)
                 return Result.Failure(ProductErrors.NotFound(request.Id));
 
+            var imageUrlToSet = request.ImageUrl switch
+            {
+                "__CLEAR__" or "__REMOVE__" or "REMOVE" => null,
+                not null and not "" => request.ImageUrl,
+                _ => product.ImageUrl
+            };
+
             var updateResult = product.Update(
                 request.Barcode, request.NameAr, request.NameEn, request.Description,
                 request.CategoryId, request.UnitId, request.SupplierId,
+                request.BaseUnit, request.ParentUnit, request.ConversionFactor,
+                request.ShelfLifeDays, request.ExpiryAlertDays,
                 request.PurchasePrice, request.SellingPrice, request.WholesalePrice,
                 request.ReorderLevel, request.MaxStockLevel,
                 request.IsWeighable, request.IsActive, request.TrackExpiry,
-                request.TaxRate, request.ImageUrl);
+                request.TaxRate, imageUrlToSet);
 
             if (updateResult.IsFailure)
                 return updateResult;

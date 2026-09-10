@@ -25,6 +25,9 @@ namespace Inventory.Domain.Catalog.Products.Errors
         public static readonly Error NameEnRequired =
             new("Product.NameEnRequired", "اسم المنتج بالإنجليزية مطلوب.");
 
+        public static readonly Error NameRequired =
+            new("Product.NameRequired", "يجب إدخال اسم المنتج باللغة العربية أو الإنجليزية على الأقل.");
+
         public static readonly Error InvalidPurchasePrice =
             new("Product.InvalidPurchasePrice", "سعر الشراء لا يمكن أن يكون سالباً.");
 

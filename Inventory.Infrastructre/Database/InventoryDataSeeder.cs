@@ -18,12 +18,10 @@ public static class InventoryDataSeeder
 
     private static async Task SeedUnitsAsync(InventoryDbContext context)
     {
-        if (await context.Units.AnyAsync()) 
-            return;
-
         var initialUnits = new (string NameAr, string NameEn, string Symbol)[]
         {
             ("قطعة", "Piece", "قطعة"),
+            ("كيس", "Bag", "كيس"),
             ("علبة", "Box", "علبة"),
             ("كرتونة", "Carton", "كرتونة"),
             ("كيلوجرام", "Kilogram", "كجم"),
@@ -45,9 +43,13 @@ public static class InventoryDataSeeder
             ("جالون", "Gallon", "جالون")
         };
 
+        var existingNames = await context.Units.Select(u => u.NameAr).ToListAsync();
         var unitsToInsert = new List<Unit>();
         foreach (var (nameAr, nameEn, symbol) in initialUnits)
         {
+            if (existingNames.Any(e => string.Equals(e, nameAr, StringComparison.OrdinalIgnoreCase)))
+                continue;
+
             var result = Unit.Create(nameAr, nameEn, symbol);
             if (result.IsSuccess && result.Value is not null)
             {

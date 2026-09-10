@@ -1,171 +1,10 @@
-#region before
-//using Microsoft.AspNetCore.Hosting;
-//using Microsoft.AspNetCore.Http;
-//using Modules.Shared.Application.IService;
-//namespace Modules.Shared.Application.Services
-//{
-//    public class FileService : IFileService
-//    {
-//        private readonly IWebHostEnvironment webHostEnvironment;
-
-//        public FileService(IWebHostEnvironment webHostEnvironment)
-//        {
-//            this.webHostEnvironment = webHostEnvironment;
-//        }
-
-//        public async Task DeleteFileAsync(string FilePath)
-//        {
-//            // => /wwwroot/
-//            //var fullPath = Path.Combine(webHostEnvironment.WebRootPath, FilePath);
-//            var fullPath = webHostEnvironment.WebRootPath + "/" + FilePath;
-//            if (File.Exists(fullPath))
-//            {
-//                File.Delete(fullPath);
-
-
-
-//            }
-//        }
-
-//        public async Task DeleteAllFilesAsync(List<string> FilePaths)
-//        {
-//            foreach (string FilePath in FilePaths)
-//            {
-//                await DeleteFileAsync(FilePath);
-//            }
-//        }
-
-//        public async Task<string> UploadFileAsync(IFormFile file, string folder)
-//        {
-//            try
-//            {
-
-//                if (file == null || file.Length == 0) return string.Empty;
-
-
-//                //var path = Path.Combine(webHostEnvironment.WebRootPath, folder);
-//                var path = webHostEnvironment.WebRootPath + "/" + folder;
-//                var extension = Path.GetExtension(file.FileName);
-//                var fileName = $"{Guid.NewGuid().ToString()}{extension}";
-
-//                if (!Directory.Exists(path))
-//                {
-//                    Directory.CreateDirectory(path);
-//                }
-
-//                var fullPath = Path.Combine(path, fileName);
-
-//                using (FileStream fileStream = new FileStream(fullPath, FileMode.Create))
-//                {
-//                    await file.CopyToAsync(fileStream);
-//                    fileStream.Flush();
-//                }
-
-//                return Path.Combine(folder, fileName).Replace("\\", "/"); // Return relative path
-//            }
-//            catch
-//            {
-//                return string.Empty;
-//            }
-//        }
-
-//        // New function to retrieve image as an IFormFile
-//        public async Task<IFormFile> GetFileAsIFormFileAsync(string imageSrc)
-//        {
-//            try
-//            {
-//                var fullPath = webHostEnvironment.WebRootPath + "/" + imageSrc;
-//                if (!File.Exists(fullPath))
-//                {
-//                    return null; // Return null if the file doesn't exist
-//                }
-
-//                // Read the file into a byte array or stream
-//                var memoryStream = new MemoryStream(await File.ReadAllBytesAsync(fullPath));
-
-//                // Create an IFormFile from the MemoryStream
-//                IFormFile formFile = new FormFile(memoryStream, 0, memoryStream.Length, "profilePicture", Path.GetFileName(fullPath))
-//                {
-//                    Headers = new HeaderDictionary(),
-//                    ContentType = "image/jpeg" // Set content type (change based on file type)
-//                };
-
-//                return formFile;
-//            }
-//            catch
-//            {
-//                return null; // Return null in case of an error
-//            }
-//        }
-
-//        public async Task<byte[]> GetFileAsByteArrayAsync(string imageSrc)
-//        {
-//            try
-//            {
-//                var fullPath = Path.Combine(webHostEnvironment.WebRootPath, imageSrc);
-//                if (!File.Exists(fullPath))
-//                {
-//                    return null; // Return null if the file doesn't exist
-//                }
-
-//                var fileBytes = await File.ReadAllBytesAsync(fullPath);
-//                return fileBytes;
-//            }
-//            catch
-//            {
-//                return null; // Return null in case of an error
-//            }
-//        }
-
-//        public async Task<string> UploadFileAsync(IFormFile file, string folder, HttpRequest request)
-//        {
-//            try
-//            {
-//                if (file == null || file.Length == 0) return string.Empty;
-
-//                //var path = Path.Combine(webHostEnvironment.WebRootPath, folder);
-//                var path = webHostEnvironment.WebRootPath + "/" + folder;
-//                var extension = Path.GetExtension(file.FileName);
-//                var fileName = $"{Guid.NewGuid()}{extension}";
-
-//                if (!Directory.Exists(path))
-//                {
-//                    Directory.CreateDirectory(path);
-//                }
-
-//                var fullPath = Path.Combine(path, fileName);
-
-//                using (FileStream fileStream = new FileStream(fullPath, FileMode.Create))
-//                {
-//                    await file.CopyToAsync(fileStream);
-//                    fileStream.Flush();
-//                }
-
-//                var relativePath = Path.Combine(folder, fileName).Replace("\\", "/");
-
-//                // Build full public URL (e.g., https://localhost:5001/assets/images/photo.jpg)
-//                var baseUrl = $"{request.Scheme}://{request.Host}";
-//                var publicUrl = $"{baseUrl}/{relativePath}";
-
-//                return publicUrl;
-//            }
-//            catch
-//            {
-//                return string.Empty;
-//            }
-//        }
-//    }
-
-
-//} 
-#endregion
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.StaticFiles; // مهم عشان الـ FileExtensionContentTypeProvider
+using Microsoft.AspNetCore.StaticFiles;
 using POS.Shared.Application.IService;
 using POS.Shared.Domain;
 
-namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infrastructure
+namespace POS.Shared.Infrastructure.Services
 {
     public class FileService : IFileService
     {
@@ -174,6 +13,47 @@ namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infra
         public FileService(IWebHostEnvironment webHostEnvironment)
         {
             _webHostEnvironment = webHostEnvironment;
+        }
+
+        private string GetUploadsRootPath()
+        {
+            try
+            {
+                var commonAppData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+                if (!string.IsNullOrWhiteSpace(commonAppData))
+                {
+                    var uploadsDir = Path.Combine(commonAppData, "POS Cashier System", "uploads");
+                    if (!Directory.Exists(uploadsDir))
+                    {
+                        Directory.CreateDirectory(uploadsDir);
+                    }
+                    return uploadsDir;
+                }
+            }
+            catch
+            {
+                // Fallback if CommonApplicationData cannot be accessed
+            }
+
+            try
+            {
+                var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                if (!string.IsNullOrWhiteSpace(localAppData))
+                {
+                    var uploadsDir = Path.Combine(localAppData, "POS Cashier System", "uploads");
+                    if (!Directory.Exists(uploadsDir))
+                    {
+                        Directory.CreateDirectory(uploadsDir);
+                    }
+                    return uploadsDir;
+                }
+            }
+            catch
+            {
+                // Fallback
+            }
+
+            return GetWebRootPath();
         }
 
         private string GetWebRootPath()
@@ -186,10 +66,53 @@ namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infra
 
             if (!Directory.Exists(webRoot))
             {
-                Directory.CreateDirectory(webRoot);
+                try
+                {
+                    Directory.CreateDirectory(webRoot);
+                }
+                catch
+                {
+                    // Ignore if read-only (e.g. Program Files)
+                }
             }
 
             return webRoot;
+        }
+
+        private string ResolvePhysicalPath(string relativePath)
+        {
+            var cleanPath = relativePath.TrimStart('/', '\\').Replace('\\', '/');
+
+            // 1. Check in CommonApplicationData uploads
+            var uploadsRoot = GetUploadsRootPath();
+            if (cleanPath.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase))
+            {
+                var subPath = cleanPath["uploads/".Length..];
+                var candidate = Path.Combine(uploadsRoot, subPath.Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+            else
+            {
+                var candidate = Path.Combine(uploadsRoot, cleanPath.Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(candidate))
+                    return candidate;
+            }
+
+            // 2. Check in wwwroot
+            var webRoot = GetWebRootPath();
+            var webCandidate = Path.Combine(webRoot, cleanPath.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(webCandidate))
+                return webCandidate;
+
+            // 3. Fallback expected destination in uploads root
+            if (cleanPath.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase))
+            {
+                var subPath = cleanPath["uploads/".Length..];
+                return Path.Combine(uploadsRoot, subPath.Replace('/', Path.DirectorySeparatorChar));
+            }
+
+            return Path.Combine(uploadsRoot, cleanPath.Replace('/', Path.DirectorySeparatorChar));
         }
 
         public async Task<Result> DeleteFileAsync(string filePath)
@@ -199,9 +122,7 @@ namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infra
 
             try
             {
-                var fullPath = Path.Combine(
-                    GetWebRootPath(),
-                    filePath.TrimStart('/', '\\'));
+                var fullPath = ResolvePhysicalPath(filePath);
 
                 if (File.Exists(fullPath))
                     File.Delete(fullPath);
@@ -239,26 +160,45 @@ namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infra
 
             try
             {
-                var path = Path.Combine(
-                    GetWebRootPath(),
-                    folder.TrimStart('/', '\\'));
+                var cleanFolder = (folder ?? string.Empty).TrimStart('/', '\\').Replace('\\', '/');
+                string subFolder;
+                if (cleanFolder.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase))
+                {
+                    subFolder = cleanFolder["uploads/".Length..];
+                }
+                else if (string.Equals(cleanFolder, "uploads", StringComparison.OrdinalIgnoreCase))
+                {
+                    subFolder = string.Empty;
+                }
+                else
+                {
+                    subFolder = cleanFolder;
+                }
+
+                var uploadsRoot = GetUploadsRootPath();
+                var targetDir = string.IsNullOrWhiteSpace(subFolder)
+                    ? uploadsRoot
+                    : Path.Combine(uploadsRoot, subFolder.Replace('/', Path.DirectorySeparatorChar));
+
+                if (!Directory.Exists(targetDir))
+                    Directory.CreateDirectory(targetDir);
 
                 var extension = Path.GetExtension(file.FileName);
+                if (string.IsNullOrWhiteSpace(extension)) extension = ".jpg";
                 var fileName = $"{Guid.NewGuid()}{extension}";
 
-                if (!Directory.Exists(path))
-                    Directory.CreateDirectory(path);
+                var fullPath = Path.Combine(targetDir, fileName);
 
-                var fullPath = Path.Combine(path, fileName);
+                using (var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                {
+                    await file.CopyToAsync(fileStream);
+                }
 
-                using var fileStream = new FileStream(fullPath, FileMode.Create);
+                var relativeUrl = string.IsNullOrWhiteSpace(subFolder)
+                    ? $"uploads/{fileName}"
+                    : $"uploads/{subFolder.Trim('/')}/{fileName}";
 
-                await file.CopyToAsync(fileStream);
-
-                var relativePath = Path.Combine(folder, fileName)
-                    .Replace("\\", "/");
-
-                return Result<string>.Success(relativePath);
+                return Result<string>.Success(relativeUrl);
             }
             catch (Exception ex)
             {
@@ -275,9 +215,7 @@ namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infra
 
             try
             {
-                var fullPath = Path.Combine(
-                    GetWebRootPath(),
-                    imageSrc.TrimStart('/', '\\'));
+                var fullPath = ResolvePhysicalPath(imageSrc);
 
                 if (!File.Exists(fullPath))
                     return Result<byte[]>.Failure(
@@ -302,9 +240,7 @@ namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infra
 
             try
             {
-                var fullPath = Path.Combine(
-                    GetWebRootPath(),
-                    imageSrc.TrimStart('/', '\\'));
+                var fullPath = ResolvePhysicalPath(imageSrc);
 
                 if (!File.Exists(fullPath))
                     return Result<IFormFile>.Failure(
@@ -350,10 +286,9 @@ namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infra
 
             var relativePath = uploadResult.Value;
 
-            var publicUrl = $"{baseUrl}/{relativePath.TrimStart('/')}";
+            var publicUrl = $"{baseUrl.TrimEnd('/')}/{relativePath.TrimStart('/')}";
 
             return Result<string>.Success(publicUrl);
         }
     }
-
 }

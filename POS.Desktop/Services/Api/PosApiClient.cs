@@ -218,7 +218,12 @@ namespace POS.Desktop.Services.Api
                 content.Add(new StringContent(model.PurchasePrice.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.PurchasePrice));
                 content.Add(new StringContent(model.SellingPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.SellingPrice));
                 content.Add(new StringContent(model.WholesalePrice.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.WholesalePrice));
-                content.Add(new StringContent(model.InitialStock.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.InitialStock));
+                content.Add(new StringContent(model.BaseUnit ?? "قطعة"), nameof(model.BaseUnit));
+                if (!string.IsNullOrWhiteSpace(model.ParentUnit))
+                    content.Add(new StringContent(model.ParentUnit), nameof(model.ParentUnit));
+                content.Add(new StringContent(model.ConversionFactor.ToString()), nameof(model.ConversionFactor));
+                content.Add(new StringContent(model.ShelfLifeDays.ToString()), nameof(model.ShelfLifeDays));
+                content.Add(new StringContent(model.ExpiryAlertDays.ToString()), nameof(model.ExpiryAlertDays));
                 content.Add(new StringContent(model.ReorderLevel.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.ReorderLevel));
                 content.Add(new StringContent(model.MaxStockLevel.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.MaxStockLevel));
                 content.Add(new StringContent(model.TaxRate.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.TaxRate));
@@ -255,6 +260,35 @@ namespace POS.Desktop.Services.Api
             }
         }
 
+        public async Task<(string? ImageUrl, string? Error)> UploadProductImageAsync(byte[] imageBytes, string fileName)
+        {
+            try
+            {
+                using var content = new MultipartFormDataContent();
+                var fileContent = new ByteArrayContent(imageBytes);
+                fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+                content.Add(fileContent, "file", fileName ?? "product.jpg");
+
+                var res = await _http.PostAsync("api/inventory/products/upload-image", content);
+                if (res.IsSuccessStatusCode)
+                {
+                    var doc = await res.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+                    if (doc.TryGetProperty("imageUrl", out var prop))
+                    {
+                        return (prop.GetString(), null);
+                    }
+                    return (null, null);
+                }
+
+                var errContent = await res.Content.ReadAsStringAsync();
+                return (null, ExtractErrorMessage(errContent, "Failed to upload image."));
+            }
+            catch (Exception ex)
+            {
+                return (null, ex.Message);
+            }
+        }
+
         public async Task<(bool Success, string? Error)> UpdateProductAsync(UpdateProductCommandModel model)
         {
             try
@@ -276,16 +310,18 @@ namespace POS.Desktop.Services.Api
             }
         }
 
-        public async Task<bool> DeleteProductAsync(Guid id)
+        public async Task<(bool Success, string? Error)> DeleteProductAsync(Guid id)
         {
             try
             {
                 var res = await _http.DeleteAsync($"api/inventory/products/{id}");
-                return res.IsSuccessStatusCode;
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل حذف المنتج من النظام."));
             }
-            catch
+            catch (Exception ex)
             {
-                return false;
+                return (false, ex.Message);
             }
         }
 
@@ -565,12 +601,79 @@ namespace POS.Desktop.Services.Api
             }
         }
 
-        // Sales History
-        public async Task<List<SaleDto>> GetSalesListAsync()
+        // Monthly Sales Calendar & Report
+        public async Task<MonthlySalesCalendarDto?> GetMonthlySalesCalendarAsync(int year, int month, string? paymentMethod = null, Guid? cashierId = null)
         {
             try
             {
-                return await _http.GetFromJsonAsync<List<SaleDto>>("api/sales?pageSize=1000") ?? new();
+                var queryParams = new List<string>
+                {
+                    $"year={year}",
+                    $"month={month}"
+                };
+
+                if (!string.IsNullOrWhiteSpace(paymentMethod) && paymentMethod != "All")
+                {
+                    queryParams.Add($"paymentMethod={Uri.EscapeDataString(paymentMethod)}");
+                }
+
+                if (cashierId.HasValue && cashierId.Value != Guid.Empty)
+                {
+                    queryParams.Add($"cashierId={cashierId.Value}");
+                }
+
+                var url = "api/dashboard/monthly-calendar?" + string.Join("&", queryParams);
+                return await _http.GetFromJsonAsync<MonthlySalesCalendarDto>(url);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching monthly calendar: {ex.Message}");
+                return null;
+            }
+        }
+
+        public async Task<DaySalesDetailsDto?> GetDaySalesDetailsAsync(DateTime date, string? paymentMethod = null, Guid? cashierId = null)
+        {
+            try
+            {
+                var queryParams = new List<string>
+                {
+                    $"date={date:yyyy-MM-dd}"
+                };
+
+                if (!string.IsNullOrWhiteSpace(paymentMethod) && paymentMethod != "All")
+                {
+                    queryParams.Add($"paymentMethod={Uri.EscapeDataString(paymentMethod)}");
+                }
+
+                if (cashierId.HasValue && cashierId.Value != Guid.Empty)
+                {
+                    queryParams.Add($"cashierId={cashierId.Value}");
+                }
+
+                var url = "api/dashboard/day-sales-details?" + string.Join("&", queryParams);
+                return await _http.GetFromJsonAsync<DaySalesDetailsDto>(url);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching day sales details: {ex.Message}");
+                return null;
+            }
+        }
+
+
+        // Sales History
+        public async Task<List<SaleDto>> GetSalesListAsync(DateTime? fromDate = null, DateTime? toDate = null, Guid? cashierId = null)
+        {
+            try
+            {
+                var queryParams = new List<string> { "pageSize=1000" };
+                if (fromDate.HasValue) queryParams.Add($"fromDate={fromDate.Value:yyyy-MM-ddTHH:mm:ss}");
+                if (toDate.HasValue) queryParams.Add($"toDate={toDate.Value:yyyy-MM-ddTHH:mm:ss}");
+                if (cashierId.HasValue && cashierId.Value != Guid.Empty) queryParams.Add($"cashierId={cashierId.Value}");
+
+                var url = "api/sales?" + string.Join("&", queryParams);
+                return await _http.GetFromJsonAsync<List<SaleDto>>(url) ?? new();
             }
             catch
             {
@@ -624,6 +727,31 @@ namespace POS.Desktop.Services.Api
             }
         }
 
+        public async Task<List<ExpiringProductDto>> GetExpiringProductsAsync(int? daysThreshold = null)
+        {
+            try
+            {
+                var url = daysThreshold.HasValue ? $"api/purchases/expiring?daysThreshold={daysThreshold.Value}" : "api/purchases/expiring";
+                return await _http.GetFromJsonAsync<List<ExpiringProductDto>>(url) ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<PurchaseDetailDto?> GetPurchaseDetailsAsync(Guid purchaseId)
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<PurchaseDetailDto>($"api/purchases/{purchaseId}");
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public async Task<(bool Success, string? Error)> CreatePurchaseAsync(CreatePurchaseRequest req)
         {
             try
@@ -632,6 +760,36 @@ namespace POS.Desktop.Services.Api
                 if (res.IsSuccessStatusCode) return (true, null);
                 var err = await res.Content.ReadAsStringAsync();
                 return (false, ExtractErrorMessage(err, "فشل تسجيل فاتورة الشراء."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> UpdatePurchaseAsync(Guid purchaseId, UpdatePurchaseRequest req)
+        {
+            try
+            {
+                var res = await _http.PutAsJsonAsync($"api/purchases/{purchaseId}", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تعديل فاتورة الشراء."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> DeletePurchaseAsync(Guid purchaseId)
+        {
+            try
+            {
+                var res = await _http.DeleteAsync($"api/purchases/{purchaseId}");
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل حذف فاتورة الشراء."));
             }
             catch (Exception ex)
             {
@@ -684,6 +842,21 @@ namespace POS.Desktop.Services.Api
             }
         }
 
+        public async Task<(bool Success, string? Error)> UpdateSupplierAsync(Guid id, UpdateSupplierRequest req)
+        {
+            try
+            {
+                var res = await _http.PutAsJsonAsync($"api/suppliers/{id}", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تعديل بيانات المورد."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
         // Store Settings
         public async Task<StoreSettingDto?> GetSettingsAsync()
         {
@@ -709,6 +882,44 @@ namespace POS.Desktop.Services.Api
             catch (Exception ex)
             {
                 return (false, ex.Message);
+            }
+        }
+
+        public async Task<(string? LogoUrl, string? Error)> UploadStoreLogoAsync(byte[] fileBytes, string fileName)
+        {
+            try
+            {
+                using var content = new MultipartFormDataContent();
+                var fileContent = new ByteArrayContent(fileBytes);
+                var ext = System.IO.Path.GetExtension(fileName).ToLowerInvariant();
+                var contentType = ext switch
+                {
+                    ".jpg" or ".jpeg" => "image/jpeg",
+                    ".png" => "image/png",
+                    ".webp" => "image/webp",
+                    ".gif" => "image/gif",
+                    _ => "application/octet-stream"
+                };
+                fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+                content.Add(fileContent, "file", fileName);
+
+                var res = await _http.PostAsync("api/settings/logo", content);
+                if (res.IsSuccessStatusCode)
+                {
+                    var doc = await res.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+                    if (doc.TryGetProperty("logoUrl", out var logoProp))
+                    {
+                        return (logoProp.GetString(), null);
+                    }
+                    return (null, "لم يتم العثور على رابط الشعار.");
+                }
+
+                var err = await res.Content.ReadAsStringAsync();
+                return (null, ExtractErrorMessage(err, "فشل رفع شعار المتجر."));
+            }
+            catch (Exception ex)
+            {
+                return (null, ex.Message);
             }
         }
 
@@ -801,6 +1012,36 @@ namespace POS.Desktop.Services.Api
             }
         }
 
+        public async Task<(bool Success, string? Error)> DeleteUserAsync(string userId)
+        {
+            try
+            {
+                var res = await _http.DeleteAsync($"api/users/{userId}");
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل حذف حساب المستخدم."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> ResetUserPasswordAsync(string userId, string newPassword)
+        {
+            try
+            {
+                var res = await _http.PutAsJsonAsync($"api/users/{userId}/reset-password", new { NewPassword = newPassword });
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تعيين كلمة المرور الجديدة."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
         // Single Invoices
         public async Task<SaleDto?> GetSaleByIdAsync(Guid id)
         {
@@ -844,6 +1085,18 @@ namespace POS.Desktop.Services.Api
             }
         }
 
+        public async Task<SalesReturnDetailDto?> GetSalesReturnByIdAsync(Guid id)
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<SalesReturnDetailDto>($"api/returns/sales/{id}");
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public async Task<(bool Success, string? Error)> CreateSalesReturnAsync(CreateSalesReturnRequest req)
         {
             try
@@ -852,6 +1105,36 @@ namespace POS.Desktop.Services.Api
                 if (res.IsSuccessStatusCode) return (true, null);
                 var err = await res.Content.ReadAsStringAsync();
                 return (false, ExtractErrorMessage(err, "فشل تسجيل مرتجع المبيعات."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> UpdateSalesReturnAsync(Guid id, UpdateSalesReturnRequest req)
+        {
+            try
+            {
+                var res = await _http.PutAsJsonAsync($"api/returns/sales/{id}", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تعديل مرتجع المبيعات."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> DeleteSalesReturnAsync(Guid id, Guid userId)
+        {
+            try
+            {
+                var res = await _http.DeleteAsync($"api/returns/sales/{id}?userId={userId}");
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل حذف مرتجع المبيعات."));
             }
             catch (Exception ex)
             {
@@ -876,6 +1159,18 @@ namespace POS.Desktop.Services.Api
             }
         }
 
+        public async Task<PurchaseReturnDetailDto?> GetPurchaseReturnByIdAsync(Guid id)
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<PurchaseReturnDetailDto>($"api/returns/purchases/{id}");
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public async Task<(bool Success, string? Error)> CreatePurchaseReturnAsync(CreatePurchaseReturnRequest req)
         {
             try
@@ -884,6 +1179,36 @@ namespace POS.Desktop.Services.Api
                 if (res.IsSuccessStatusCode) return (true, null);
                 var err = await res.Content.ReadAsStringAsync();
                 return (false, ExtractErrorMessage(err, "فشل تسجيل مرتجع المشتريات."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> UpdatePurchaseReturnAsync(Guid id, UpdatePurchaseReturnRequest req)
+        {
+            try
+            {
+                var res = await _http.PutAsJsonAsync($"api/returns/purchases/{id}", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تعديل مرتجع المشتريات."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> DeletePurchaseReturnAsync(Guid id, Guid userId)
+        {
+            try
+            {
+                var res = await _http.DeleteAsync($"api/returns/purchases/{id}?userId={userId}");
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل حذف مرتجع المشتريات."));
             }
             catch (Exception ex)
             {
@@ -941,6 +1266,21 @@ namespace POS.Desktop.Services.Api
             }
         }
 
+        public async Task<(bool Success, string? Error)> PaySupplierDebtAsync(Guid purchaseId, decimal amount)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync($"api/purchases/{purchaseId}/pay", amount);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تسجيل سداد دفعة للمورد."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
         // Backup
         public async Task<(byte[]? Data, string? FileName, string? Error)> ExportBackupAsync()
         {
@@ -962,11 +1302,168 @@ namespace POS.Desktop.Services.Api
                 return (null, null, ex.Message);
             }
         }
+
+        public async Task<(bool Success, string? Message)> RestoreBackupAsync(string jsonContent)
+        {
+            try
+            {
+                var content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
+                var res = await _http.PostAsync("api/backup/restore", content);
+                var responseBody = await res.Content.ReadAsStringAsync();
+
+                if (res.IsSuccessStatusCode)
+                {
+                    try
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(responseBody);
+                        if (doc.RootElement.TryGetProperty("message", out var msgProp) || doc.RootElement.TryGetProperty("Message", out msgProp))
+                        {
+                            return (true, msgProp.GetString() ?? "تم استرجاع النسخة الاحتياطية بنجاح.");
+                        }
+                    }
+                    catch { }
+                    return (true, "تم استرجاع النسخة الاحتياطية بنجاح وتحديث كافة البيانات.");
+                }
+
+                return (false, ExtractErrorMessage(responseBody, "فشلت عملية استرجاع النسخة الاحتياطية."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        // Batches
+        public async Task<List<ProductBatchDto>> GetProductBatchesAsync(Guid productId)
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<ProductBatchDto>>($"api/inventory/batches/product/{productId}") ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        // Price Update
+        public Task<(bool Success, string? Error)> ApplyProductPricesAsync(Guid productId, ApplyProductPricesRequest req)
+            => ApplyProductPricesAsync(productId, req.CostPrice, req.SellingPrice, req.WholesalePrice);
+
+        public async Task<(bool Success, string? Error)> ApplyProductPricesAsync(Guid productId, decimal costPrice, decimal sellingPrice, decimal wholesalePrice)
+        {
+            try
+            {
+                var req = new ApplyProductPricesRequest(costPrice, sellingPrice, wholesalePrice);
+                var res = await _http.PutAsJsonAsync($"api/inventory/products/{productId}/prices", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+
+                var body = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(body, "فشل تطبيق الأسعار الجديدة."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        // Notifications
+        public async Task<List<ExpiryNotificationDto>> GetExpiryNotificationsAsync(bool includeSnoozed = false)
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<ExpiryNotificationDto>>($"api/inventory/notifications/expiry?includeSnoozed={includeSnoozed}") ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> ResolveNotificationAsync(Guid notificationId)
+        {
+            try
+            {
+                var res = await _http.PostAsync($"api/inventory/notifications/{notificationId}/resolve", null);
+                if (res.IsSuccessStatusCode) return (true, null);
+
+                var body = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(body, "فشل تأكيد مراجعة التنبيه."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> SnoozeNotificationAsync(Guid notificationId, int hours = 24)
+        {
+            try
+            {
+                var req = new SnoozeNotificationRequest(hours);
+                var res = await _http.PostAsJsonAsync($"api/inventory/notifications/{notificationId}/snooze", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+
+                var body = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(body, "فشل تأجيل الإشعار."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        // Waste
+        public async Task<(bool Success, Guid? Id, string? Error)> RecordWasteAsync(RecordWasteRequest req)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/inventory/waste", req);
+                var body = await res.Content.ReadAsStringAsync();
+                if (res.IsSuccessStatusCode)
+                {
+                    try
+                    {
+                        var doc = System.Text.Json.JsonDocument.Parse(body);
+                        if (doc.RootElement.TryGetProperty("id", out var idProp) && Guid.TryParse(idProp.GetString(), out var id))
+                            return (true, id, null);
+                    }
+                    catch { }
+                    return (true, null, null);
+                }
+
+                return (false, null, ExtractErrorMessage(body, "فشل تسجيل الهالك."));
+            }
+            catch (Exception ex)
+            {
+                return (false, null, ex.Message);
+            }
+        }
+
+        public async Task<WasteReportResponse?> GetWasteReportAsync(Guid? productId = null, string? reason = null, string? source = null, DateTime? fromDate = null, DateTime? toDate = null)
+        {
+            try
+            {
+                var queryParams = new List<string>();
+                if (productId.HasValue) queryParams.Add($"productId={productId.Value}");
+                if (!string.IsNullOrWhiteSpace(reason)) queryParams.Add($"reason={Uri.EscapeDataString(reason)}");
+                if (!string.IsNullOrWhiteSpace(source)) queryParams.Add($"source={Uri.EscapeDataString(source)}");
+                if (fromDate.HasValue) queryParams.Add($"fromDate={fromDate.Value:yyyy-MM-dd}");
+                if (toDate.HasValue) queryParams.Add($"toDate={toDate.Value:yyyy-MM-dd}");
+
+                var url = "api/inventory/waste/report" + (queryParams.Any() ? "?" + string.Join("&", queryParams) : "");
+                return await _http.GetFromJsonAsync<WasteReportResponse>(url);
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 
     public record UserManagementDto(string Id, string FullName, string UserName, string Email, string Phone, bool IsActive, DateTime CreatedAt, string Role);
     public record RoleItemDto(string Id, string Name);
-    public record CreateUserRequestModel(string FullName, string UserName, string Email, string Password, string? Phone, string Role);
+    public record CreateUserRequestModel(string FullName, string UserName, string Password, string Role, string? Email = null, string? Phone = null);
     public record UpdateUserRoleRequestModel(string Role);
     public record InitialSetupStatusResponse(bool SetupRequired);
     public record SetupAdminRequest(string FullName, string UserName, string? Email, string? Phone, string Password, string? StoreName = null);

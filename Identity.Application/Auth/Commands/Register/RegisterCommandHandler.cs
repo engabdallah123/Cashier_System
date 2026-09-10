@@ -29,15 +29,22 @@ namespace Identity.Application.Auth.Commands.Register
             if (existingUser is not null)
                 return Result<AuthResponse>.Failure(UserErrors.DuplicateUserName);
 
-            var existingEmail = await _userManager.FindByEmailAsync(request.Email);
-            if (existingEmail is not null)
-                return Result<AuthResponse>.Failure(UserErrors.DuplicateEmail);
+            var finalEmail = !string.IsNullOrWhiteSpace(request.Email) 
+                ? request.Email.Trim() 
+                : $"{request.UserName.Trim().ToLowerInvariant()}@pos.local";
+
+            if (!string.IsNullOrWhiteSpace(request.Email))
+            {
+                var existingEmail = await _userManager.FindByEmailAsync(request.Email.Trim());
+                if (existingEmail is not null)
+                    return Result<AuthResponse>.Failure(UserErrors.DuplicateEmail);
+            }
 
             var user = new ApplicationUser
             {
                 FullName = request.FullName.Trim(),
                 UserName = request.UserName.Trim(),
-                Email = request.Email.Trim(),
+                Email = finalEmail,
                 Phone = request.Phone?.Trim(),
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow

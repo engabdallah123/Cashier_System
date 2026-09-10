@@ -12,23 +12,27 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProductExcelTemplate
             var worksheet = workbook.Worksheets.Add("المنتجات");
             worksheet.RightToLeft = true;
 
-            // Header Column Names
+            // Header Column Names matching Add Product Form
             string[] headers = new[]
             {
                 "الباركود*",
                 "اسم المنتج (عربي)*",
                 "اسم المنتج (إنجليزي)",
                 "التصنيف",
-                "الوحدة",
-                "سعر الشراء",
-                "سعر البيع*",
-                "سعر الجملة",
-                "الرصيد الأولي",
-                "حد إعادة الطلب",
+                "الوحدة الأساسية / الصغرى",
+                "الوحدة الكبرى / التعبئة",
+                "معامل التحويل (عدد القطع بالكرتونة)",
+                "سعر الشراء للقطعة",
+                "سعر البيع قطاعي للقطعة*",
+                "سعر البيع جملة للقطعة",
+                "الرصيد الأولي (بالقطع)",
+                "حد إعادة الطلب (بالقطع)",
                 "الحد الأقصى للمخزون",
                 "نسبة الضريبة %",
                 "قابل للوزن (نعم/لا)",
-                "تاريخ الانتهاء (نعم/لا)",
+                "تتبع الصلاحية (نعم/لا)",
+                "مدة الصلاحية بالأيام",
+                "أيام التنبيه قبل الانتهاء",
                 "رابط الصورة (URL)",
                 "الوصف"
             };
@@ -45,41 +49,49 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProductExcelTemplate
                 cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
             }
 
-            // Write Sample Row 1
+            // Write Sample Row 1 (شيبسي بالكرتونة والصلاحية)
             worksheet.Cell(2, 1).SetValue("6221234567890");
             worksheet.Cell(2, 2).SetValue("شيبسي طماطم 50جم");
             worksheet.Cell(2, 3).SetValue("Chipsy Tomato 50g");
             worksheet.Cell(2, 4).SetValue("مأكولات وخفيفات");
             worksheet.Cell(2, 5).SetValue("قطعة");
-            worksheet.Cell(2, 6).SetValue(8.00);
-            worksheet.Cell(2, 7).SetValue(10.00);
-            worksheet.Cell(2, 8).SetValue(9.50);
-            worksheet.Cell(2, 9).SetValue(50);
-            worksheet.Cell(2, 10).SetValue(10);
-            worksheet.Cell(2, 11).SetValue(200);
-            worksheet.Cell(2, 12).SetValue(0);
-            worksheet.Cell(2, 13).SetValue("لا");
-            worksheet.Cell(2, 14).SetValue("نعم");
-            worksheet.Cell(2, 15).SetValue("https://images.openfoodfacts.org/images/products/622/123/456/7890/1.jpg");
-            worksheet.Cell(2, 16).SetValue("شيبس طماطم الحجم العائلي");
+            worksheet.Cell(2, 6).SetValue("كرتونة");
+            worksheet.Cell(2, 7).SetValue(24);
+            worksheet.Cell(2, 8).SetValue(8.00);
+            worksheet.Cell(2, 9).SetValue(10.00);
+            worksheet.Cell(2, 10).SetValue(9.50);
+            worksheet.Cell(2, 11).SetValue(48); // 2 cartons = 48 pieces
+            worksheet.Cell(2, 12).SetValue(12);
+            worksheet.Cell(2, 13).SetValue(240);
+            worksheet.Cell(2, 14).SetValue(0);
+            worksheet.Cell(2, 15).SetValue("لا");
+            worksheet.Cell(2, 16).SetValue("نعم");
+            worksheet.Cell(2, 17).SetValue(180);
+            worksheet.Cell(2, 18).SetValue(15);
+            worksheet.Cell(2, 19).SetValue("https://images.openfoodfacts.org/images/products/622/123/456/7890/1.jpg");
+            worksheet.Cell(2, 20).SetValue("شيبس طماطم الحجم العائلي - كرتونة 24 قطعة");
 
-            // Write Sample Row 2
+            // Write Sample Row 2 (موز بالوزن بدون كرتونة)
             worksheet.Cell(3, 1).SetValue("6229876543210");
             worksheet.Cell(3, 2).SetValue("موز فريش (بالكيلو)");
             worksheet.Cell(3, 3).SetValue("Fresh Bananas (Kg)");
             worksheet.Cell(3, 4).SetValue("فواكه وخضروات");
             worksheet.Cell(3, 5).SetValue("كيلو");
-            worksheet.Cell(3, 6).SetValue(25.00);
-            worksheet.Cell(3, 7).SetValue(35.00);
-            worksheet.Cell(3, 8).SetValue(30.00);
-            worksheet.Cell(3, 9).SetValue(100);
-            worksheet.Cell(3, 10).SetValue(15);
-            worksheet.Cell(3, 11).SetValue(500);
-            worksheet.Cell(3, 12).SetValue(0);
-            worksheet.Cell(3, 13).SetValue("نعم");
-            worksheet.Cell(3, 14).SetValue("لا");
-            worksheet.Cell(3, 15).SetValue("");
-            worksheet.Cell(3, 16).SetValue("موز بلدي فاخر");
+            worksheet.Cell(3, 6).SetValue("قفص");
+            worksheet.Cell(3, 7).SetValue(1);
+            worksheet.Cell(3, 8).SetValue(25.00);
+            worksheet.Cell(3, 9).SetValue(35.00);
+            worksheet.Cell(3, 10).SetValue(30.00);
+            worksheet.Cell(3, 11).SetValue(100);
+            worksheet.Cell(3, 12).SetValue(15);
+            worksheet.Cell(3, 13).SetValue(500);
+            worksheet.Cell(3, 14).SetValue(0);
+            worksheet.Cell(3, 15).SetValue("نعم");
+            worksheet.Cell(3, 16).SetValue("لا");
+            worksheet.Cell(3, 17).SetValue(0);
+            worksheet.Cell(3, 18).SetValue(3);
+            worksheet.Cell(3, 19).SetValue("");
+            worksheet.Cell(3, 20).SetValue("موز بلدي فاخر طازج");
 
             worksheet.Columns().AdjustToContents();
 

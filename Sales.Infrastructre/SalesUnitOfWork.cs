@@ -14,6 +14,7 @@ namespace Sales.Infrastructre
         public IBaseRepository<Customer> CustomerRepository { get; private set; }
         public IBaseRepository<Sale> SaleRepository { get; private set; }
         public IBaseRepository<SaleItem> SaleItemRepository { get; private set; }
+        public IBaseRepository<SalePayment> SalePaymentRepository { get; private set; }
 
         public SalesUnitOfWork(SalesDbContext dbContext)
         {
@@ -21,6 +22,7 @@ namespace Sales.Infrastructre
             CustomerRepository = new BaseRepository<Customer>(_dbContext);
             SaleRepository = new BaseRepository<Sale>(_dbContext);
             SaleItemRepository = new BaseRepository<SaleItem>(_dbContext);
+            SalePaymentRepository = new BaseRepository<SalePayment>(_dbContext);
         }
 
         public async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)

@@ -1,0 +1,803 @@
+@page "/"
+@inject IMachineIdProvider MachineIdProvider
+@inject IJSRuntime JSRuntime
+@using System.IO
+@using System.Text
+@using Microsoft.Win32
+@using POS.Licensing.Cryptography
+@using POS.Licensing.Models
+@using POS.Licensing.Services
+
+<div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+        <div class="header-brand">
+            <div class="header-icon">
+                <i class="fa-solid fa-key"></i>
+            </div>
+            <div class="header-title-group">
+                <h1>مولّد وتراخيص نظام الكاشير | License Generator Studio</h1>
+                <p>الأداة الرسمية للمطور لإصدار وتوقيع وتفعيل تراخيص البرنامج بأعلى معايير الأمان RSA-3072</p>
+            </div>
+        </div>
+        <div class="vendor-badge">
+            <i class="fa-solid fa-shield-halved"></i>
+            <span>أداة خاصة بالمطور فقط (Vendor Only)</span>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="tabs-nav">
+        <button class="tab-btn @(activeTab == "issue" ? "active" : "")" @onclick='() => SetTab("issue")'>
+            <i class="fa-solid fa-file-signature"></i>
+            <span>إصدار ترخيص جديد</span>
+        </button>
+        <button class="tab-btn @(activeTab == "verify" ? "active" : "")" @onclick='() => SetTab("verify")'>
+            <i class="fa-solid fa-circle-check"></i>
+            <span>التحقق من ملف ترخيص</span>
+        </button>
+        <button class="tab-btn @(activeTab == "keygen" ? "active" : "")" @onclick='() => SetTab("keygen")'>
+            <i class="fa-solid fa-arrows-rotate"></i>
+            <span>توليد مفاتيح RSA جديدة</span>
+        </button>
+        <button class="tab-btn @(activeTab == "machine" ? "active" : "")" @onclick='() => SetTab("machine")'>
+            <i class="fa-solid fa-desktop"></i>
+            <span>معرّف هذا الجهاز (Machine ID)</span>
+        </button>
+    </nav>
+
+    <!-- TAB 1: ISSUE LICENSE -->
+    @if (activeTab == "issue")
+    {
+        <div class="tab-content">
+            <!-- Private Key Path Header Card -->
+            <div class="security-banner">
+                <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+                    <i class="fa-solid fa-lock" style="font-size: 1.3rem; color: #818cf8;"></i>
+                    <div style="flex: 1;">
+                        <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 700;">مسار المفتاح السري المعتمد (RSA Private Key):</div>
+                        <div class="input-with-action" style="margin-top: 6px;">
+                            <input type="text" class="form-input" @bind="privateKeyPath" @bind:after="CheckPrivateKeyStatus" style="font-family: monospace; font-size: 0.9rem;" />
+                            <button type="button" class="btn btn-secondary btn-icon" title="تصفح لاختيار ملف المفتاح" @onclick="BrowsePrivateKey">
+                                <i class="fa-regular fa-folder-open"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    @if (isPrivateKeyValid)
+                    {
+                        <span class="key-status-badge badge-success">
+                            <i class="fa-solid fa-circle-check"></i>
+                            المفتاح موجود وجاهز للتوقيع (@privateKeySize بايت)
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="key-status-badge badge-danger">
+                            <i class="fa-solid fa-circle-xmark"></i>
+                            الملف غير موجود في هذا المسار!
+                        </span>
+                    }
+                </div>
+            </div>
+
+            <!-- Form Grid -->
+            <div class="form-grid">
+                <!-- Customer Name -->
+                <div class="form-group">
+                    <label class="form-label">
+                        <span>اسم العميل / المنشأة <span style="color: var(--danger);">*</span></span>
+                        <span class="label-hint">مثال: سوبرماركت الأمانة - فرع النزهة</span>
+                    </label>
+                    <input type="text" class="form-input" placeholder="اكتب اسم العميل أو اسم المتجر..." @bind="customerName" />
+                </div>
+
+                <!-- Machine ID -->
+                <div class="form-group">
+                    <label class="form-label">
+                        <span>معرّف جهاز العميل (Machine ID) <span style="color: var(--danger);">*</span></span>
+                        <span class="label-hint">من شاشة التفعيل في تطبيق العميل</span>
+                    </label>
+                    <div class="input-with-action">
+                        <input type="text" class="form-input" placeholder="POS-XXXX-XXXX-XXXX-XXXX" @bind="machineId" style="font-family: monospace; font-weight: 700; text-transform: uppercase;" />
+                        <button type="button" class="btn btn-secondary" title="استخدام معرّف جهازي الحالي لتجربة الترخيص" @onclick="UseCurrentMachineId">
+                            <i class="fa-solid fa-laptop"></i>
+                            <span>جهازي الحالي</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- License Type Selection -->
+                <div class="form-group full-width">
+                    <label class="form-label">نوع الترخيص ومدة الصلاحية</label>
+                    <div class="license-type-selector">
+                        <div class="type-pill @(selectedType == LicenseType.Lifetime ? "selected" : "")" @onclick="() => SelectType(LicenseType.Lifetime)">
+                            <i class="fa-solid fa-infinity" style="color: #38bdf8; font-size: 1.3rem;"></i>
+                            <div class="pill-title">مدى الحياة (Lifetime)</div>
+                            <div class="pill-desc">ترخيص دائم لا ينتهي</div>
+                        </div>
+                        <div class="type-pill @(selectedType == LicenseType.Yearly ? "selected" : "")" @onclick="() => SelectType(LicenseType.Yearly)">
+                            <i class="fa-solid fa-calendar-check" style="color: #34d399; font-size: 1.3rem;"></i>
+                            <div class="pill-title">سنوي (1 Year)</div>
+                            <div class="pill-desc">صالح لمدة 365 يوماً</div>
+                        </div>
+                        <div class="type-pill @(selectedType == LicenseType.Monthly ? "selected" : "")" @onclick="() => SelectType(LicenseType.Monthly)">
+                            <i class="fa-solid fa-calendar-day" style="color: #fbbf24; font-size: 1.3rem;"></i>
+                            <div class="pill-title">شهري (1 Month)</div>
+                            <div class="pill-desc">صالح لمدة 30 يوماً</div>
+                        </div>
+                        <div class="type-pill @(selectedType == LicenseType.Trial ? "selected" : "")" @onclick="() => SelectType(LicenseType.Trial)">
+                            <i class="fa-solid fa-stopwatch" style="color: #f87171; font-size: 1.3rem;"></i>
+                            <div class="pill-title">تجريبي (Trial)</div>
+                            <div class="pill-desc">صالح لمدة 30 يوماً</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expiry Date (if not Lifetime) -->
+                @if (selectedType != LicenseType.Lifetime)
+                {
+                    <div class="form-group">
+                        <label class="form-label">تاريخ انتهاء الصلاحية (UTC)</label>
+                        <input type="date" class="form-input" @bind="expiresAtDate" />
+                    </div>
+                }
+
+                <!-- Product Name -->
+                <div class="form-group @(selectedType == LicenseType.Lifetime ? "" : "")">
+                    <label class="form-label">اسم المنتج البرمجي</label>
+                    <input type="text" class="form-input" @bind="productName" />
+                </div>
+
+                <!-- Output Folder -->
+                <div class="form-group full-width">
+                    <label class="form-label">
+                        <span>مجلد حفظ ملف الترخيص المولد (.lic)</span>
+                        <span class="label-hint">المجلد الافتراضي</span>
+                    </label>
+                    <div class="input-with-action">
+                        <input type="text" class="form-input" @bind="outputDirectory" style="font-family: monospace;" />
+                        <button type="button" class="btn btn-secondary btn-icon" title="اختيار مجلد الإخراج" @onclick="BrowseOutputDirectory">
+                            <i class="fa-regular fa-folder-open"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Optional Notes -->
+                <div class="form-group full-width">
+                    <label class="form-label">ملاحظات الترخيص (اختياري)</label>
+                    <input type="text" class="form-input" placeholder="أي تفاصيل أو ملاحظات خاصة بالعقد أو العميل..." @bind="licenseNotes" />
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-bar">
+                <button type="button" class="btn btn-primary" style="font-size: 1.05rem; padding: 0 28px;" @onclick="GenerateLicenseAsync" disabled="@isGenerating">
+                    @if (isGenerating)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <span>جاري التوليد والتوقيع الرقمي...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-bolt"></i>
+                        <span>توليد وتوقيع ملف الترخيص (.lic)</span>
+                    }
+                </button>
+
+                @if (!string.IsNullOrEmpty(generatedLicenseJson))
+                {
+                    <button type="button" class="btn btn-secondary" @onclick="CopyLicenseJson">
+                        <i class="fa-regular fa-copy"></i>
+                        <span>نسخ كود الترخيص (JSON)</span>
+                    </button>
+
+                    <button type="button" class="btn btn-success" @onclick="InstallToLocalApp">
+                        <i class="fa-solid fa-circle-arrow-down"></i>
+                        <span>تثبيت الترخيص فوراً على هذا الجهاز (%LocalAppData%)</span>
+                    </button>
+                }
+            </div>
+
+            <!-- Error Banner -->
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="result-card danger">
+                    <div class="result-header">
+                        <div class="result-title" style="color: var(--danger);">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span>تنبيه: حدث خطأ أثناء المعالجة</span>
+                        </div>
+                    </div>
+                    <div style="color: #fca5a5; font-size: 0.95rem;">@errorMessage</div>
+                </div>
+            }
+
+            <!-- Generated Success Result Card -->
+            @if (issuedPayload != null)
+            {
+                <div class="result-card success">
+                    <div class="result-header">
+                        <div class="result-title" style="color: var(--success);">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span>تم توليد وتوقيع الترخيص بنجاح!</span>
+                        </div>
+                        <span class="key-status-badge badge-success">RSA-3072 Valid Signature</span>
+                    </div>
+
+                    <div class="result-data-grid">
+                        <div class="data-row">
+                            <span class="data-label">رقم الترخيص الفريد (License ID)</span>
+                            <span class="data-val" style="color: #38bdf8;">@issuedPayload.LicenseId</span>
+                        </div>
+                        <div class="data-row">
+                            <span class="data-label">اسم العميل</span>
+                            <span class="data-val">@issuedPayload.CustomerName</span>
+                        </div>
+                        <div class="data-row">
+                            <span class="data-label">معرف الجهاز (Machine ID)</span>
+                            <span class="data-val">@issuedPayload.MachineId</span>
+                        </div>
+                        <div class="data-row">
+                            <span class="data-label">نوع الترخيص والصلاحية</span>
+                            <span class="data-val">
+                                @issuedPayload.LicenseType
+                                @(issuedPayload.ExpiresAtUtc.HasValue ? $" (ينتهي في: {issuedPayload.ExpiresAtUtc.Value:yyyy-MM-dd})" : " (دائم مدى الحياة)")
+                            </span>
+                        </div>
+                        <div class="data-row" style="grid-column: span 2;">
+                            <span class="data-label">مسار ملف الترخيص المحفوظ</span>
+                            <span class="data-val" style="color: #a7f3d0;">@savedLicenseFilePath</span>
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(installMessage))
+                    {
+                        <div style="background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: var(--radius-sm); padding: 10px 16px; color: #a7f3d0; font-size: 0.9rem; font-weight: 700;">
+                            <i class="fa-solid fa-check-double"></i> @installMessage
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <!-- TAB 2: VERIFY LICENSE -->
+    @if (activeTab == "verify")
+    {
+        <div class="tab-content">
+            <div class="form-grid single-col">
+                <div class="form-group">
+                    <label class="form-label">
+                        <span>اختيار ملف ترخيص للتحقق منه (.lic)</span>
+                        <span class="label-hint">أو الصق محتوى ملف الترخيص في المربع أدناه</span>
+                    </label>
+                    <div class="input-with-action">
+                        <input type="text" class="form-input" placeholder="مسار ملف الترخيص..." @bind="verifyFilePath" />
+                        <button type="button" class="btn btn-secondary" @onclick="BrowseVerifyFile">
+                            <i class="fa-regular fa-folder-open"></i>
+                            <span>تصفح ملف...</span>
+                        </button>
+                        <button type="button" class="btn btn-primary" @onclick="VerifyFileAsync">
+                            <i class="fa-solid fa-shield-check"></i>
+                            <span>فحص الملف</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">محتوى الترخيص النصي (JSON)</label>
+                    <textarea class="form-textarea" rows="5" placeholder="ألصق كود الترخيص هنا..." @bind="verifyRawJson" style="font-family: monospace; font-size: 0.85rem;"></textarea>
+                </div>
+
+                <div>
+                    <button type="button" class="btn btn-secondary" @onclick="VerifyRawJsonAsync">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <span>التحقق من الكود المنسوخ</span>
+                    </button>
+                </div>
+            </div>
+
+            @if (verificationResult.HasValue)
+            {
+                <div class="result-card @(verificationResult.Value ? "success" : "danger")">
+                    <div class="result-header">
+                        <div class="result-title" style="color: @(verificationResult.Value ? "var(--success)" : "var(--danger)");">
+                            <i class="fa-solid @(verificationResult.Value ? "fa-circle-check" : "fa-triangle-exclamation")"></i>
+                            <span>@(verificationResult.Value ? "التوقيع الرقمي سليم ومعتمد بنجاح (VALID)" : "التوقيع الرقمي غير صالح أو تم التلاعب بالملف (INVALID)!")</span>
+                        </div>
+                    </div>
+
+                    @if (verifiedPayload != null)
+                    {
+                        <div class="result-data-grid">
+                            <div class="data-row">
+                                <span class="data-label">رقم الترخيص (License ID)</span>
+                                <span class="data-val">@verifiedPayload.LicenseId</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">اسم العميل</span>
+                                <span class="data-val">@verifiedPayload.CustomerName</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">معرف الجهاز</span>
+                                <span class="data-val">@verifiedPayload.MachineId</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">نوع الترخيص</span>
+                                <span class="data-val">@verifiedPayload.LicenseType</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">تاريخ الإصدار</span>
+                                <span class="data-val">@verifiedPayload.IssuedAtUtc.ToString("yyyy-MM-dd HH:mm") UTC</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">تاريخ الانتهاء</span>
+                                <span class="data-val">@(verifiedPayload.ExpiresAtUtc.HasValue ? verifiedPayload.ExpiresAtUtc.Value.ToString("yyyy-MM-dd") : "دائم مدى الحياة")</span>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <!-- TAB 3: GENERATE RSA KEY PAIR -->
+    @if (activeTab == "keygen")
+    {
+        <div class="tab-content">
+            <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius-md); padding: 16px 20px; margin-bottom: 24px; color: #fde68a;">
+                <div style="display: flex; align-items: center; gap: 10px; font-weight: 700; margin-bottom: 6px;">
+                    <i class="fa-solid fa-triangle-exclamation" style="color: var(--warning);"></i>
+                    <span>تنبيه أمني فائق الأهمية:</span>
+                </div>
+                <div style="font-size: 0.9rem; line-height: 1.6;">
+                    المفتاح السري (Private Key) هو مصدر الثقة الوحيد لتوقيع تراخيص برنامجك. احتفظ به في مكان آمن ولا تضعه أبداً في ملفات التثبيت الخاصة بالعملاء.
+                    المفتاح العام (Public Key) يتم تضمينه في مشروع <code>POS.Licensing/Cryptography/EmbeddedKeys.cs</code> للتحقق فقط.
+                </div>
+            </div>
+
+            <div class="form-grid single-col">
+                <div class="form-group">
+                    <label class="form-label">مجلد حفظ المفاتيح الجديدة (Private & Public Keys)</label>
+                    <div class="input-with-action">
+                        <input type="text" class="form-input" @bind="keygenDirectory" style="font-family: monospace;" />
+                        <button type="button" class="btn btn-secondary btn-icon" @onclick="BrowseKeygenDirectory">
+                            <i class="fa-regular fa-folder-open"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <button type="button" class="btn btn-primary" @onclick="GenerateNewKeyPairAsync" disabled="@isGeneratingKeys">
+                        @if (isGeneratingKeys)
+                        {
+                            <i class="fa-solid fa-spinner fa-spin"></i>
+                            <span>جاري توليد مفاتيح RSA-3072 بت...</span>
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-key"></i>
+                            <span>توليد زوج مفاتيح جديد (RSA-3072)</span>
+                        }
+                    </button>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(generatedPublicKeyPem))
+            {
+                <div class="result-card success">
+                    <div class="result-header">
+                        <div class="result-title" style="color: var(--success);">
+                            <i class="fa-solid fa-circle-check"></i>
+                            <span>تم توليد المفاتيح بنجاح وحفظها في المجلد المحدد!</span>
+                        </div>
+                        <button type="button" class="btn btn-secondary" @onclick="CopyPublicKeyPem">
+                            <i class="fa-regular fa-copy"></i>
+                            <span>نسخ المفتاح العام لـ EmbeddedKeys.cs</span>
+                        </button>
+                    </div>
+
+                    <div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 6px; font-weight: 700;">المفتاح العام الناتج (Public Key):</div>
+                        <pre class="code-block">@generatedPublicKeyPem</pre>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- TAB 4: MACHINE ID -->
+    @if (activeTab == "machine")
+    {
+        <div class="tab-content">
+            <div class="machine-id-hero">
+                <div style="color: var(--text-muted); font-size: 1.05rem; font-weight: 700;">
+                    معرّف هذا الجهاز الحالي (Current PC Hardware Machine ID)
+                </div>
+                <div class="machine-id-code">@currentMachineId</div>
+                <button type="button" class="btn btn-primary" style="padding: 0 32px;" @onclick="CopyCurrentMachineId">
+                    <i class="fa-regular fa-copy"></i>
+                    <span>@copyButtonText</span>
+                </button>
+            </div>
+
+            <div style="margin-top: 24px; background: var(--bg-card); border-radius: var(--radius-md); padding: 20px; border: 1px solid var(--border-color);">
+                <div style="font-weight: 700; color: #cbd5e1; margin-bottom: 8px;">
+                    <i class="fa-solid fa-circle-info" style="color: #38bdf8;"></i>
+                    كيف يعمل معرّف الجهاز (Machine ID Binding)؟
+                </div>
+                <div style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.7;">
+                    يتم استخراج معرّف الجهاز بدقة عالية عبر دمج بصمات العتاد الثابتة للجهاز (اللوحة الأم Motherboard، المعالج CPU، والقرص الصلب الأساسي Drive Serial)، ثم تشفيرها بخوارزمية SHA-256 لتكوين معرّف فريد لا يتغير حتى مع إعادة تثبيت نظام التشغيل Windows.
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string activeTab = "issue";
+
+    // Tab 1: Issue License Fields
+    private string privateKeyPath = @"E:\pos-keys\license-private.pem";
+    private bool isPrivateKeyValid = false;
+    private long privateKeySize = 0;
+
+    private string customerName = "العميل المرخص";
+    private string machineId = "";
+    private LicenseType selectedType = LicenseType.Lifetime;
+    private DateTime expiresAtDate = DateTime.UtcNow.AddYears(1);
+    private string productName = "POS Supermarket Cashier System";
+    private string outputDirectory = @"E:\pos-keys";
+    private string licenseNotes = "";
+
+    private bool isGenerating = false;
+    private string? errorMessage = null;
+    private string? generatedLicenseJson = null;
+    private string? savedLicenseFilePath = null;
+    private string? installMessage = null;
+    private LicensePayload? issuedPayload = null;
+
+    // Tab 2: Verify Fields
+    private string verifyFilePath = "";
+    private string verifyRawJson = "";
+    private bool? verificationResult = null;
+    private LicensePayload? verifiedPayload = null;
+
+    // Tab 3: Keygen Fields
+    private string keygenDirectory = @"E:\pos-keys";
+    private bool isGeneratingKeys = false;
+    private string? generatedPublicKeyPem = null;
+
+    // Tab 4: Machine ID
+    private string currentMachineId = "";
+    private string copyButtonText = "نسخ المعرّف للحافظة";
+
+    protected override void OnInitialized()
+    {
+        currentMachineId = MachineIdProvider.GetMachineId();
+        machineId = currentMachineId;
+        CheckPrivateKeyStatus();
+    }
+
+    private void SetTab(string tab)
+    {
+        activeTab = tab;
+        errorMessage = null;
+        installMessage = null;
+    }
+
+    private void CheckPrivateKeyStatus()
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(privateKeyPath) && File.Exists(privateKeyPath))
+            {
+                var fi = new FileInfo(privateKeyPath);
+                privateKeySize = fi.Length;
+                isPrivateKeyValid = privateKeySize > 100;
+            }
+            else
+            {
+                isPrivateKeyValid = false;
+                privateKeySize = 0;
+            }
+        }
+        catch
+        {
+            isPrivateKeyValid = false;
+            privateKeySize = 0;
+        }
+    }
+
+    private void BrowsePrivateKey()
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = "اختر ملف المفتاح السري (RSA Private Key)",
+            Filter = "PEM Files (*.pem)|*.pem|Key Files (*.key)|*.key|All Files (*.*)|*.*",
+            InitialDirectory = Directory.Exists(@"E:\pos-keys") ? @"E:\pos-keys" : @"C:\"
+        };
+
+        if (dlg.ShowDialog() == true)
+        {
+            privateKeyPath = dlg.FileName;
+            CheckPrivateKeyStatus();
+        }
+    }
+
+    private void BrowseOutputDirectory()
+    {
+        var dlg = new OpenFolderDialog
+        {
+            Title = "اختر مجلد حفظ ملفات التراخيص",
+            InitialDirectory = Directory.Exists(outputDirectory) ? outputDirectory : @"E:\pos-keys"
+        };
+
+        if (dlg.ShowDialog() == true)
+        {
+            outputDirectory = dlg.FolderName;
+        }
+    }
+
+    private void BrowseKeygenDirectory()
+    {
+        var dlg = new OpenFolderDialog
+        {
+            Title = "اختر مجلد حفظ المفاتيح الجديدة",
+            InitialDirectory = Directory.Exists(keygenDirectory) ? keygenDirectory : @"E:\pos-keys"
+        };
+
+        if (dlg.ShowDialog() == true)
+        {
+            keygenDirectory = dlg.FolderName;
+        }
+    }
+
+    private void UseCurrentMachineId()
+    {
+        machineId = currentMachineId;
+    }
+
+    private void SelectType(LicenseType type)
+    {
+        selectedType = type;
+        expiresAtDate = type switch
+        {
+            LicenseType.Trial => DateTime.UtcNow.AddDays(30),
+            LicenseType.Monthly => DateTime.UtcNow.AddMonths(1),
+            _ => DateTime.UtcNow.AddYears(1)
+        };
+    }
+
+    private async Task GenerateLicenseAsync()
+    {
+        errorMessage = null;
+        installMessage = null;
+        issuedPayload = null;
+        generatedLicenseJson = null;
+
+        if (string.IsNullOrWhiteSpace(customerName))
+        {
+            errorMessage = "يرجى إدخال اسم العميل أو المنشأة.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(machineId))
+        {
+            errorMessage = "يرجى إدخال معرّف الجهاز (Machine ID).";
+            return;
+        }
+
+        if (!File.Exists(privateKeyPath))
+        {
+            errorMessage = $"ملف المفتاح السري غير موجود في المسار: {privateKeyPath}";
+            return;
+        }
+
+        isGenerating = true;
+        StateHasChanged();
+
+        try
+        {
+            await Task.Yield();
+            var privateKeyPem = await File.ReadAllTextAsync(privateKeyPath);
+
+            var licenseId = Guid.NewGuid().ToString("D").ToUpperInvariant();
+            DateTime? expiry = selectedType == LicenseType.Lifetime ? null : expiresAtDate.ToUniversalTime();
+
+            var payload = new LicensePayload(
+                LicenseId: licenseId,
+                Product: string.IsNullOrWhiteSpace(productName) ? "POS Supermarket Cashier System" : productName,
+                CustomerName: customerName.Trim(),
+                MachineId: machineId.Trim().ToUpperInvariant(),
+                LicenseType: selectedType,
+                IssuedAtUtc: DateTime.UtcNow,
+                ExpiresAtUtc: expiry,
+                Version: "1.0.0",
+                MinSupportedVersion: null,
+                Notes: string.IsNullOrWhiteSpace(licenseNotes) ? null : licenseNotes.Trim()
+            );
+
+            var signed = LicenseSigner.Sign(payload, privateKeyPem);
+            generatedLicenseJson = CanonicalLicenseSerializer.SerializeSignedLicense(signed);
+
+            Directory.CreateDirectory(outputDirectory);
+            var safeCustomer = string.Concat(customerName.Trim().Split(Path.GetInvalidFileNameChars())).Replace(" ", "_");
+            var fileName = $"license-{safeCustomer}-{DateTime.UtcNow:yyyyMMdd-HHmmss}.lic";
+            savedLicenseFilePath = Path.Combine(outputDirectory, fileName);
+
+            await File.WriteAllTextAsync(savedLicenseFilePath, generatedLicenseJson, Encoding.UTF8);
+
+            // Also keep standard license.lic in output dir for immediate convenience
+            var standardPath = Path.Combine(outputDirectory, "license.lic");
+            await File.WriteAllTextAsync(standardPath, generatedLicenseJson, Encoding.UTF8);
+
+            issuedPayload = payload;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"فشل توليد الترخيص: {ex.Message}";
+        }
+        finally
+        {
+            isGenerating = false;
+        }
+    }
+
+    private async Task CopyLicenseJson()
+    {
+        if (!string.IsNullOrEmpty(generatedLicenseJson))
+        {
+            await JSRuntime.InvokeVoidAsync("copyToClipboard", generatedLicenseJson);
+        }
+    }
+
+    private async Task InstallToLocalApp()
+    {
+        if (string.IsNullOrEmpty(generatedLicenseJson)) return;
+
+        try
+        {
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var appFolder = Path.Combine(localAppData, "POSCashier");
+            Directory.CreateDirectory(appFolder);
+            var activeLicFile = Path.Combine(appFolder, "license.lic");
+            await File.WriteAllTextAsync(activeLicFile, generatedLicenseJson, Encoding.UTF8);
+
+            installMessage = $"تم تثبيت ملف الترخيص بنجاح في: {activeLicFile}، يمكنك الآن تشغيل تطبيق POS.Desktop وسيتم تفعيله تلقائياً!";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"فشل التثبيت التلقائي: {ex.Message}";
+        }
+    }
+
+    // Tab 2: Verify
+    private void BrowseVerifyFile()
+    {
+        var dlg = new OpenFileDialog
+        {
+            Title = "اختر ملف الترخيص للتحقق",
+            Filter = "License Files (*.lic;*.json)|*.lic;*.json|All Files (*.*)|*.*",
+            InitialDirectory = Directory.Exists(outputDirectory) ? outputDirectory : @"E:\pos-keys"
+        };
+
+        if (dlg.ShowDialog() == true)
+        {
+            verifyFilePath = dlg.FileName;
+        }
+    }
+
+    private async Task VerifyFileAsync()
+    {
+        verificationResult = null;
+        verifiedPayload = null;
+
+        if (!File.Exists(verifyFilePath))
+        {
+            errorMessage = "ملف الترخيص المحدد غير موجود.";
+            return;
+        }
+
+        var json = await File.ReadAllTextAsync(verifyFilePath, Encoding.UTF8);
+        verifyRawJson = json;
+        await VerifyContent(json);
+    }
+
+    private async Task VerifyRawJsonAsync()
+    {
+        verificationResult = null;
+        verifiedPayload = null;
+
+        if (string.IsNullOrWhiteSpace(verifyRawJson))
+        {
+            errorMessage = "يرجى لصق كود الترخيص أولاً.";
+            return;
+        }
+
+        await VerifyContent(verifyRawJson);
+    }
+
+    private async Task VerifyContent(string json)
+    {
+        try
+        {
+            var signed = CanonicalLicenseSerializer.DeserializeLicense(json);
+            if (signed == null)
+            {
+                verificationResult = false;
+                return;
+            }
+
+            string? publicKeyPem = null;
+            var pubKeyPath = Path.Combine(Path.GetDirectoryName(privateKeyPath) ?? @"E:\pos-keys", "license-public.pem");
+            if (File.Exists(pubKeyPath))
+            {
+                publicKeyPem = await File.ReadAllTextAsync(pubKeyPath);
+            }
+            else
+            {
+                publicKeyPem = EmbeddedKeys.PublicKeyPem;
+            }
+
+            var isValid = LicenseSignatureVerifier.Verify(signed, publicKeyPem);
+            verificationResult = isValid;
+            verifiedPayload = signed.Payload;
+        }
+        catch
+        {
+            verificationResult = false;
+        }
+    }
+
+    // Tab 3: Keygen
+    private async Task GenerateNewKeyPairAsync()
+    {
+        isGeneratingKeys = true;
+        generatedPublicKeyPem = null;
+        StateHasChanged();
+
+        try
+        {
+            await Task.Yield();
+            Directory.CreateDirectory(keygenDirectory);
+            var (priv, pub) = RsaKeyHelper.GenerateKeyPair(3072);
+
+            var privPath = Path.Combine(keygenDirectory, "license-private.pem");
+            var pubPath = Path.Combine(keygenDirectory, "license-public.pem");
+
+            await File.WriteAllTextAsync(privPath, priv, Encoding.UTF8);
+            await File.WriteAllTextAsync(pubPath, pub, Encoding.UTF8);
+
+            generatedPublicKeyPem = pub;
+            privateKeyPath = privPath;
+            CheckPrivateKeyStatus();
+        }
+        finally
+        {
+            isGeneratingKeys = false;
+        }
+    }
+
+    private async Task CopyPublicKeyPem()
+    {
+        if (!string.IsNullOrEmpty(generatedPublicKeyPem))
+        {
+            await JSRuntime.InvokeVoidAsync("copyToClipboard", generatedPublicKeyPem);
+        }
+    }
+
+    // Tab 4: Machine ID
+    private async Task CopyCurrentMachineId()
+    {
+        await JSRuntime.InvokeVoidAsync("copyToClipboard", currentMachineId);
+        copyButtonText = "✓ تم النسخ بنجاح!";
+        StateHasChanged();
+        await Task.Delay(2000);
+        copyButtonText = "نسخ المعرّف للحافظة";
+        StateHasChanged();
+    }
+}

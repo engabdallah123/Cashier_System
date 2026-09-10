@@ -43,6 +43,21 @@
             }
         };
 
+        window.getPosSetting = function (key, defaultVal) {
+            try {
+                const v = localStorage.getItem(key);
+                return v !== null ? v : defaultVal;
+            } catch (e) {
+                return defaultVal;
+            }
+        };
+
+        window.setPosSetting = function (key, val) {
+            try {
+                localStorage.setItem(key, val);
+            } catch (e) {}
+        };
+
         (function () {
             const savedTheme = window.getAppTheme();
             document.documentElement.setAttribute('data-theme', savedTheme);
@@ -202,12 +217,30 @@
             return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
-        window.focusElementById = function (id) {
-            const el = document.getElementById(id);
-            if (el) {
-                el.focus();
-                if (el.select) el.select();
-            }
+        window.focusElementById = function (id, delay, select) {
+            if (typeof delay === 'undefined' || delay === null) delay = 0;
+            if (typeof select === 'undefined' || select === null) select = true;
+
+            const doFocus = () => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.focus();
+                    if (select && el.select) {
+                        try { el.select(); } catch (e) {}
+                    }
+                    return true;
+                }
+                return false;
+            };
+
+            // Attempt immediately
+            doFocus();
+
+            // Retry with staggered delays to ensure focus after DOM updates, modal transitions, or printing iframe focus shifts
+            const retries = [20, 60, 150, 300, 500];
+            retries.forEach(t => {
+                setTimeout(doFocus, Math.max(t, delay));
+            });
         };
 
         window.initGlobalNavigationShortcuts = function (dotNetHelper) {
@@ -282,26 +315,35 @@
                 const code = e.code || '';
                 const key = (e.key || '').toLowerCase();
                 const altKeyMap = {
-                    'p': 'pos',         // Alt + P -> POS (شاشة البيع)
+                    'p': 'pos',               // Alt + P -> POS (شاشة البيع)
                     'KeyP': 'pos',
-                    'm': 'products',    // Alt + M -> Montajat / المخزون (المنتجات)
+                    'm': 'products',          // Alt + M -> Montajat / المخزون (المنتجات)
                     'KeyM': 'products',
-                    'b': 'price-check', // Alt + B -> Barcode / Check Price (استعلام الأسعار)
+                    'b': 'price-check',       // Alt + B -> Barcode / Check Price (استعلام الأسعار)
                     'KeyB': 'price-check',
-                    'k': 'price-check', // Alt + K -> Check Price (استعلام الأسعار)
+                    'k': 'price-check',       // Alt + K -> Check Price (استعلام الأسعار)
                     'KeyK': 'price-check',
-                    's': 'shifts',      // Alt + S -> Shifts (الورديات والخزينة)
+                    's': 'shifts',            // Alt + S -> Shifts (الورديات والخزينة)
                     'KeyS': 'shifts',
-                    'l': 'sales',       // Alt + L -> Sales List (سجل المبيعات)
+                    'r': 'returns/sales',     // Alt + R -> Sales Returns (مرتجع المبيعات)
+                    'KeyR': 'returns/sales',
+                    'l': 'sales',             // Alt + L -> Sales List (سجل المبيعات)
                     'KeyL': 'sales',
-                    'u': 'purchases',   // Alt + U -> Purchases (المشتريات)
+                    'u': 'purchases',         // Alt + U -> Purchases (المشتريات)
                     'KeyU': 'purchases',
-                    'e': 'expenses',    // Alt + E -> Expenses (المصروفات)
+                    'e': 'expenses',          // Alt + E -> Expenses (المصروفات)
                     'KeyE': 'expenses',
-                    'h': '',            // Alt + H -> Home (الصفحة الرئيسية)
+                    't': 'returns/purchases', // Alt + T -> Purchase Returns (مرتجع المشتريات)
+                    'KeyT': 'returns/purchases',
+                    'd': 'debts',             // Alt + D -> Debts (فواتير الديون)
+                    'KeyD': 'debts',
+                    'y': 'monthly-report',     // Alt + Y -> Monthly Report (نتيجة المبيعات الشهرية)
+                    'KeyY': 'monthly-report',
+                    'غ': 'monthly-report',
+                    'h': '',                  // Alt + H -> Home (الصفحة الرئيسية)
                     'KeyH': '',
-                    'd': 'dashboard',   // Alt + D -> Dashboard (لوحة البيانات)
-                    'KeyD': 'dashboard'
+                    'a': 'dashboard',         // Alt + A -> Dashboard (لوحة البيانات)
+                    'KeyA': 'dashboard'
                 };
 
                 const targetRoute = altKeyMap[key] !== undefined ? altKeyMap[key] : altKeyMap[code];
@@ -322,7 +364,7 @@
             document.addEventListener('keydown', function (e) {
                 if (e.ctrlKey || e.altKey || e.metaKey) return;
 
-                const isPosPage = window.location.pathname.endsWith('/pos') || window.location.pathname.endsWith('pos') || window.location.pathname === '/';
+                const isPosPage = window.location.pathname.endsWith('/pos') || window.location.pathname.endsWith('pos') || window.location.pathname === '/' || window.location.hash.includes('pos');
                 if (!isPosPage) return;
 
                 if (e.key === 'F2' || e.key === 'F4' || e.key === 'F8' || e.key === 'F9' || e.key === 'Escape') {
@@ -330,9 +372,86 @@
                     if (dotNetHelper) {
                         dotNetHelper.invokeMethodAsync('OnPosShortcutPressed', e.key);
                     }
+                    return;
+                }
+
+                // If Payment modal is open and user presses Enter -> Confirm and submit sale!
+                const isPaymentModalOpen = document.getElementById('payment-submit-btn') !== null;
+                if (e.key === 'Enter' && isPaymentModalOpen) {
+                    e.preventDefault();
+                    if (dotNetHelper) {
+                        dotNetHelper.invokeMethodAsync('OnPosShortcutPressed', 'Enter');
+                    }
+                    return;
+                }
+
+                // If user is not currently in any input/textarea/select, and starts typing or scanning barcode
+                const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+                const isInputFocused = activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select';
+                const isModalOpen = document.querySelector('.modal-card, .global-window-card, .calculator-modal-container') !== null;
+
+                // If user presses Enter while not in an input and no modal is open -> open payment modal if cart has items!
+                if (!isInputFocused && !isModalOpen && e.key === 'Enter') {
+                    e.preventDefault();
+                    if (dotNetHelper) {
+                        dotNetHelper.invokeMethodAsync('OnPosShortcutPressed', 'Enter');
+                    }
+                    return;
+                }
+
+                if (!isInputFocused && !isModalOpen && e.key && e.key.length === 1) {
+                    const barcodeInput = document.getElementById('pos-barcode-input');
+                    if (barcodeInput) {
+                        barcodeInput.focus();
+                    }
                 }
             });
         };
+
+        // Universal global handler for all modals and forms across the application:
+        // Enter to confirm, Escape to cancel/close
+        (function() {
+            document.addEventListener('keydown', function (e) {
+                // Check if any modal, overlay, or fixed backdrop is currently visible
+                const activeOverlay = document.querySelector('.modal-overlay, .modal-card, [style*="position: fixed"][style*="inset: 0"], .dialog-overlay');
+                if (!activeOverlay) return;
+
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    // Click close/cancel button in modal
+                    const cancelBtn = activeOverlay.querySelector('.modal-header button, button.btn-secondary, button[data-dismiss], button:has(.fa-xmark), button:has(i.fa-xmark)');
+                    if (cancelBtn) {
+                        cancelBtn.click();
+                        return;
+                    }
+                }
+
+                if (e.key === 'Enter') {
+                    const activeEl = document.activeElement;
+                    const activeTag = activeEl ? activeEl.tagName.toLowerCase() : '';
+                    
+                    // Allow normal Enter for multiline textareas and buttons
+                    if (activeTag === 'textarea' || activeTag === 'button') {
+                        return;
+                    }
+
+                    // Exclude specific scan/search inputs that have dedicated Enter handlers
+                    const activeId = activeEl ? (activeEl.id || '') : '';
+                    if (activeId === 'purchase-barcode-input' || activeId === 'product-quick-scan-barcode' || activeId === 'pos-barcode-input') {
+                        return;
+                    }
+
+                    // Find confirm/save/submit button in the active modal
+                    const confirmBtn = activeOverlay.querySelector('#payment-submit-btn, .modal-footer .btn-primary, .modal-footer .btn-success, .modal-footer .btn-danger, button.btn-primary, button.btn-success, button[type="submit"]');
+                    if (confirmBtn && !confirmBtn.disabled) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        confirmBtn.click();
+                    }
+                }
+            }, { capture: true });
+        })();
     </script>
 </body>
 </html>

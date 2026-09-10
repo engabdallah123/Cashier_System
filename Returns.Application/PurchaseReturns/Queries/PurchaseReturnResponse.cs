@@ -4,6 +4,7 @@ namespace Returns.Application.PurchaseReturns.Queries
         Guid Id,
         Guid ProductId,
         string? ProductName,
+        string? Barcode,
         decimal Quantity,
         decimal UnitCost,
         decimal Tax,
@@ -13,6 +14,7 @@ namespace Returns.Application.PurchaseReturns.Queries
         Guid Id,
         string ReturnNumber,
         Guid OriginalPurchaseId,
+        string? OriginalInvoiceNumber,
         Guid SupplierId,
         string? SupplierName,
         DateTime ReturnDate,
@@ -23,5 +25,6 @@ namespace Returns.Application.PurchaseReturns.Queries
         string? Notes,
         string Status,
         Guid CreatedByUserId,
-        IReadOnlyList<PurchaseReturnItemResponse> Items);
+        string? CreatedByUserName = null,
+        IReadOnlyList<PurchaseReturnItemResponse>? Items = null);
 }

@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using POS.Shared.Application.Database;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
@@ -35,8 +35,18 @@ namespace Sales.Application.Sales.Queries.GetSaleById
             var itemsSql = """
                 SELECT 
                     si.Id, si.ProductId, p.NameAr AS ProductName, p.Barcode,
-                    si.Quantity, si.UnitPrice, si.Discount, si.Tax,
-                    (si.Quantity * si.UnitPrice - si.Discount + si.Tax) AS Total
+                    si.Quantity,
+                    ISNULL((
+                        SELECT SUM(sri.Quantity) 
+                        FROM [Returns].[SalesReturnItems] sri 
+                        JOIN [Returns].[SalesReturns] sr ON sri.SalesReturnId = sr.Id 
+                        WHERE sri.OriginalSaleItemId = si.Id AND sr.Status != 2
+                    ), 0) AS ReturnedQuantity,
+                    si.UnitPrice, si.Discount, si.Tax,
+                    (si.Quantity * si.UnitPrice - si.Discount + si.Tax) AS Total,
+                    ISNULL(p.BaseUnit, 'قطعة') AS BaseUnit,
+                    ISNULL(p.ParentUnit, 'كرتونة') AS ParentUnit,
+                    ISNULL(p.ConversionFactor, 1) AS ConversionFactor
                 FROM [Sales].[SaleItems] si
                 LEFT JOIN [Inventory].[Products] p ON si.ProductId = p.Id
                 WHERE si.SaleId = @SaleId
@@ -47,7 +57,30 @@ namespace Sales.Application.Sales.Queries.GetSaleById
             if (saleData is null)
                 return Result<SaleDetailResponse>.Failure(new Error("Sale.NotFound", $"الفاتورة بالرقم '{request.Id}' غير موجودة."));
 
-            var items = await connection.QueryAsync<SaleDetailItemResponse>(itemsSql, new { SaleId = request.Id });
+            var rawItems = await connection.QueryAsync<dynamic>(itemsSql, new { SaleId = request.Id });
+            var items = new List<SaleDetailItemResponse>();
+            foreach (var r in rawItems)
+            {
+                decimal qty = (decimal)r.Quantity;
+                decimal retQty = (decimal)r.ReturnedQuantity;
+                decimal remQty = Math.Max(0, qty - retQty);
+
+                items.Add(new SaleDetailItemResponse(
+                    (Guid)r.Id,
+                    (Guid)r.ProductId,
+                    (string?)r.ProductName,
+                    (string?)r.Barcode,
+                    qty,
+                    (decimal)r.UnitPrice,
+                    (decimal)r.Discount,
+                    (decimal)r.Tax,
+                    (decimal)r.Total,
+                    retQty,
+                    remQty,
+                    (string?)r.BaseUnit,
+                    (string?)r.ParentUnit,
+                    (int)r.ConversionFactor));
+            }
 
             var response = new SaleDetailResponse(
                 (Guid)saleData.Id,

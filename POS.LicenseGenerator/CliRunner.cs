@@ -1,3 +1,4 @@
+using System.IO;
 using POS.Licensing.Cryptography;
 using POS.Licensing.Models;
 using POS.Licensing.Services;
@@ -5,16 +6,14 @@ using POS.Licensing.Services;
 namespace POS.LicenseGenerator;
 
 /// <summary>
-/// POS License Generator — Vendor-side tool for generating signed license files.
-/// This tool must NEVER be included in the customer installer.
-/// The RSA Private Key is loaded from an external file or environment variable.
+/// CLI Runner for automated or terminal-based operations.
 /// </summary>
-internal sealed class Program
+public static class CliRunner
 {
     private const string ProductName = "POS Supermarket Cashier System";
     private const string CurrentVersion = "1.0.0";
 
-    static async Task Main(string[] args)
+    public static async Task RunAsync(string[] args)
     {
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         PrintHeader();
@@ -28,7 +27,7 @@ internal sealed class Program
         await RunInteractiveMenu();
     }
 
-    static void PrintHeader()
+    private static void PrintHeader()
     {
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine("╔══════════════════════════════════════════════════════╗");
@@ -39,7 +38,7 @@ internal sealed class Program
         Console.WriteLine();
     }
 
-    static async Task RunInteractiveMenu()
+    private static async Task RunInteractiveMenu()
     {
         while (true)
         {
@@ -72,12 +71,12 @@ internal sealed class Program
         }
     }
 
-    static async Task HandleCliArgs(string[] args)
+    private static async Task HandleCliArgs(string[] args)
     {
         switch (args[0].ToLower())
         {
             case "auto":
-                var keysDir = args.Length > 1 ? args[1] : @"D:\pos-keys";
+                var keysDir = args.Length > 1 ? args[1] : @"E:\pos-keys";
                 var machineId = args.Length > 2 ? args[2] : "POS-4C4E-76F5-CC30-CFD0";
                 var customer = args.Length > 3 ? args[3] : "العميل المرخص";
                 await RunAutoGeneration(keysDir, machineId, customer);
@@ -102,7 +101,7 @@ internal sealed class Program
         }
     }
 
-    static async Task RunAutoGeneration(string keysDir, string machineId, string customerName)
+    public static async Task RunAutoGeneration(string keysDir, string machineId, string customerName)
     {
         Directory.CreateDirectory(keysDir);
         var privatePath = Path.Combine(keysDir, "license-private.pem");
@@ -133,7 +132,6 @@ internal sealed class Program
         Console.WriteLine(publicKeyPem);
         Console.WriteLine("=== RSA PUBLIC KEY (END) ===\n");
 
-        // Issue Lifetime License for this Machine ID
         var licenseId = Guid.NewGuid().ToString("D").ToUpperInvariant();
         var payload = new LicensePayload(
             LicenseId: licenseId,
@@ -151,12 +149,10 @@ internal sealed class Program
         var signed = LicenseSigner.Sign(payload, privateKeyPem);
         var licenseJson = CanonicalLicenseSerializer.SerializeSignedLicense(signed);
 
-        // Save to keysDir\license.lic
         var licFileInKeys = Path.Combine(keysDir, "license.lic");
         await File.WriteAllTextAsync(licFileInKeys, licenseJson);
         Console.WriteLine($"[SUCCESS] Generated license saved to: {licFileInKeys}");
 
-        // Save to %LocalAppData%\POSCashier\license.lic
         var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var appFolder = Path.Combine(localAppData, "POSCashier");
         Directory.CreateDirectory(appFolder);
@@ -164,14 +160,11 @@ internal sealed class Program
         await File.WriteAllTextAsync(activeLicFile, licenseJson);
         Console.WriteLine($"[SUCCESS] Active license installed to: {activeLicFile}");
 
-        // Verify immediately
         var verified = LicenseSignatureVerifier.Verify(signed, publicKeyPem);
         Console.WriteLine($"[VERIFICATION] Signature Verification: {(verified ? "PASSED (VALID)" : "FAILED")}");
     }
 
-    // ─── KEY GENERATION ────────────────────────────────────────────────────
-
-    static async Task GenerateKeyPair(string? outputDir = null)
+    private static async Task GenerateKeyPair(string? outputDir = null)
     {
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("=== Generate RSA-3072 Key Pair ===");
@@ -179,7 +172,7 @@ internal sealed class Program
 
         if (string.IsNullOrWhiteSpace(outputDir))
         {
-            Console.Write("Output directory for keys (e.g. C:\\POS-Security\\Keys): ");
+            Console.Write("Output directory for keys (e.g. E:\\pos-keys): ");
             outputDir = Console.ReadLine()?.Trim();
         }
 
@@ -217,14 +210,6 @@ internal sealed class Program
         Console.WriteLine($"✓ Public Key:  {publicPath}");
         Console.ResetColor();
 
-        Console.ForegroundColor = ConsoleColor.Red;
-        Console.WriteLine();
-        Console.WriteLine("⚠ SECURITY NOTICE:");
-        Console.WriteLine("  Keep the Private Key file SECURE and OFFLINE.");
-        Console.WriteLine("  Never commit it to Git or share with anyone.");
-        Console.WriteLine("  Embed the PUBLIC key in POS.Licensing/Cryptography/EmbeddedKeys.cs");
-        Console.ResetColor();
-
         Console.WriteLine();
         Console.WriteLine("=== PUBLIC KEY (copy to EmbeddedKeys.cs) ===");
         Console.ForegroundColor = ConsoleColor.Cyan;
@@ -233,28 +218,24 @@ internal sealed class Program
         Console.WriteLine();
     }
 
-    // ─── LICENSE ISSUANCE ──────────────────────────────────────────────────
-
-    static async Task IssueLicense()
+    private static async Task IssueLicense()
     {
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("=== Issue New License ===");
         Console.ResetColor();
 
-        // Load private key
         var privateKey = LoadPrivateKey();
         if (string.IsNullOrWhiteSpace(privateKey))
         {
-            PrintError("Could not load Private Key. Set POS_PRIVATE_KEY_PATH environment variable or provide path.");
+            PrintError("Could not load Private Key.");
             return;
         }
 
-        // Gather inputs
         Console.Write("Customer Name: ");
         var customerName = Console.ReadLine()?.Trim();
         if (string.IsNullOrWhiteSpace(customerName)) { PrintError("Customer name is required."); return; }
 
-        Console.Write("Machine ID (from customer's activation screen): ");
+        Console.Write("Machine ID: ");
         var machineId = Console.ReadLine()?.Trim().ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(machineId)) { PrintError("Machine ID is required."); return; }
 
@@ -287,46 +268,27 @@ internal sealed class Program
             else { PrintError("Invalid date format. Use yyyy-MM-dd."); return; }
         }
 
-        Console.Write($"Product [{ProductName}]: ");
-        var product = Console.ReadLine()?.Trim();
-        if (string.IsNullOrWhiteSpace(product)) product = ProductName;
-
-        Console.Write($"Version [{CurrentVersion}]: ");
-        var version = Console.ReadLine()?.Trim();
-        if (string.IsNullOrWhiteSpace(version)) version = CurrentVersion;
-
-        Console.Write("Min Supported Version (optional, leave blank to skip): ");
-        var minVersion = Console.ReadLine()?.Trim();
-        if (string.IsNullOrWhiteSpace(minVersion)) minVersion = null;
-
-        Console.Write("Notes (optional): ");
-        var notes = Console.ReadLine()?.Trim();
-        if (string.IsNullOrWhiteSpace(notes)) notes = null;
-
-        Console.Write("Output directory for license file [current dir]: ");
+        Console.Write("Output directory for license file [E:\\pos-keys]: ");
         var outDir = Console.ReadLine()?.Trim();
-        if (string.IsNullOrWhiteSpace(outDir)) outDir = Directory.GetCurrentDirectory();
+        if (string.IsNullOrWhiteSpace(outDir)) outDir = @"E:\pos-keys";
 
-        // Build payload
         var licenseId = Guid.NewGuid().ToString("D").ToUpperInvariant();
         var payload = new LicensePayload(
             LicenseId: licenseId,
-            Product: product,
+            Product: ProductName,
             CustomerName: customerName,
             MachineId: machineId,
             LicenseType: licenseType,
             IssuedAtUtc: DateTime.UtcNow,
             ExpiresAtUtc: expiresAt,
-            Version: version,
-            MinSupportedVersion: minVersion,
-            Notes: notes
+            Version: CurrentVersion,
+            MinSupportedVersion: null,
+            Notes: null
         );
 
-        // Sign
         Console.WriteLine("\nSigning license...");
         var signed = LicenseSigner.Sign(payload, privateKey);
 
-        // Save
         Directory.CreateDirectory(outDir);
         var fileName = $"license-{customerName.Replace(" ", "_")}-{DateTime.UtcNow:yyyyMMdd}.lic";
         var filePath = Path.Combine(outDir, fileName);
@@ -334,20 +296,11 @@ internal sealed class Program
         await File.WriteAllTextAsync(filePath, json, System.Text.Encoding.UTF8);
 
         Console.ForegroundColor = ConsoleColor.Green;
-        Console.WriteLine("\n✓ License issued successfully:");
+        Console.WriteLine($"\n✓ License issued: {filePath}\n");
         Console.ResetColor();
-        Console.WriteLine($"  License ID   : {licenseId}");
-        Console.WriteLine($"  Customer     : {customerName}");
-        Console.WriteLine($"  Machine ID   : {machineId}");
-        Console.WriteLine($"  Type         : {licenseType}");
-        Console.WriteLine($"  Expires      : {(expiresAt.HasValue ? expiresAt.Value.ToString("yyyy-MM-dd") : "Never (Lifetime)")}");
-        Console.WriteLine($"  Output File  : {filePath}");
-        Console.WriteLine();
     }
 
-    // ─── VERIFY LICENSE ────────────────────────────────────────────────────
-
-    static async Task VerifyLicense(string? filePath = null)
+    private static async Task VerifyLicense(string? filePath = null)
     {
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("=== Verify License File ===");
@@ -374,57 +327,32 @@ internal sealed class Program
         }
 
         var isValid = LicenseSignatureVerifier.Verify(signed, publicKey);
-        if (isValid)
-        {
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine("✓ Signature is VALID");
-            Console.ResetColor();
-        }
-        else
-        {
-            Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine("✗ Signature is INVALID or file has been tampered with!");
-            Console.ResetColor();
-        }
-
-        Console.WriteLine();
-        Console.WriteLine($"  License ID   : {signed.Payload?.LicenseId}");
-        Console.WriteLine($"  Customer     : {signed.Payload?.CustomerName}");
-        Console.WriteLine($"  Product      : {signed.Payload?.Product}");
-        Console.WriteLine($"  Machine ID   : {signed.Payload?.MachineId}");
-        Console.WriteLine($"  Type         : {signed.Payload?.LicenseType}");
-        Console.WriteLine($"  Issued       : {signed.Payload?.IssuedAtUtc:yyyy-MM-dd}");
-        Console.WriteLine($"  Expires      : {(signed.Payload?.ExpiresAtUtc.HasValue == true ? signed.Payload.ExpiresAtUtc.Value.ToString("yyyy-MM-dd") : "Never (Lifetime)")}");
-        Console.WriteLine();
+        Console.WriteLine($"Signature Verification: {(isValid ? "PASSED (VALID)" : "FAILED (INVALID)")}");
     }
 
-    // ─── MACHINE ID ────────────────────────────────────────────────────────
-
-    static void ShowMachineId()
+    public static void ShowMachineId()
     {
         var provider = new MachineIdProvider();
         var id = provider.GetMachineId();
         Console.ForegroundColor = ConsoleColor.Cyan;
         Console.WriteLine($"Current Machine ID: {id}");
         Console.ResetColor();
-        Console.WriteLine();
     }
 
-    // ─── HELPERS ───────────────────────────────────────────────────────────
-
-    static string? LoadPrivateKey()
+    private static string? LoadPrivateKey()
     {
-        // 1. Try environment variable path
+        const string defaultPath = @"E:\pos-keys\license-private.pem";
+        if (File.Exists(defaultPath))
+            return File.ReadAllText(defaultPath);
+
         var envPath = Environment.GetEnvironmentVariable("POS_PRIVATE_KEY_PATH");
         if (!string.IsNullOrWhiteSpace(envPath) && File.Exists(envPath))
             return File.ReadAllText(envPath);
 
-        // 2. Try environment variable raw PEM content
         var envPem = Environment.GetEnvironmentVariable("POS_PRIVATE_KEY_PEM");
         if (!string.IsNullOrWhiteSpace(envPem))
             return envPem;
 
-        // 3. Prompt user
         Console.Write("Private Key file path: ");
         var path = Console.ReadLine()?.Trim().Trim('"');
         if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
@@ -433,21 +361,23 @@ internal sealed class Program
         return null;
     }
 
-    static string? LoadPublicKey()
+    private static string? LoadPublicKey()
     {
         var envPath = Environment.GetEnvironmentVariable("POS_PUBLIC_KEY_PATH");
         if (!string.IsNullOrWhiteSpace(envPath) && File.Exists(envPath))
             return File.ReadAllText(envPath);
 
-        // Fall back to embedded key
+        const string defaultPath = @"E:\pos-keys\license-public.pem";
+        if (File.Exists(defaultPath))
+            return File.ReadAllText(defaultPath);
+
         return EmbeddedKeys.PublicKeyPem;
     }
 
-    static void PrintError(string message)
+    private static void PrintError(string message)
     {
         Console.ForegroundColor = ConsoleColor.Red;
         Console.WriteLine($"✗ Error: {message}");
         Console.ResetColor();
-        Console.WriteLine();
     }
 }

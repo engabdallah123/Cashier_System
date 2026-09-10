@@ -33,22 +33,27 @@
     }
 </style>
 
-<div class="app-container">
-    <NavMenu />
+<div class="app-container @(isSidebarCollapsed ? "sidebar-collapsed" : "")">
+    <NavMenu IsCollapsed="@isSidebarCollapsed" OnToggle="ToggleSidebar" />
 
     <div class="main-content">
         <header class="top-bar">
             <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <!-- Sidebar Toggle Icon Button -->
+                <button type="button" class="sidebar-toggle-btn" @onclick="ToggleSidebar" title="طي / توسيع القائمة الجانبية وتوسيع الصفحة">
+                    <i class="fa-solid @(isSidebarCollapsed ? "fa-bars-staggered" : "fa-bars")"></i>
+                </button>
+
                 <span class="badge @(ShiftState.IsShiftOpen ? "badge-green" : "badge-red")">
                     <i class="fa-solid fa-circle" style="font-size: 0.5rem;"></i>
                     @(ShiftState.IsShiftOpen ? $"الوردية مفتوحة (#{ShiftState.ShiftId.ToString()[..6]})" : "الوردية مغلقة")
                 </span>
 
-                <!-- Price Check Top Bar Button (Opens Window Popup on Top of Page) -->
-                <button type="button" class="topbar-btn-price" @onclick='() => OpenQuickWindow("price-check")' title="استعلام فوري عن سعر منتج بالباركود [Alt + B]">
+                <!-- Price Check Top Bar Button (Direct Full Screen Navigation) -->
+                <NavLink href="price-check" class="topbar-btn-price" title="استعلام فوري عن سعر منتج بالباركود [Alt + B]">
                     <i class="fa-solid fa-barcode"></i>
                     <span>الاستعلام عن السعر</span>
-                </button>
+                </NavLink>
 
                 <!-- Professional Smart Calculator Top Bar Button -->
                 <button type="button" class="topbar-btn-calc" @onclick="() => CalcState.Toggle()" title="آلة حاسبة ذكية وسريعة [F10 / Alt + C]">
@@ -86,67 +91,23 @@
     </div>
 </div>
 
-<!-- Global Window Overlay (Opens target screen as a modal window on top of active page) -->
-@if (!string.IsNullOrEmpty(activeModalRoute))
-{
-    <div class="global-window-overlay" @onclick="CloseGlobalModal">
-        <div class="global-window-card" @onclick:stopPropagation="true">
-            <div class="global-window-header">
-                <div class="global-window-title">
-                    <i class="fa-solid @GetModalIcon(activeModalRoute)" style="color: var(--accent-indigo);"></i>
-                    <span>@GetModalTitle(activeModalRoute)</span>
-                    <span class="badge badge-indigo ms-2" style="font-size: 0.75rem;">نافذة منبثقة فوق الشاشة [Esc لإغلاق]</span>
-                </div>
-                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <button class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;" @onclick="NavigateToModalPageFull" title="الانتقال الكامل لهذه الشاشة">
-                        <i class="fa-solid fa-up-right-from-square me-1"></i> فتح الشاشة بالكامل
-                    </button>
-                    <button class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;" @onclick="CloseGlobalModal" title="إغلاق النافذة (Esc)">
-                        <i class="fa-solid fa-xmark me-1"></i> إغلاق (Esc)
-                    </button>
-                </div>
-            </div>
-            <div class="global-window-body">
-                @switch (activeModalRoute)
-                {
-                    case "price-check":
-                        <PriceCheck />
-                        break;
-                    case "products":
-                        <Products />
-                        break;
-                    case "shifts":
-                        <Shifts />
-                        break;
-                    case "sales":
-                        <SalesList />
-                        break;
-                    case "purchases":
-                        <Purchases />
-                        break;
-                    case "expenses":
-                        <Expenses />
-                        break;
-                    case "dashboard":
-                        <Dashboard />
-                        break;
-                }
-            </div>
-        </div>
-    </div>
-}
-
 <!-- Standalone Global Smart Calculator Modal Window -->
 <CalculatorModal />
 
 @code {
     private bool isDarkMode = true;
-    private string? activeModalRoute;
+    private bool isSidebarCollapsed = false;
 
     private bool IsAdminOrManager =>
         string.Equals(AuthState.UserRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(AuthState.UserRole, "Manager", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(AuthState.UserRole, "Administrator", StringComparison.OrdinalIgnoreCase);
+
+    private void ToggleSidebar()
+    {
+        isSidebarCollapsed = !isSidebarCollapsed;
+        StateHasChanged();
+    }
 
     private DotNetObjectReference<MainLayout>? _dotNetRef;
 
@@ -175,15 +136,22 @@
     [JSInvokable]
     public void OpenQuickWindow(string route)
     {
-        if (route == "pos" || route == "home" || string.IsNullOrEmpty(route))
+        Nav.NavigateTo(route);
+        if (route == "price-check")
         {
-            activeModalRoute = null;
-            Nav.NavigateTo(route);
+            _ = JS.InvokeVoidAsync("focusElementById", "price-check-barcode-input", 120);
         }
-        else
+        else if (route == "products")
         {
-            activeModalRoute = route;
-            StateHasChanged();
+            _ = JS.InvokeVoidAsync("focusElementById", "product-quick-scan-barcode", 120);
+        }
+        else if (route == "purchases")
+        {
+            _ = JS.InvokeVoidAsync("focusElementById", "purchase-barcode-input", 120);
+        }
+        else if (route == "pos" || route == "home" || string.IsNullOrEmpty(route))
+        {
+            _ = JS.InvokeVoidAsync("focusElementById", "pos-barcode-input", 100);
         }
     }
 
@@ -201,55 +169,9 @@
         {
             CalcState.Close();
             StateHasChanged();
-            return;
-        }
-
-        if (!string.IsNullOrEmpty(activeModalRoute))
-        {
-            activeModalRoute = null;
-            StateHasChanged();
+            _ = JS.InvokeVoidAsync("focusElementById", "pos-barcode-input", 50);
         }
     }
-
-    private void CloseGlobalModal()
-    {
-        activeModalRoute = null;
-        StateHasChanged();
-    }
-
-    private void NavigateToModalPageFull()
-    {
-        var targetRoute = activeModalRoute;
-        activeModalRoute = null;
-        if (!string.IsNullOrEmpty(targetRoute))
-        {
-            Nav.NavigateTo(targetRoute);
-        }
-    }
-
-    private string GetModalIcon(string route) => route switch
-    {
-        "price-check" => "fa-barcode",
-        "products" => "fa-boxes-stacked",
-        "shifts" => "fa-clock-rotate-left",
-        "sales" => "fa-receipt",
-        "purchases" => "fa-truck-field",
-        "expenses" => "fa-wallet",
-        "dashboard" => "fa-chart-pie",
-        _ => "fa-window-restore"
-    };
-
-    private string GetModalTitle(string route) => route switch
-    {
-        "price-check" => "استعلام الأسعار بالباركود",
-        "products" => "كتالوج المنتجات والمخزون",
-        "shifts" => "إدارة الورديات والخزينة",
-        "sales" => "سجل المبيعات والفواتير",
-        "purchases" => "شاشة المشتريات والواردات",
-        "expenses" => "إدارة المصروفات",
-        "dashboard" => "لوحة البيانات والتقارير",
-        _ => "نافذة منبثقة"
-    };
 
     protected override void OnInitialized()
     {

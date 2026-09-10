@@ -1,5 +1,6 @@
 using Inventory.Domain;
 using Inventory.Domain.Stock.StockMovements;
+using POS.Shared.Application.IService;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
 using Returns.Domain;
@@ -13,15 +14,18 @@ namespace Returns.Application.SalesReturns.Commands.CreateSalesReturn
         private readonly IReturnsUnitOfWork _returnsUnitOfWork;
         private readonly IInventoryUnitOfWork _inventoryUnitOfWork;
         private readonly IShiftsUnitOfWork _shiftsUnitOfWork;
+        private readonly ICacheService _cacheService;
 
         public CreateSalesReturnCommandHandler(
             IReturnsUnitOfWork returnsUnitOfWork,
             IInventoryUnitOfWork inventoryUnitOfWork,
-            IShiftsUnitOfWork shiftsUnitOfWork)
+            IShiftsUnitOfWork shiftsUnitOfWork,
+            ICacheService cacheService)
         {
             _returnsUnitOfWork = returnsUnitOfWork;
             _inventoryUnitOfWork = inventoryUnitOfWork;
             _shiftsUnitOfWork = shiftsUnitOfWork;
+            _cacheService = cacheService;
         }
 
         public async Task<Result<Guid>> Handle(CreateSalesReturnCommand request, CancellationToken cancellationToken)
@@ -86,6 +90,9 @@ namespace Returns.Application.SalesReturns.Commands.CreateSalesReturn
             await _returnsUnitOfWork.SaveChangesAsync(cancellationToken);
             await _inventoryUnitOfWork.SaveChangesAsync(cancellationToken);
             await _shiftsUnitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _cacheService.RemoveByPrefixAsync("dashboard_", cancellationToken);
+            await _cacheService.RemoveByPrefixAsync("monthly_calendar_", cancellationToken);
 
             return Result<Guid>.Success(salesReturn.Id);
         }

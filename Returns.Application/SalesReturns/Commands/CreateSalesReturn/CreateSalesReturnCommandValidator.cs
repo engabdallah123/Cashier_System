@@ -6,7 +6,6 @@ namespace Returns.Application.SalesReturns.Commands.CreateSalesReturn
     {
         public CreateSalesReturnCommandValidator()
         {
-            RuleFor(x => x.OriginalSaleId).NotEmpty().WithMessage("معرف الفاتورة الأصلية مطلوب.");
             RuleFor(x => x.CashierId).NotEmpty().WithMessage("معرف الكاشير مطلوب.");
             RuleFor(x => x.ShiftId).NotEmpty().WithMessage("معرف الشفت مطلوب.");
             RuleFor(x => x.Items).NotEmpty().WithMessage("مرتجع المبيعات يجب أن يحتوي على عنصر واحد على الأقل.");

@@ -7,7 +7,7 @@ using POS.Desktop.Services.State;
 using POS.Licensing.Interfaces;
 using POS.Licensing.Services;
 using System.Diagnostics;
-using System.IO;
+using System.IO;      
 using System.Net.Http;
 using System.Windows;
 
@@ -51,7 +51,7 @@ namespace POS.Desktop
             serviceCollection.AddHttpClient("", client =>
             {
                 client.BaseAddress = baseApiUri;
-                client.Timeout = TimeSpan.FromSeconds(30);
+                client.Timeout = TimeSpan.FromMinutes(15);
             })
             .ConfigurePrimaryHttpMessageHandler(createHandler)
             .AddHttpMessageHandler<BearerTokenHandler>();
@@ -59,7 +59,7 @@ namespace POS.Desktop
             serviceCollection.AddHttpClient<PosApiClient>(client =>
             {
                 client.BaseAddress = baseApiUri;
-                client.Timeout = TimeSpan.FromSeconds(30);
+                client.Timeout = TimeSpan.FromMinutes(15);
             })
             .ConfigurePrimaryHttpMessageHandler(createHandler)
             .AddHttpMessageHandler<BearerTokenHandler>();
@@ -67,7 +67,7 @@ namespace POS.Desktop
             serviceCollection.AddHttpClient<IInvoicePrinterService, QuestPdfInvoicePrinter>(client =>
             {
                 client.BaseAddress = baseApiUri;
-                client.Timeout = TimeSpan.FromSeconds(30);
+                client.Timeout = TimeSpan.FromMinutes(15);
             })
             .ConfigurePrimaryHttpMessageHandler(createHandler)
             .AddHttpMessageHandler<BearerTokenHandler>();
@@ -96,15 +96,18 @@ namespace POS.Desktop
                 // Not running, try to launch local WebAPI process
             }
 
-            EnsureLocalDbStarted();
+            EnsureDatabaseServiceRunning();
 
             try
             {
                 var appDir = AppDomain.CurrentDomain.BaseDirectory;
                 var possiblePaths = new[]
                 {
-                    Path.Combine(appDir, "POS.WebAPI.exe"),
                     Path.Combine(appDir, "..", "WebAPI", "POS.WebAPI.exe"),
+                    Path.Combine(appDir, "..", "webapi", "POS.WebAPI.exe"),
+                    Path.Combine(appDir, "WebAPI", "POS.WebAPI.exe"),
+                    Path.Combine(appDir, "webapi", "POS.WebAPI.exe"),
+                    Path.Combine(appDir, "POS.WebAPI.exe"),
                     Path.Combine(appDir, "..", "..", "..", "..", "POS.WebAPI", "bin", "Debug", "net10.0", "POS.WebAPI.exe"),
                     Path.Combine(appDir, "..", "..", "..", "..", "POS.WebAPI", "bin", "Release", "net10.0", "POS.WebAPI.exe"),
                     Path.Combine(appDir, "..", "..", "..", "..", "publish", "webapi", "POS.WebAPI.exe")
@@ -115,30 +118,62 @@ namespace POS.Desktop
                     var fullPath = Path.GetFullPath(path);
                     if (File.Exists(fullPath))
                     {
+                        var logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "POSCashier");
+                        Directory.CreateDirectory(logDir);
+
                         var startInfo = new ProcessStartInfo
                         {
                             FileName = fullPath,
                             WorkingDirectory = Path.GetDirectoryName(fullPath),
                             CreateNoWindow = true,
                             UseShellExecute = false,
-                            WindowStyle = ProcessWindowStyle.Hidden
+                            WindowStyle = ProcessWindowStyle.Hidden,
+                            RedirectStandardOutput = false,
+                            RedirectStandardError = false
                         };
                         _apiProcess = Process.Start(startInfo);
                         break;
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Fallback silently if unable to auto-start process
+                try
+                {
+                    var logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "POSCashier", "startup_error.log");
+                    File.WriteAllText(logPath, $"[API Startup Error] {ex}");
+                }
+                catch { }
             }
         }
 
-        private static void EnsureLocalDbStarted()
+        private static void EnsureDatabaseServiceRunning()
         {
             try
             {
-                var psi = new ProcessStartInfo
+                // 1. Try starting SQL Server Express service if it exists and is stopped
+                var psiSqlExpress = new ProcessStartInfo
+                {
+                    FileName = "sc.exe",
+                    Arguments = "start MSSQL$SQLEXPRESS",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+                using (var proc = Process.Start(psiSqlExpress))
+                {
+                    proc?.WaitForExit(3000);
+                }
+            }
+            catch
+            {
+                // Ignore errors if sc.exe is not accessible or service doesn't exist
+            }
+
+            try
+            {
+                // 2. Fallback: also try LocalDB in case system is running with LocalDB
+                var psiStart = new ProcessStartInfo
                 {
                     FileName = "sqllocaldb",
                     Arguments = "start MSSQLLocalDB",
@@ -146,8 +181,10 @@ namespace POS.Desktop
                     UseShellExecute = false,
                     WindowStyle = ProcessWindowStyle.Hidden
                 };
-                using var proc = Process.Start(psi);
-                proc?.WaitForExit(3000);
+                using (var procStart = Process.Start(psiStart))
+                {
+                    procStart?.WaitForExit(3000);
+                }
             }
             catch
             {

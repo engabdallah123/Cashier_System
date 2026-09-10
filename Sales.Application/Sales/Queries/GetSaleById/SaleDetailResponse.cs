@@ -1,4 +1,4 @@
-﻿namespace Sales.Application.Sales.Queries.GetSaleById
+namespace Sales.Application.Sales.Queries.GetSaleById
 {
     public sealed record SaleDetailItemResponse(
         Guid Id,
@@ -9,7 +9,12 @@
         decimal UnitPrice,
         decimal Discount,
         decimal Tax,
-        decimal Total);
+        decimal Total,
+        decimal ReturnedQuantity = 0,
+        decimal RemainingQuantity = 0,
+        string? BaseUnit = "قطعة",
+        string? ParentUnit = "كرتونة",
+        int ConversionFactor = 1);
 
     public sealed record SaleDetailResponse(
         Guid Id,

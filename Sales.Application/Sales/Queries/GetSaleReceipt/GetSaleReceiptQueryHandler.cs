@@ -1,5 +1,6 @@
 using Dapper;
 using POS.Shared.Application.Database;
+using POS.Shared.Application.IService;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
 using Sales.Domain.Sales;
@@ -9,10 +10,14 @@ namespace Sales.Application.Sales.Queries.GetSaleReceipt
     internal sealed class GetSaleReceiptQueryHandler : IQueryHandler<GetSaleReceiptQuery, ReceiptResponse>
     {
         private readonly ISqlConnectionFactory _sqlConnectionFactory;
+        private readonly IFileService _fileService;
 
-        public GetSaleReceiptQueryHandler(ISqlConnectionFactory sqlConnectionFactory)
+        public GetSaleReceiptQueryHandler(
+            ISqlConnectionFactory sqlConnectionFactory,
+            IFileService fileService)
         {
             _sqlConnectionFactory = sqlConnectionFactory;
+            _fileService = fileService;
         }
 
         public async Task<Result<ReceiptResponse>> Handle(GetSaleReceiptQuery request, CancellationToken cancellationToken)
@@ -21,7 +26,7 @@ namespace Sales.Application.Sales.Queries.GetSaleReceipt
 
             const string settingsSql = """
                 SELECT TOP 1
-                    StoreName, Address, Phone, Currency, InvoiceFooterMessage
+                    StoreName, Address, Phone, Currency, InvoiceFooterMessage, LogoUrl
                 FROM [Settings].[StoreSettings]
                 """;
 
@@ -31,6 +36,24 @@ namespace Sales.Application.Sales.Queries.GetSaleReceipt
             var phone = setting?.Phone;
             var currency = setting?.Currency ?? "EGP";
             var invoiceFooterMessage = setting?.InvoiceFooterMessage ?? "شكراً لزيارتكم!";
+            var logoUrl = (string?)setting?.LogoUrl;
+
+            byte[]? logoBytes = null;
+            if (!string.IsNullOrWhiteSpace(logoUrl))
+            {
+                try
+                {
+                    var logoResult = await _fileService.GetFileAsByteArrayAsync(logoUrl);
+                    if (logoResult.IsSuccess && logoResult.Value != null && logoResult.Value.Length > 0)
+                    {
+                        logoBytes = logoResult.Value;
+                    }
+                }
+                catch
+                {
+                    // Fallback to text header if file read fails
+                }
+            }
 
             const string saleSql = """
                 SELECT 
@@ -38,7 +61,14 @@ namespace Sales.Application.Sales.Queries.GetSaleReceipt
                     ISNULL(u.FullName, 'Cashier') AS CashierName,
                     c.Name AS CustomerName,
                     s.SubTotal, s.DiscountAmount, s.TaxAmount, s.TotalAmount,
-                    s.PaidAmount, s.ChangeAmount, s.PaymentMethod
+                    s.PaidAmount, s.ChangeAmount, s.PaymentMethod,
+                    s.Notes,
+                    ISNULL((
+                        SELECT COUNT(*) 
+                        FROM [Sales].[Sales] s2 
+                        WHERE s2.ShiftId = s.ShiftId 
+                          AND (s2.SaleDate < s.SaleDate OR (s2.SaleDate = s.SaleDate AND s2.Id <= s.Id))
+                    ), 1) AS OrderNumber
                 FROM [Sales].[Sales] s
                 LEFT JOIN [Identity].[AspNetUsers] u ON s.CashierId = CAST(u.Id AS uniqueidentifier)
                 LEFT JOIN [Sales].[Customers] c ON s.CustomerId = c.Id
@@ -52,13 +82,63 @@ namespace Sales.Application.Sales.Queries.GetSaleReceipt
             const string itemsSql = """
                 SELECT 
                     i.Id, i.ProductId, p.NameAr AS ProductName, p.Barcode,
-                    i.Quantity, i.UnitPrice, i.Discount, i.Tax, i.Total
+                    i.Quantity, i.UnitPrice, i.Discount, i.Tax, i.Total,
+                    p.BaseUnit, p.ParentUnit, ISNULL(p.ConversionFactor, 1) AS ConversionFactor,
+                    ISNULL(p.SellingPrice, 0) AS SellingPrice, ISNULL(p.WholesalePrice, 0) AS WholesalePrice
                 FROM [Sales].[SaleItems] i
                 LEFT JOIN [Inventory].[Products] p ON i.ProductId = p.Id
                 WHERE i.SaleId = @SaleId
                 """;
 
-            var items = (await connection.QueryAsync<SaleItemResponse>(itemsSql, new { request.SaleId })).ToList();
+            var rawItems = await connection.QueryAsync<dynamic>(itemsSql, new { request.SaleId });
+            var items = new List<SaleItemResponse>();
+            foreach (var r in rawItems)
+            {
+                decimal qty = (decimal)r.Quantity;
+                decimal unitPrice = (decimal)r.UnitPrice;
+                decimal sellingPrice = (decimal)r.SellingPrice;
+                decimal wholesalePrice = (decimal)r.WholesalePrice;
+                int factor = (int)r.ConversionFactor;
+                string baseUnit = !string.IsNullOrWhiteSpace((string?)r.BaseUnit) ? (string)r.BaseUnit : "قطعة";
+                string parentUnit = !string.IsNullOrWhiteSpace((string?)r.ParentUnit) ? (string)r.ParentUnit : "كرتونة";
+
+                string priceType = (wholesalePrice > 0 && sellingPrice > wholesalePrice && unitPrice <= wholesalePrice) ? "جملة" : "قطاعي";
+                string unitName;
+                string packagingInfo;
+                decimal displayedQuantity = qty;
+
+                if (factor > 1 && qty >= factor && (qty % factor == 0))
+                {
+                    int cartons = (int)(qty / factor);
+                    unitName = parentUnit;
+                    packagingInfo = $"{cartons} {parentUnit} ({qty:G29} {baseUnit})";
+                    displayedQuantity = cartons;
+                }
+                else
+                {
+                    unitName = baseUnit;
+                    packagingInfo = $"{qty:G29} {baseUnit}";
+                }
+
+                items.Add(new SaleItemResponse(
+                    (Guid)r.Id,
+                    (Guid)r.ProductId,
+                    (string?)r.ProductName,
+                    (string?)r.Barcode,
+                    displayedQuantity,
+                    unitPrice,
+                    (decimal)r.Discount,
+                    (decimal)r.Tax,
+                    (decimal)r.Total,
+                    unitName,
+                    priceType,
+                    packagingInfo));
+            }
+
+            string? notes = (string?)saleHeader.Notes;
+            string? orderType = (!string.IsNullOrWhiteSpace(notes) && notes != "POS Desktop Sale") ? notes : null;
+            int orderNumber = (int)(saleHeader.OrderNumber ?? 1);
+            if (orderNumber <= 0) orderNumber = 1;
 
             var receipt = new ReceiptResponse(
                 storeName,
@@ -77,7 +157,11 @@ namespace Sales.Application.Sales.Queries.GetSaleReceipt
                 saleHeader.ChangeAmount,
                 saleHeader.PaymentMethod,
                 currency,
-                invoiceFooterMessage);
+                invoiceFooterMessage,
+                logoUrl,
+                logoBytes,
+                orderType,
+                orderNumber);
 
             return Result<ReceiptResponse>.Success(receipt);
         }

@@ -1,0 +1,12 @@
+<Window x:Class="POS.LicenseGenerator.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:blazor="clr-namespace:Microsoft.AspNetCore.Components.WebView.Wpf;assembly=Microsoft.AspNetCore.Components.WebView.Wpf"
+        Title="POS License Generator Studio | أداة توليد وتفعيل التراخيص"
+        Height="840" Width="1240" MinHeight="700" MinWidth="1000"
+        WindowStartupLocation="CenterScreen"
+        Background="#0f172a">
+    <Grid>
+        <blazor:BlazorWebView x:Name="blazorWebView" HostPage="wwwroot/index.html" />
+    </Grid>
+</Window>

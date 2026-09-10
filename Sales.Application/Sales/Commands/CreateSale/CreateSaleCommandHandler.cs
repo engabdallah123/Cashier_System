@@ -1,5 +1,6 @@
 using Inventory.Domain;
 using Inventory.Domain.Stock.StockMovements;
+using POS.Shared.Application.IService;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
 using Sales.Domain;
@@ -16,17 +17,20 @@ namespace Sales.Application.Sales.Commands.CreateSale
         private readonly IInventoryUnitOfWork _inventoryUnitOfWork;
         private readonly IShiftsUnitOfWork _shiftsUnitOfWork;
         private readonly ISettingsUnitOfWork _settingsUnitOfWork;
+        private readonly ICacheService _cacheService;
 
         public CreateSaleCommandHandler(
             ISalesUnitOfWork salesUnitOfWork,
             IInventoryUnitOfWork inventoryUnitOfWork,
             IShiftsUnitOfWork shiftsUnitOfWork,
-            ISettingsUnitOfWork settingsUnitOfWork)
+            ISettingsUnitOfWork settingsUnitOfWork,
+            ICacheService cacheService)
         {
             _salesUnitOfWork = salesUnitOfWork;
             _inventoryUnitOfWork = inventoryUnitOfWork;
             _shiftsUnitOfWork = shiftsUnitOfWork;
             _settingsUnitOfWork = settingsUnitOfWork;
+            _cacheService = cacheService;
         }
 
         public async Task<Result<Guid>> Handle(CreateSaleCommand request, CancellationToken cancellationToken)
@@ -52,7 +56,8 @@ namespace Sales.Application.Sales.Commands.CreateSale
             }
 
             // 4. إنشاء الفاتورة
-            var invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmss}-{Random.Shared.Next(100, 999)}";
+            int orderNumber = shift.TotalInvoices + 1;
+            var invoiceNumber = $"INV-{DateTime.UtcNow:yyyyMMddHHmmss}-{orderNumber:D3}";
 
             var saleResult = Sale.Create(
                 invoiceNumber, request.CashierId, request.ShiftId,
@@ -77,7 +82,7 @@ namespace Sales.Application.Sales.Commands.CreateSale
 
             await _salesUnitOfWork.SaleRepository.AddAsync(sale);
 
-            // 5. خصم الكمية من المخزون وتسجيل حركة المخزون
+            // 5. خصم الكمية من المخزون وتسجيل حركة المخزون وخصم دفعات المخزون بنظام FIFO
             foreach (var item in sale.Items)
             {
                 var product = await _inventoryUnitOfWork.ProductRepository.GetByIdAsync(item.ProductId, cancellationToken);
@@ -85,6 +90,23 @@ namespace Sales.Application.Sales.Commands.CreateSale
                 {
                     product.AdjustStock(-item.Quantity, allowNegativeStock);
                     _inventoryUnitOfWork.ProductRepository.Update(product);
+
+                    // خصم من الدفعات بنظام FIFO الصارم (PurchaseDate ثم CreatedAt)
+                    var activeBatches = await _inventoryUnitOfWork.BatchRepository.GetActiveBatchesByProductIdAsync(item.ProductId, cancellationToken);
+                    decimal remainingToDeduct = item.Quantity;
+
+                    foreach (var batch in activeBatches)
+                    {
+                        if (remainingToDeduct <= 0) break;
+
+                        decimal deductAmount = Math.Min(batch.RemainingQuantity, remainingToDeduct);
+                        var deductResult = batch.Deduct(deductAmount);
+                        if (deductResult.IsSuccess)
+                        {
+                            _inventoryUnitOfWork.BatchRepository.Update(batch);
+                            remainingToDeduct -= deductAmount;
+                        }
+                    }
 
                     var movementResult = StockMovement.Create(
                         item.ProductId,
@@ -107,6 +129,10 @@ namespace Sales.Application.Sales.Commands.CreateSale
             await _salesUnitOfWork.SaveChangesAsync(cancellationToken);
             await _inventoryUnitOfWork.SaveChangesAsync(cancellationToken);
             await _shiftsUnitOfWork.SaveChangesAsync(cancellationToken);
+
+            // 8. مسح كاش لوحة التحكم والتقارير الشهرية لضمان تحديث الأرقام فورياً
+            await _cacheService.RemoveByPrefixAsync("dashboard_", cancellationToken);
+            await _cacheService.RemoveByPrefixAsync("monthly_calendar_", cancellationToken);
 
             return Result<Guid>.Success(sale.Id);
         }

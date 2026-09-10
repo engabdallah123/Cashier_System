@@ -15,7 +15,10 @@ namespace Inventory.Infrastructre
                 ?? throw new ArgumentNullException(nameof(configuration));
 
             services.AddDbContext<InventoryDbContext>(options =>
-                options.UseSqlServer(connectionString));
+                options.UseSqlServer(connectionString, sqlOptions =>
+                {
+                    sqlOptions.CommandTimeout(300);
+                }));
 
             services.AddScoped<IInventoryUnitOfWork, InventoryUnitOfWork>();
 

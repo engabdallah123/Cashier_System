@@ -65,42 +65,50 @@ namespace POS.Desktop.Services.Auth
         private static IEnumerable<Claim> ParseClaimsFromJwt(string jwt)
         {
             var claims = new List<Claim>();
-            var parts = jwt.Split('.');
-            if (parts.Length < 2) return claims;
-
-            var payload = parts[1];
-            var jsonBytes = ParseBase64WithoutPadding(payload);
-            var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
-
-            if (keyValuePairs is null) return claims;
-
-            foreach (var kvp in keyValuePairs)
+            try
             {
-                var claimType = kvp.Key;
-                if (claimType.Equals("role", StringComparison.OrdinalIgnoreCase) || claimType.Equals("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", StringComparison.OrdinalIgnoreCase))
-                {
-                    claimType = ClaimTypes.Role;
-                }
-                else if (claimType.Equals("name", StringComparison.OrdinalIgnoreCase) || claimType.Equals("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name", StringComparison.OrdinalIgnoreCase))
-                {
-                    claimType = ClaimTypes.Name;
-                }
-                else if (claimType.Equals("sub", StringComparison.OrdinalIgnoreCase) || claimType.Equals("nameid", StringComparison.OrdinalIgnoreCase) || claimType.Equals("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier", StringComparison.OrdinalIgnoreCase))
-                {
-                    claimType = ClaimTypes.NameIdentifier;
-                }
+                var parts = jwt.Split('.');
+                if (parts.Length < 2) return claims;
 
-                if (kvp.Value is JsonElement element && element.ValueKind == JsonValueKind.Array)
+                var payload = parts[1];
+                var jsonBytes = ParseBase64WithoutPadding(payload);
+                var keyValuePairs = JsonSerializer.Deserialize<Dictionary<string, object>>(jsonBytes);
+
+                if (keyValuePairs is null) return claims;
+                
+
+                foreach (var kvp in keyValuePairs)
                 {
-                    foreach (var item in element.EnumerateArray())
+                    var claimType = kvp.Key;
+                    if (claimType.Equals("role", StringComparison.OrdinalIgnoreCase) || claimType.Equals("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", StringComparison.OrdinalIgnoreCase))
                     {
-                        claims.Add(new Claim(claimType, item.ToString()));
+                        claimType = ClaimTypes.Role;
+                    }
+                    else if (claimType.Equals("name", StringComparison.OrdinalIgnoreCase) || claimType.Equals("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name", StringComparison.OrdinalIgnoreCase))
+                    {
+                        claimType = ClaimTypes.Name;
+                    }
+                    else if (claimType.Equals("sub", StringComparison.OrdinalIgnoreCase) || claimType.Equals("nameid", StringComparison.OrdinalIgnoreCase) || claimType.Equals("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier", StringComparison.OrdinalIgnoreCase))
+                    {
+                        claimType = ClaimTypes.NameIdentifier;
+                    }
+
+                    if (kvp.Value is JsonElement element && element.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var item in element.EnumerateArray())
+                        {
+                            claims.Add(new Claim(claimType, item.ToString()));
+                        }
+                    }
+                    else
+                    {
+                        claims.Add(new Claim(claimType, kvp.Value?.ToString() ?? string.Empty));
                     }
                 }
-                else
-                {
-                    claims.Add(new Claim(claimType, kvp.Value?.ToString() ?? string.Empty));
-                }
+            }
+            catch
+            {
+                // Fallback gracefully without breaking authentication
             }
 
             return claims;
@@ -108,6 +116,7 @@ namespace POS.Desktop.Services.Auth
 
         private static byte[] ParseBase64WithoutPadding(string base64)
         {
+            base64 = base64.Replace('-', '+').Replace('_', '/');
             switch (base64.Length % 4)
             {
                 case 2: base64 += "=="; break;

@@ -1,18 +1,46 @@
 @page "/purchases"
 @using Microsoft.AspNetCore.Authorization
+@using global::POS.Desktop.Services
 @using global::POS.Desktop.Services.Api
 @using global::POS.Desktop.Services.Auth
 @attribute [Authorize]
 @inject PosApiClient ApiClient
 @inject CustomAuthStateProvider AuthState
+@inject IJSRuntime JS
 
 <div>
+    <!-- Live Floating Expiry Alerts Container -->
+    @if (activeExpiryAlerts.Any())
+    {
+        <div class="stock-alerts-floating-container" style="z-index: 10050;">
+            @foreach (var alert in activeExpiryAlerts)
+            {
+                <div class="stock-alert-toast @(alert.IsExpired ? "alert-danger" : "alert-warning")" @key="alert.Id">
+                    <div class="alert-icon">
+                        <i class="fa-solid @(alert.IsExpired ? "fa-circle-xmark" : "fa-triangle-exclamation")"></i>
+                    </div>
+                    <div class="alert-content">
+                        <div class="alert-title">@alert.Title</div>
+                        <div class="alert-msg">@((MarkupString)alert.Message)</div>
+                    </div>
+                    <button class="alert-close-btn" @onclick="() => DismissExpiryAlert(alert.Id)" title="إغلاق التنبيه">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            }
+        </div>
+    }
+
     <div class="page-header">
         <div>
             <h2 class="page-title">إدارة المشتريات والموردين</h2>
             <p class="page-subtitle">تسجيل فواتير توريد البضائع وإدارة بيانات الموردين</p>
         </div>
-        <div style="display: flex; gap: 0.75rem;">
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <NavLink href="expiry" class="btn btn-secondary" style="font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem;">
+                <i class="fa-solid fa-clock-rotate-left text-amber"></i>
+                <span>متابعة صلاحية المنتجات</span>
+            </NavLink>
             <button class="btn btn-secondary" @onclick="OpenAddSupplierModal">
                 <i class="fa-solid fa-user-plus me-1"></i> إضافة مورد جديد
             </button>
@@ -24,7 +52,7 @@
 
     <!-- Navigation Tabs & Search -->
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; flex-wrap: wrap; gap: 1rem;">
-        <div style="display: flex; gap: 0.5rem;">
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
             <button class="btn @(activeTab == "purchases" ? "btn-primary" : "btn-secondary")" @onclick='() => activeTab = "purchases"'>
                 <i class="fa-solid fa-truck-ramp-box me-1"></i> فواتير المشتريات (@filteredPurchases.Count)
             </button>
@@ -39,7 +67,7 @@
                 <input @bind="searchQueryPurchases" @bind:event="oninput" @onkeyup="FilterPurchases" placeholder="بحث برقم الفاتورة أو المورد..." />
             </div>
         }
-        else
+        else if (activeTab == "suppliers")
         {
             <div class="search-box" style="max-width: 320px;">
                 <i class="fa-solid fa-search"></i>
@@ -61,7 +89,7 @@
                         <th>المبلغ المدفوع</th>
                         <th>المتبقي</th>
                         <th>الحالة</th>
-                        <th>الإجراءات</th>
+                        <th style="width: 130px; text-align: center;">الإجراءات</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -99,25 +127,45 @@
                                         @(pur.Status == "Received" ? "تم الاستلام" : (pur.Status == "Draft" ? "مسودة (غير مستلمة)" : pur.Status))
                                     </span>
                                 </td>
-                                <td>
-                                    <div style="display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap;">
-                                        @if (pur.Status == "Draft")
+                                <td style="text-align: center;">
+                                    <div class="action-dropdown-container">
+                                        <button class="action-dropdown-btn @(activeMenuPurchaseId == pur.Id ? "active" : "")" @onclick="() => TogglePurchaseMenu(pur.Id)">
+                                            <i class="fa-solid fa-sliders"></i>
+                                            <span>خيارات</span>
+                                            <i class="fa-solid fa-chevron-down" style="font-size: 0.65rem;"></i>
+                                        </button>
+                                        @if (activeMenuPurchaseId == pur.Id)
                                         {
-                                            <button class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.8rem; background-color: rgba(59, 130, 246, 0.2); border-color: rgba(59, 130, 246, 0.4); color: #60a5fa;" @onclick="() => ReceivePurchase(pur)">
-                                                <i class="fa-solid fa-box-open me-1"></i> استلام البضاعة
-                                            </button>
-                                        }
-                                        @if (pur.RemainingAmount > 0)
-                                        {
-                                            <button class="btn btn-sm btn-primary" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;" @onclick="() => OpenPayModal(pur)">
-                                                <i class="fa-solid fa-hand-holding-dollar me-1"></i> سداد المتبقي
-                                            </button>
-                                        }
-                                        else
-                                        {
-                                            <span style="color: var(--accent-emerald); font-size: 0.85rem; font-weight: 600;">
-                                                <i class="fa-solid fa-circle-check me-1"></i> مدفوع بالكامل
-                                            </span>
+                                            <div class="action-dropdown-backdrop" @onclick="ClosePurchaseMenu"></div>
+                                            <div class="action-dropdown-menu" @onclick:stopPropagation="true">
+                                                <button class="action-dropdown-item item-primary" @onclick="async () => { ClosePurchaseMenu(); await OpenDetailsModal(pur); }">
+                                                    <i class="fa-solid fa-eye" style="color: var(--accent-blue);"></i>
+                                                    <span>عرض التفاصيل</span>
+                                                </button>
+                                                <button class="action-dropdown-item item-primary" @onclick="async () => { ClosePurchaseMenu(); await OpenEditPurchaseModal(pur); }">
+                                                    <i class="fa-solid fa-pen-to-square" style="color: var(--accent-amber);"></i>
+                                                    <span>تعديل الفاتورة</span>
+                                                </button>
+                                                @if (pur.Status == "Draft")
+                                                {
+                                                    <button class="action-dropdown-item item-success" @onclick="async () => { ClosePurchaseMenu(); await ReceivePurchase(pur); }">
+                                                        <i class="fa-solid fa-box-open" style="color: var(--accent-emerald);"></i>
+                                                        <span>تأكيد استلام البضاعة</span>
+                                                    </button>
+                                                }
+                                                @if (pur.RemainingAmount > 0)
+                                                {
+                                                    <button class="action-dropdown-item item-warning" @onclick="() => { ClosePurchaseMenu(); OpenPayModal(pur); }">
+                                                        <i class="fa-solid fa-hand-holding-dollar" style="color: var(--accent-amber);"></i>
+                                                        <span>سداد المتبقي (@pur.RemainingAmount.ToString("N2") ج.م)</span>
+                                                    </button>
+                                                }
+                                                <div class="action-dropdown-divider"></div>
+                                                <button class="action-dropdown-item item-danger" @onclick="() => { ClosePurchaseMenu(); ConfirmDeletePurchase(pur); }">
+                                                    <i class="fa-solid fa-trash-can" style="color: var(--accent-red);"></i>
+                                                    <span>حذف الفاتورة</span>
+                                                </button>
+                                            </div>
                                         }
                                     </div>
                                 </td>
@@ -129,7 +177,7 @@
         </div>
         <Pagination CurrentPage="@purchasesCurrentPage" TotalItems="@filteredPurchases.Count" PageSize="@pageSize" OnPageChanged="@(p => purchasesCurrentPage = p)" OnPageSizeChanged="@(s => { pageSize = s; purchasesCurrentPage = 1; EnsureValidPurchasesPage(); })" />
     }
-    else
+    else if (activeTab == "suppliers")
     {
         <div class="table-container">
             <table class="data-table">
@@ -140,13 +188,14 @@
                         <th>البريد الإلكتروني</th>
                         <th>العنوان</th>
                         <th>المسؤول</th>
+                        <th style="width: 120px; text-align: center;">الإجراءات</th>
                     </tr>
                 </thead>
                 <tbody>
                     @if (isLoading)
                     {
                         <tr>
-                            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
                                 <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
                                 <p style="margin-top: 0.5rem;">جاري تحميل الموردين...</p>
                             </td>
@@ -155,7 +204,7 @@
                     else if (!filteredSuppliers.Any())
                     {
                         <tr>
-                            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
                                 <i class="fa-solid fa-users" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
                                 لا يوجد موردين مسجلين حالياً.
                             </td>
@@ -171,6 +220,11 @@
                                 <td>@(string.IsNullOrWhiteSpace(sup.Email) ? "-" : sup.Email)</td>
                                 <td>@(string.IsNullOrWhiteSpace(sup.Address) ? "-" : sup.Address)</td>
                                 <td>@(string.IsNullOrWhiteSpace(sup.ContactPerson) ? "-" : sup.ContactPerson)</td>
+                                <td style="text-align: center;">
+                                    <button class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;" @onclick="() => OpenEditSupplierModal(sup)" title="تعديل بيانات المورد">
+                                        <i class="fa-solid fa-pen-to-square me-1" style="color: var(--accent-amber);"></i> تعديل
+                                    </button>
+                                </td>
                             </tr>
                         }
                     }
@@ -232,7 +286,7 @@
             </div>
 
             <div class="modal-footer">
-                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSaving">إلغاء</button>
+                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSaving">إلغاء [Esc]</button>
                 <button class="btn btn-primary" @onclick="SaveSupplier" disabled="@isSaving">
                     @if (isSaving)
                     {
@@ -240,7 +294,73 @@
                     }
                     else
                     {
-                        <i class="fa-solid fa-check me-1"></i> <span>حفظ المورد</span>
+                        <i class="fa-solid fa-check me-1"></i> <span>حفظ المورد [Enter]</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Edit Supplier Modal -->
+@if (showEditSupplierModal)
+{
+    <div class="modal-overlay" @onclick="CloseModals">
+        <div class="modal-card" style="width: 520px;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-pen-to-square me-2" style="color: var(--accent-amber);"></i>
+                    تعديل بيانات المورد (@editSupplier.Name)
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @errorMessage
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label>اسم المورد / الشركة <span style="color: var(--accent-red);">*</span></label>
+                    <input class="form-control" @bind="editSupplier.Name" placeholder="مثال: شركة الجهينة للأغذية" />
+                </div>
+
+                <div class="form-group">
+                    <label>رقم الهاتف <span style="color: var(--accent-red);">*</span></label>
+                    <input class="form-control" @bind="editSupplier.Phone" placeholder="مثال: 01012345678" />
+                </div>
+
+                <div class="form-group">
+                    <label>البريد الإلكتروني</label>
+                    <input class="form-control" @bind="editSupplier.Email" placeholder="supplier@company.com" />
+                </div>
+
+                <div class="form-group">
+                    <label>الشخص المسؤول للتواصل</label>
+                    <input class="form-control" @bind="editSupplier.ContactPerson" placeholder="اسم مندوب الشركة" />
+                </div>
+
+                <div class="form-group">
+                    <label>العنوان</label>
+                    <input class="form-control" @bind="editSupplier.Address" placeholder="عنوان المقر الرئيسي" />
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSaving">إلغاء [Esc]</button>
+                <button class="btn btn-primary" @onclick="SaveEditSupplier" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري التحديث...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check me-1"></i> <span>حفظ التعديل [Enter]</span>
                     }
                 </button>
             </div>
@@ -252,7 +372,7 @@
 @if (showAddPurchaseModal)
 {
     <div class="modal-overlay" @onclick="CloseModals">
-        <div class="modal-card" style="width: 700px;" @onclick:stopPropagation="true">
+        <div class="modal-card" style="width: 1080px; max-width: 96vw; max-height: 92vh; overflow-y: auto;" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3 class="modal-title">
                     <i class="fa-solid fa-cart-plus me-2" style="color: var(--accent-indigo);"></i>
@@ -271,9 +391,9 @@
                     </div>
                 }
 
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label>المورد <span style="color: var(--accent-red);">*</span></label>
+                <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-weight: 600;">المورد <span style="color: var(--accent-red);">*</span></label>
                         <select class="form-select" @bind="selectedSupplierIdString">
                             <option value="">-- اختر المورد --</option>
                             @foreach (var s in suppliers)
@@ -283,54 +403,164 @@
                         </select>
                     </div>
 
-                    <div class="form-group">
-                        <label>رقم فاتورة الشراء <span style="color: var(--accent-red);">*</span></label>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-weight: 600;">رقم فاتورة الشراء <span style="color: var(--accent-red);">*</span></label>
                         <input class="form-control" @bind="purchaseInvoiceNumber" placeholder="مثال: PUR-10025" />
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-weight: 600;">تاريخ الفاتورة <span style="color: var(--accent-red);">*</span></label>
+                        <input type="date" class="form-control" value="@purchaseInvoiceDate.ToString("yyyy-MM-dd")" @onchange="OnPurchaseInvoiceDateChanged" />
                     </div>
                 </div>
 
-                <h4 style="font-size: 0.95rem; font-weight: 700; margin: 1rem 0 0.5rem 0;">أصناف الفاتورة</h4>
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
-                    <div class="search-box" style="flex: 1;">
+                <h4 style="font-size: 0.95rem; font-weight: 700; margin: 1rem 0 0.5rem 0; color: var(--accent-indigo); display: flex; align-items: center; gap: 0.4rem;">
+                    <i class="fa-solid fa-boxes-stacked"></i> أصناف الفاتورة
+                </h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div class="search-box" style="width: 100%;">
                         <i class="fa-solid fa-barcode"></i>
-                        <input @bind="scannedPurchaseBarcode" 
+                        <input id="purchase-barcode-input"
+                               @bind="scannedPurchaseBarcode" 
                                @bind:event="oninput" 
                                @onkeyup="HandlePurchaseBarcodeKeyUp" 
-                               placeholder="مسح أو إدخال الباركود هنا... [Enter]" 
+                               placeholder="مسح أو إدخال الباركود... [Enter]" 
+                               class="form-control" />
+                    </div>
+                    <div class="search-box" style="width: 100%;">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input @bind="searchProductByName" 
+                               @bind:event="oninput" 
+                               @onkeyup="HandleProductNameSearchKeyUp" 
+                               placeholder="بحث عن الصنف بالاسم... [Enter]" 
                                class="form-control" />
                     </div>
                 </div>
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
-                    <select class="form-select" style="flex: 2;" value="@selectedProductIdString" @onchange="OnProductSelected">
-                        <option value="">-- اختر المنتج لإضافته --</option>
-                        @foreach (var p in availableProducts)
+
+                <!-- Product Selection & Multi-Unit / Expiry Row -->
+                <!-- Product Selection & Multi-Unit / Expiry Row -->
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem;">
+                    <!-- Row 1: Product Selection & Unit Type -->
+                    <div style="display: grid; grid-template-columns: @(selectedUnitType == "carton" ? "2fr 1fr 1fr" : "2fr 1fr"); gap: 0.75rem; margin-bottom: 0.75rem; align-items: flex-end;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">اسم الصنف / المنتج</label>
+                            <select class="form-select" value="@selectedProductIdString" @onchange="OnProductSelected">
+                                <option value="">-- @(FilteredPurchaseProducts.Any() ? "اختر المنتج (" + FilteredPurchaseProducts.Count + ")" : "لا توجد نتائج مطابقة") --</option>
+                                @foreach (var p in FilteredPurchaseProducts)
+                                {
+                                    <option value="@p.Id.ToString()">@p.NameAr (@(p.PurchasePrice > 0 ? p.PurchasePrice : p.SellingPrice) ج.م)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">نوع الوحدة للتوريد</label>
+                            <select class="form-select" value="@selectedUnitType" @onchange="OnUnitTypeChanged">
+                                <option value="piece">@(SelectedProduct?.BaseUnit ?? "قطعة") (الوحدة الصغرى)</option>
+                                <option value="carton">@(SelectedProduct?.ParentUnit ?? "كرتونة") (@addItemCartonFactor @(SelectedProduct?.BaseUnit ?? "قطعة"))</option>
+                            </select>
+                        </div>
+                        @if (selectedUnitType == "carton")
                         {
-                            <option value="@p.Id.ToString()">@p.NameAr (@(p.PurchasePrice > 0 ? p.PurchasePrice : p.SellingPrice) ج.م)</option>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: #60a5fa; margin-bottom: 0.25rem; font-weight: 600;">قطع الكرتونة</label>
+                                <input type="number" class="form-control" style="border-color: #3b82f6; background: rgba(59,130,246,0.07);" @bind="addItemCartonFactor" @bind:after="OnCartonFactorChanged" min="1" title="عدد القطع في الكرتونة الواحدة" />
+                            </div>
                         }
-                    </select>
-                    <input type="number" class="form-control" style="width: 100px;" @bind="addItemQty" placeholder="الكمية" />
-                    <input type="number" step="0.01" class="form-control" style="width: 120px;" @bind="addItemCost" placeholder="سعر الشراء" />
-                    <button class="btn btn-secondary" type="button" @onclick="AddPurchaseLineItem">
-                        <i class="fa-solid fa-plus"></i> إضافة
+                    </div>
+
+                    <!-- Row 2: Quantity, Unit Purchase Cost, Production Date, Batch # -->
+                    <div style="display: grid; grid-template-columns: 1fr 1.3fr 1.3fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-end;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">@(selectedUnitType == "carton" ? "عدد الكراتين" : "الكمية (بالقطعة)")</label>
+                            <input type="number" class="form-control" @bind="addItemQty" placeholder="الكمية" min="1" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">سعر الشراء / @(selectedUnitType == "carton" ? (SelectedProduct?.ParentUnit ?? "الكرتونة") : (SelectedProduct?.BaseUnit ?? "القطعة"))</label>
+                            <input type="number" step="0.01" class="form-control" @bind="addItemCost" @bind:after="OnAddItemCostChanged" placeholder="سعر الشراء" min="0" title="سعر شراء @(selectedUnitType == "carton" ? (SelectedProduct?.ParentUnit ?? "الكرتونة") : (SelectedProduct?.BaseUnit ?? "القطعة"))" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">
+                                <i class="fa-solid fa-calendar-day me-1"></i> تاريخ الإنتاج
+                            </label>
+                            <input type="date" class="form-control" style="font-size: 0.85rem;" value="@(addItemProductionDate?.ToString("yyyy-MM-dd"))" @onchange="OnProductionDateInputChanged" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">رقم التشغيلة</label>
+                            <input type="text" class="form-control" style="font-size: 0.85rem;" @bind="addItemBatchNumber" placeholder="Batch #" />
+                        </div>
+                    </div>
+
+                    @if (selectedUnitType == "carton")
+                    {
+                        var unitFactor = addItemCartonFactor > 0 ? addItemCartonFactor : 1;
+                        <div style="margin-top: 0.6rem; padding: 0.55rem 0.85rem; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 0.4rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; flex-wrap: wrap; gap: 0.5rem;">
+                            <div style="color: var(--accent-amber); display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fa-solid fa-calculator"></i>
+                                <span>توريد بالكرتونة: <strong>@addItemQty @(SelectedProduct?.ParentUnit ?? "كرتونة")</strong> (@unitFactor قطعة/كرتونة) = <strong style="color: #60a5fa;">@(addItemQty * unitFactor) @(SelectedProduct?.BaseUnit ?? "قطعة") في المخزون</strong></span>
+                            </div>
+                            <div>
+                                <span style="color: var(--text-secondary);">تكلفة القطعة المحسوبة: </span>
+                                <strong style="color: var(--accent-emerald); font-size: 0.95rem;">@(addItemCost > 0 ? (addItemCost / (decimal)unitFactor).ToString("N2") : "0.00") ج.م</strong>
+                            </div>
+                        </div>
+                    }
+
+                    @if (addItemExpiryDate.HasValue)
+                    {
+                        var today = DateTime.Today;
+                        var expDate = addItemExpiryDate.Value.Date;
+                        var daysLeft = (expDate - today).Days;
+                        if (expDate <= today)
+                        {
+                            <div style="margin-top: 0.6rem; font-size: 0.82rem; color: #f87171; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 0.4rem; padding: 0.4rem 0.75rem;">
+                                <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                                <strong>تنبيه الصلاحية:</strong> هذا التاريخ منتهي الصلاحية بالفعل (مضى عليه @Math.Abs(daysLeft) يوم)!
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="margin-top: 0.6rem; font-size: 0.82rem; color: #34d399; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 0.4rem; padding: 0.4rem 0.75rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                                <div>
+                                    <i class="fa-solid fa-calendar-check me-1"></i>
+                                    <span>تاريخ الانتهاء المحسوب: <strong>@expDate.ToString("yyyy-MM-dd")</strong></span>
+                                </div>
+                                <div>
+                                    <span style="color: #a7f3d0;">باقي على الصلاحية: </span>
+                                    <strong style="color: #fbbf24;">@daysLeft يوم</strong>
+                                    @if (SelectedProduct != null && SelectedProduct.ShelfLifeDays > 0)
+                                    {
+                                        <span style="color: var(--text-secondary); font-size: 0.75rem;"> (صلاحية المنتج: @SelectedProduct.ShelfLifeDays يوم)</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+
+                    <!-- Add Line Item Button Row (تحت البيانات مباشرة) -->
+                    <button class="btn btn-primary" type="button" @onclick="AddPurchaseLineItem" style="width: 100%; height: 42px; font-weight: 700; margin-top: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.95rem; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);">
+                        <i class="fa-solid fa-plus-circle"></i>
+                        <span>إضافة الصنف إلى الفاتورة</span>
                     </button>
                 </div>
 
-                <div class="table-container" style="margin-bottom: 1rem;">
+                <div class="table-container" style="min-height: 250px; max-height: 380px; overflow-y: auto; margin-bottom: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px;">
                     <table class="data-table">
-                        <thead>
+                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 2; box-shadow: 0 1px 0 var(--border-color);">
                             <tr>
-                                <th>المنتج</th>
-                                <th>الكمية</th>
-                                <th>سعر الشراء</th>
-                                <th>الإجمالي</th>
-                                <th style="width: 50px;"></th>
+                                <th style="min-width: 180px;">المنتج</th>
+                                <th style="min-width: 130px;">الكمية والوحدة</th>
+                                <th style="min-width: 110px;">تاريخ الصلاحية</th>
+                                <th style="min-width: 100px;">رقم التشغيلة</th>
+                                <th style="min-width: 130px;">سعر التكلفة</th>
+                                <th style="min-width: 110px;">الإجمالي</th>
+                                <th style="min-width: 140px; text-align: center;">الإجراءات</th>
                             </tr>
                         </thead>
                         <tbody>
                             @if (!purchaseItems.Any())
                             {
                                 <tr>
-                                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
                                         لم يتم إضافة أصناف حتى الآن.
                                     </td>
                                 </tr>
@@ -340,13 +570,56 @@
                                 @foreach (var item in purchaseItems)
                                 {
                                     var prod = availableProducts.FirstOrDefault(p => p.Id == item.ProductId);
+                                    var factor = (prod != null && prod.ConversionFactor > 1) ? prod.ConversionFactor : 1;
+                                    bool isCarton = !string.IsNullOrWhiteSpace(item.Unit) &&
+                                                    (string.Equals(item.Unit.Trim(), "كرتونة", StringComparison.OrdinalIgnoreCase) ||
+                                                     (!string.IsNullOrWhiteSpace(prod?.ParentUnit) && string.Equals(item.Unit.Trim(), prod.ParentUnit.Trim(), StringComparison.OrdinalIgnoreCase)));
                                     <tr>
                                         <td style="font-weight: 600;">@(prod?.NameAr ?? "منتج")</td>
-                                        <td>@item.Quantity</td>
-                                        <td>@item.UnitCostPrice.ToString("N2") ج.م</td>
-                                        <td style="color: var(--accent-emerald); font-weight: 700;">@((item.Quantity * item.UnitCostPrice).ToString("N2")) ج.م</td>
                                         <td>
-                                            <button class="btn btn-danger" style="padding: 0.2rem 0.4rem; font-size: 0.75rem;" @onclick="() => purchaseItems.Remove(item)">
+                                            @if (isCarton && factor > 1)
+                                            {
+                                                <div>
+                                                    <strong style="color: var(--accent-blue);">@item.Quantity.ToString("G29") @(prod?.ParentUnit ?? "كرتونة")</strong>
+                                                    <span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">(@((item.Quantity * factor).ToString("N0")) @(prod?.BaseUnit ?? "قطعة"))</span>
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div>
+                                                    <strong>@item.Quantity.ToString("G29") @(prod?.BaseUnit ?? "قطعة")</strong>
+                                                </div>
+                                            }
+                                        </td>
+                                        <td style="color: @(item.ExpiryDate.HasValue && item.ExpiryDate.Value <= DateTime.Today ? "var(--accent-red)" : "inherit"); font-weight: 600;">
+                                            @(item.ExpiryDate?.ToString("yyyy-MM-dd") ?? "-")
+                                        </td>
+                                        <td>@(string.IsNullOrWhiteSpace(item.BatchNumber) ? "-" : item.BatchNumber)</td>
+                                        <td>
+                                            @if (isCarton && factor > 1)
+                                            {
+                                                <div>
+                                                    <strong style="color: var(--accent-amber);">@item.UnitCost.ToString("N2") ج.م</strong> / @(prod?.ParentUnit ?? "كرتونة")
+                                                </div>
+                                                <div style="font-size: 0.74rem; color: var(--accent-emerald);">
+                                                    (@((item.UnitCost / factor).ToString("N2")) ج.م لـ @(prod?.BaseUnit ?? "القطعة"))
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div>@item.UnitCost.ToString("N2") ج.م / @(prod?.BaseUnit ?? "قطعة")</div>
+                                            }
+                                        </td>
+                                        <td style="color: var(--accent-emerald); font-weight: 700; font-size: 0.95rem;">@((item.Quantity * item.UnitCost).ToString("N2")) ج.م</td>
+                                        <td style="white-space: nowrap; text-align: center;">
+                                            @if (prod != null)
+                                            {
+                                                var pieceCost = isCarton && factor > 1 ? (item.UnitCost / factor) : item.UnitCost;
+                                                <button type="button" class="btn btn-sm btn-secondary me-1" style="padding: 0.2rem 0.45rem; font-size: 0.72rem; color: var(--accent-emerald); border-color: rgba(16, 185, 129, 0.3);" title="تطبيق أسعار البيع مباشرة على هذا المنتج في الكتالوج" @onclick="() => OpenApplyPricesModal(prod, pieceCost)">
+                                                    <i class="fa-solid fa-wand-magic-sparkles me-1"></i> تطبيق الأسعار
+                                                </button>
+                                            }
+                                            <button class="btn btn-danger" style="padding: 0.2rem 0.4rem; font-size: 0.75rem;" @onclick="() => RemovePurchaseItem(item)">
                                                 <i class="fa-solid fa-trash"></i>
                                             </button>
                                         </td>
@@ -357,15 +630,33 @@
                     </table>
                 </div>
 
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label>المبلغ المدفوع (جنيه)</label>
-                        <input type="number" step="0.01" class="form-control" @bind="purchasePaidAmount" placeholder="0.00" />
+                <div class="grid-2" style="margin-top: 0.75rem; align-items: stretch;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                            <label style="margin-bottom: 0; font-weight: 700;">المبلغ المدفوع (جنيه)</label>
+                            <div style="display: flex; gap: 0.35rem;">
+                                <button type="button" class="btn btn-sm @(isFullPayment || (purchasePaidAmount == purchaseInvoiceTotal && purchaseInvoiceTotal > 0) ? "btn-primary" : "btn-secondary")" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;" @onclick="SetFullPurchasePayment">
+                                    <i class="fa-solid fa-check-double me-1"></i> سداد كامل نقدًا
+                                </button>
+                                <button type="button" class="btn btn-sm @(purchasePaidAmount == 0 ? "btn-primary" : "btn-secondary")" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;" @onclick="SetZeroPurchasePayment">
+                                    آجل (0)
+                                </button>
+                            </div>
+                        </div>
+                        <input type="number" step="0.01" min="0" class="form-control" @bind="purchasePaidAmount" @bind:event="oninput" placeholder="0.00" style="font-size: 1.05rem; font-weight: 700; color: var(--accent-emerald);" />
                     </div>
 
-                    <div style="background: var(--bg-card); padding: 0.75rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light); display: flex; flex-direction: column; justify-content: center;">
-                        <span style="font-size: 0.85rem; color: var(--text-secondary);">إجمالي الفاتورة:</span>
-                        <strong style="font-size: 1.2rem; color: var(--accent-amber);">@purchaseItems.Sum(i => i.Quantity * i.UnitCostPrice).ToString("N2") ج.م</strong>
+                    <div style="background: var(--bg-card); padding: 0.75rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light); display: flex; flex-direction: column; justify-content: center; gap: 0.25rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.85rem; color: var(--text-secondary);">إجمالي الفاتورة:</span>
+                            <strong style="font-size: 1.15rem; color: var(--accent-amber);">@purchaseInvoiceTotal.ToString("N2") ج.م</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; border-top: 1px dashed var(--border-color-light); padding-top: 0.25rem;">
+                            <span style="color: var(--text-secondary);">المتبقي (مديونية):</span>
+                            <strong style="color: @(purchaseRemainingDebt > 0 ? "var(--accent-red)" : "var(--accent-emerald)"); font-size: 1rem;">
+                                @purchaseRemainingDebt.ToString("N2") ج.م
+                            </strong>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -457,6 +748,545 @@
     </div>
 }
 
+<!-- Purchase Details Modal -->
+@if (showDetailsModal)
+{
+    <div class="modal-overlay" @onclick="CloseModals">
+        <div class="modal-card" style="width: 1200px; max-width: 96vw; height: 90vh; max-height: 880px; display: flex; flex-direction: column; overflow: hidden;" @onclick:stopPropagation="true">
+            <div class="modal-header" style="flex-shrink: 0;">
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-file-invoice me-2" style="color: var(--accent-blue);"></i>
+                    تفاصيل ومحتويات فاتورة الشراء (@(selectedPurchaseDetail?.InvoiceNumber ?? "..."))
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 1.25rem 1.5rem; gap: 0.75rem;">
+                @if (isLoadingDetails)
+                {
+                    <div style="text-align: center; padding: 3rem; color: var(--text-secondary); margin: auto;">
+                        <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
+                        <p style="margin-top: 0.5rem;">جاري تحميل تفاصيل الفاتورة...</p>
+                    </div>
+                }
+                else if (selectedPurchaseDetail != null)
+                {
+                    <div style="flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; background: rgba(255,255,255,0.03); padding: 0.65rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); font-size: 0.86rem;">
+                        <div><span style="color: var(--text-secondary);">رقم الفاتورة:</span> <strong style="color: var(--accent-blue);">@selectedPurchaseDetail.InvoiceNumber</strong></div>
+                        <div><span style="color: var(--text-secondary);">المورد:</span> <strong>@selectedPurchaseDetail.SupplierName</strong></div>
+                        <div><span style="color: var(--text-secondary);">التاريخ:</span> <strong>@selectedPurchaseDetail.PurchaseDate.ToString("yyyy-MM-dd HH:mm")</strong></div>
+                        <div><span style="color: var(--text-secondary);">الحالة:</span> <span class="badge @(selectedPurchaseDetail.Status == "Received" ? "badge-green" : "badge-amber")">@(selectedPurchaseDetail.Status == "Received" ? "تم الاستلام" : selectedPurchaseDetail.Status)</span></div>
+                        <div style="border-right: 1px solid var(--border-color); padding-right: 0.75rem;"><span style="color: var(--text-secondary);">الإجمالي:</span> <strong style="color: var(--accent-amber); font-size: 0.95rem;">@selectedPurchaseDetail.TotalAmount.ToString("N2") ج.م</strong></div>
+                        <div><span style="color: var(--text-secondary);">المدفوع:</span> <strong style="color: var(--accent-emerald); font-size: 0.95rem;">@selectedPurchaseDetail.PaidAmount.ToString("N2") ج.م</strong></div>
+                        <div><span style="color: var(--text-secondary);">المتبقي:</span> <strong style="color: var(--accent-red); font-size: 0.95rem;">@selectedPurchaseDetail.RemainingAmount.ToString("N2") ج.م</strong></div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(selectedPurchaseDetail.Notes))
+                    {
+                        <div style="flex-shrink: 0; font-size: 0.82rem; color: var(--text-secondary); background: rgba(255,255,255,0.02); padding: 0.35rem 0.75rem; border-radius: 0.35rem; border: 1px solid var(--border-color-light);">
+                            <strong>ملاحظات:</strong> @selectedPurchaseDetail.Notes
+                        </div>
+                    }
+
+                    <div style="flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;">
+                        <h4 style="font-size: 0.95rem; font-weight: 700; margin: 0; color: var(--text-primary);">
+                            <i class="fa-solid fa-boxes-stacked me-1" style="color: var(--accent-blue);"></i> الأصناف في الفاتورة (@selectedPurchaseDetail.Items.Count صنف)
+                        </h4>
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">عرض مريح لجميع سطور الفاتورة (5 أصناف وأكثر ظاهرة معاً)</span>
+                    </div>
+
+                    <div class="table-container" style="flex: 1; min-height: 340px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+                        <table class="data-table" style="width: 100%; font-size: 0.88rem;">
+                            <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 2; box-shadow: 0 1px 0 var(--border-color);">
+                                <tr>
+                                    <th style="width: 45px; text-align: center; padding: 0.55rem 0.75rem;">#</th>
+                                    <th style="min-width: 200px; padding: 0.55rem 0.75rem;">اسم الصنف</th>
+                                    <th style="min-width: 120px; padding: 0.55rem 0.75rem;">الباركود</th>
+                                    <th style="min-width: 100px; text-align: center; padding: 0.55rem 0.75rem;">الكمية</th>
+                                    <th style="min-width: 120px; padding: 0.55rem 0.75rem;">تاريخ الصلاحية</th>
+                                    <th style="min-width: 110px; padding: 0.55rem 0.75rem;">رقم التشغيلة</th>
+                                    <th style="min-width: 110px; text-align: left; padding: 0.55rem 0.75rem;">سعر التكلفة</th>
+                                    <th style="min-width: 110px; text-align: left; padding: 0.55rem 0.75rem;">الإجمالي</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{ int idx = 1; }
+                                @foreach (var item in selectedPurchaseDetail.Items)
+                                {
+                                    var pInfo = availableProducts.FirstOrDefault(p => p.Id == item.ProductId);
+                                    <tr>
+                                        <td style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem 0.75rem;">@idx</td>
+                                        <td style="font-weight: 600; padding: 0.5rem 0.75rem;">@item.ProductName</td>
+                                        <td style="padding: 0.5rem 0.75rem;"><code>@(string.IsNullOrWhiteSpace(item.Barcode) ? "-" : item.Barcode)</code></td>
+                                        <td style="text-align: center; font-weight: 700; color: var(--accent-blue); padding: 0.5rem 0.75rem;">
+                                            @item.Quantity.ToString("G29")
+                                            @if (pInfo != null && pInfo.ConversionFactor > 1 && item.Quantity >= pInfo.ConversionFactor)
+                                            {
+                                                <div style="font-size: 0.72rem; color: var(--text-secondary); font-weight: normal;">
+                                                    (@PackagingUnitHelper.FormatTwoTierStockBreakdown(item.Quantity, pInfo.ConversionFactor, pInfo.BaseUnit, pInfo.ParentUnit))
+                                                </div>
+                                            }
+                                        </td>
+                                        <td style="color: @(item.ExpiryDate.HasValue && item.ExpiryDate.Value <= DateTime.Today ? "var(--accent-red)" : "inherit"); font-weight: 600; padding: 0.5rem 0.75rem;">
+                                            @(item.ExpiryDate?.ToString("yyyy-MM-dd") ?? "-")
+                                        </td>
+                                        <td style="padding: 0.5rem 0.75rem;">@(string.IsNullOrWhiteSpace(item.BatchNumber) ? "-" : item.BatchNumber)</td>
+                                        <td style="text-align: left; padding: 0.5rem 0.75rem;">@item.UnitCost.ToString("N2") ج.م</td>
+                                        <td style="text-align: left; font-weight: 700; color: var(--accent-amber); padding: 0.5rem 0.75rem;">@item.Total.ToString("N2") ج.م</td>
+                                    </tr>
+                                    idx++;
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </div>
+
+            <div class="modal-footer" style="flex-shrink: 0;">
+                <button class="btn btn-secondary" @onclick="CloseModals">إغلاق</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Edit Purchase Modal -->
+@if (showEditPurchaseModal)
+{
+    <div class="modal-overlay" @onclick="CloseModals">
+        <div class="modal-card" style="width: 1080px; max-width: 96vw; max-height: 92vh; overflow-y: auto;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-pen-to-square me-2" style="color: var(--accent-amber);"></i>
+                    تعديل فاتورة الشراء (@editPurchaseInvoiceNumber)
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @errorMessage
+                    </div>
+                }
+
+                <div style="display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-weight: 600;">رقم الفاتورة <span style="color: var(--accent-red);">*</span></label>
+                        <input class="form-control" @bind="editPurchaseInvoiceNumber" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-weight: 600;">المورد <span style="color: var(--accent-red);">*</span></label>
+                        <select class="form-select" @bind="editSupplierIdString">
+                            @foreach (var sup in suppliers)
+                            {
+                                <option value="@sup.Id">@sup.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-weight: 600;">تاريخ الفاتورة <span style="color: var(--accent-red);">*</span></label>
+                        <input type="date" class="form-control" value="@editPurchaseDate.ToString("yyyy-MM-dd")" @onchange="OnEditPurchaseDateChanged" />
+                    </div>
+                </div>
+
+                <!-- Add Items in Edit -->
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 0.6rem; padding: 0.9rem; margin-bottom: 1rem;">
+                    <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.6rem; color: var(--accent-indigo);">
+                        <i class="fa-solid fa-plus-circle me-1"></i> إضافة / مسح صنف في الفاتورة
+                    </h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                        <div class="search-box" style="width: 100%;">
+                            <i class="fa-solid fa-barcode"></i>
+                            <input class="form-control" @bind="editScannedBarcode" @bind:event="oninput" @onkeyup="HandleEditBarcodeKeyUp" placeholder="مسح أو إدخال الباركود..." />
+                        </div>
+                        <div class="search-box" style="width: 100%;">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input class="form-control" @bind="editSearchProductByName" @bind:event="oninput" @onkeyup="HandleEditProductNameSearchKeyUp" placeholder="بحث عن الصنف بالاسم..." />
+                        </div>
+                    </div>
+                    <!-- Row 1: Product Selection & Unit Type -->
+                    <div style="display: grid; grid-template-columns: @(editSelectedUnitType == "carton" ? "2fr 1fr 1fr" : "2fr 1fr"); gap: 0.75rem; margin-bottom: 0.75rem; align-items: flex-end;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">اسم الصنف / المنتج</label>
+                            <select class="form-select" value="@editSelectedProductIdString" @onchange="OnEditProductSelected">
+                                <option value="">-- @(FilteredEditPurchaseProducts.Any() ? "اختر صنف (" + FilteredEditPurchaseProducts.Count + ")" : "لا توجد نتائج") --</option>
+                                @foreach (var prod in FilteredEditPurchaseProducts)
+                                {
+                                    <option value="@prod.Id">@prod.NameAr (@(prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice) ج.م)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">نوع الوحدة للتوريد</label>
+                            <select class="form-select" value="@editSelectedUnitType" @onchange="OnEditUnitTypeChanged">
+                                <option value="piece">@(EditSelectedProduct?.BaseUnit ?? "قطعة") (الوحدة الصغرى)</option>
+                                <option value="carton">@(EditSelectedProduct?.ParentUnit ?? "كرتونة") (@editAddItemCartonFactor @(EditSelectedProduct?.BaseUnit ?? "قطعة"))</option>
+                            </select>
+                        </div>
+                        @if (editSelectedUnitType == "carton")
+                        {
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: #60a5fa; margin-bottom: 0.25rem; font-weight: 600;">قطع الكرتونة</label>
+                                <input type="number" class="form-control" style="border-color: #3b82f6; background: rgba(59,130,246,0.07);" @bind="editAddItemCartonFactor" @bind:after="OnEditCartonFactorChanged" min="1" title="عدد القطع في الكرتونة الواحدة" />
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Row 2: Quantity, Unit Purchase Cost, Production Date, Batch # -->
+                    <div style="display: grid; grid-template-columns: 1fr 1.3fr 1.3fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-end;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">@(editSelectedUnitType == "carton" ? "عدد الكراتين" : "الكمية (بالقطعة)")</label>
+                            <input type="number" step="1" class="form-control" @bind="editAddItemQty" placeholder="الكمية" min="1" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">سعر الشراء / @(editSelectedUnitType == "carton" ? (EditSelectedProduct?.ParentUnit ?? "الكرتونة") : (EditSelectedProduct?.BaseUnit ?? "القطعة"))</label>
+                            <input type="number" step="0.01" class="form-control" @bind="editAddItemCost" @bind:after="OnEditAddItemCostChanged" placeholder="سعر الشراء" min="0" title="سعر شراء @(editSelectedUnitType == "carton" ? (EditSelectedProduct?.ParentUnit ?? "الكرتونة") : (EditSelectedProduct?.BaseUnit ?? "القطعة"))" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">
+                                <i class="fa-solid fa-calendar-day me-1"></i> تاريخ الإنتاج
+                            </label>
+                            <input type="date" class="form-control" style="font-size: 0.85rem;" value="@(editAddItemProductionDate?.ToString("yyyy-MM-dd"))" @onchange="OnEditProductionDateInputChanged" />
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">رقم التشغيلة</label>
+                            <input type="text" class="form-control" style="font-size: 0.85rem;" @bind="editAddItemBatchNumber" placeholder="Batch #" />
+                        </div>
+                    </div>
+
+                    @if (editSelectedUnitType == "carton")
+                    {
+                        var editUnitFactor = editAddItemCartonFactor > 0 ? editAddItemCartonFactor : 1;
+                        <div style="margin-top: 0.6rem; padding: 0.55rem 0.85rem; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 0.4rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; flex-wrap: gap; gap: 0.5rem;">
+                            <div style="color: var(--accent-amber); display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fa-solid fa-calculator"></i>
+                                <span>توريد بالكرتونة: <strong>@editAddItemQty @(EditSelectedProduct?.ParentUnit ?? "كرتونة")</strong> (@editUnitFactor قطعة/كرتونة) = <strong style="color: #60a5fa;">@(editAddItemQty * editUnitFactor) @(EditSelectedProduct?.BaseUnit ?? "قطعة") في المخزون</strong></span>
+                            </div>
+                            <div>
+                                <span style="color: var(--text-secondary);">تكلفة القطعة المحسوبة: </span>
+                                <strong style="color: var(--accent-emerald); font-size: 0.95rem;">@(editAddItemCost > 0 ? (editAddItemCost / (decimal)editUnitFactor).ToString("N2") : "0.00") ج.م</strong>
+                            </div>
+                        </div>
+                    }
+
+                    @if (editAddItemExpiryDate.HasValue)
+                    {
+                        var today = DateTime.Today;
+                        var expDate = editAddItemExpiryDate.Value.Date;
+                        var daysLeft = (expDate - today).Days;
+                        if (expDate <= today)
+                        {
+                            <div style="margin-top: 0.6rem; font-size: 0.82rem; color: #f87171; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 0.4rem; padding: 0.4rem 0.75rem;">
+                                <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                                <strong>تنبيه الصلاحية:</strong> هذا التاريخ منتهي الصلاحية بالفعل (مضى عليه @Math.Abs(daysLeft) يوم)!
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="margin-top: 0.6rem; font-size: 0.82rem; color: #34d399; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 0.4rem; padding: 0.4rem 0.75rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                                <div>
+                                    <i class="fa-solid fa-calendar-check me-1"></i>
+                                    <span>تاريخ الانتهاء المحسوب: <strong>@expDate.ToString("yyyy-MM-dd")</strong></span>
+                                </div>
+                                <div>
+                                    <span style="color: #a7f3d0;">باقي على الصلاحية: </span>
+                                    <strong style="color: #fbbf24;">@daysLeft يوم</strong>
+                                    @if (EditSelectedProduct != null && EditSelectedProduct.ShelfLifeDays > 0)
+                                    {
+                                        <span style="color: var(--text-secondary); font-size: 0.75rem;"> (صلاحية المنتج: @EditSelectedProduct.ShelfLifeDays يوم)</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    }
+
+                    <!-- Add Line Item Button Row (تحت البيانات مباشرة) -->
+                    <button class="btn btn-primary" type="button" @onclick="AddEditPurchaseLineItem" style="width: 100%; height: 42px; font-weight: 700; margin-top: 0.75rem; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.95rem; box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);">
+                        <i class="fa-solid fa-plus-circle"></i>
+                        <span>إضافة الصنف إلى الفاتورة</span>
+                    </button>
+                </div>
+
+                <!-- Items Table in Edit -->
+                <div class="table-container" style="min-height: 250px; max-height: 380px; overflow-y: auto; margin-bottom: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px;">
+                    <table class="data-table">
+                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 2; box-shadow: 0 1px 0 var(--border-color);">
+                            <tr>
+                                <th>اسم الصنف</th>
+                                <th style="width: 80px; text-align: center;">الكمية</th>
+                                <th>الصلاحية</th>
+                                <th>التشغيلة</th>
+                                <th style="width: 105px; text-align: left;">سعر التكلفة</th>
+                                <th style="width: 105px; text-align: left;">الإجمالي</th>
+                                <th style="width: 70px; text-align: center;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!editPurchaseItems.Any())
+                            {
+                                <tr>
+                                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                                        لم يتم إضافة أي أصناف بعد.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var item in editPurchaseItems)
+                                {
+                                    var prod = availableProducts.FirstOrDefault(p => p.Id == item.ProductId);
+                                    var factor = (prod != null && prod.ConversionFactor > 1) ? prod.ConversionFactor : 1;
+                                    bool isCarton = !string.IsNullOrWhiteSpace(item.Unit) &&
+                                                    (string.Equals(item.Unit.Trim(), "كرتونة", StringComparison.OrdinalIgnoreCase) ||
+                                                     (!string.IsNullOrWhiteSpace(prod?.ParentUnit) && string.Equals(item.Unit.Trim(), prod.ParentUnit.Trim(), StringComparison.OrdinalIgnoreCase)));
+                                    <tr>
+                                        <td style="font-weight: 600;">@(prod?.NameAr ?? "صنف")</td>
+                                        <td style="text-align: center;">
+                                            <input type="number" step="1" min="1" class="form-control" style="width: 75px; padding: 0.2rem 0.4rem; text-align: center; margin: auto;" value="@item.Quantity" @onchange="@(e => UpdateEditItemQty(item, e.Value))" />
+                                            @if (isCarton && factor > 1)
+                                            {
+                                                <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.2rem;">
+                                                    @(prod?.ParentUnit ?? "كرتونة") (@((item.Quantity * factor).ToString("N0")) @(prod?.BaseUnit ?? "قطعة"))
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.2rem;">
+                                                    @(prod?.BaseUnit ?? "قطعة")
+                                                </div>
+                                            }
+                                        </td>
+                                        <td style="font-size: 0.82rem; color: @(item.ExpiryDate.HasValue && item.ExpiryDate.Value <= DateTime.Today ? "var(--accent-red)" : "inherit");">
+                                            @(item.ExpiryDate?.ToString("yyyy-MM-dd") ?? "-")
+                                        </td>
+                                        <td style="font-size: 0.82rem;">@(string.IsNullOrWhiteSpace(item.BatchNumber) ? "-" : item.BatchNumber)</td>
+                                        <td style="text-align: left;">
+                                            <input type="number" step="0.01" min="0" class="form-control" style="width: 85px; padding: 0.2rem 0.4rem; text-align: left;" value="@item.UnitCost" @onchange="@(e => UpdateEditItemCost(item, e.Value))" />
+                                            @if (isCarton && factor > 1)
+                                            {
+                                                <div style="font-size: 0.7rem; color: var(--accent-emerald); margin-top: 0.2rem;">
+                                                    (@((item.UnitCost / factor).ToString("N2")) ج.م للقطعة)
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.2rem;">
+                                                    (للقطعة)
+                                                </div>
+                                            }
+                                        </td>
+                                        <td style="text-align: left; font-weight: 700; color: var(--accent-amber);">@((item.Quantity * item.UnitCost).ToString("N2")) ج.م</td>
+                                        <td style="text-align: center; white-space: nowrap;">
+                                            @if (prod != null)
+                                            {
+                                                var pieceCost = isCarton && factor > 1 ? (item.UnitCost / factor) : item.UnitCost;
+                                                <button type="button" class="btn btn-sm btn-secondary me-1" style="padding: 0.15rem 0.35rem; font-size: 0.7rem; color: var(--accent-emerald); border-color: rgba(16, 185, 129, 0.3);" title="تطبيق أسعار البيع مباشرة على هذا المنتج في الكتالوج" @onclick="() => OpenApplyPricesModal(prod, pieceCost)">
+                                                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                                </button>
+                                            }
+                                            <button class="btn btn-sm btn-danger" style="padding: 0.2rem 0.4rem;" @onclick="() => editPurchaseItems.Remove(item)">
+                                                <i class="fa-solid fa-times"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="grid-2" style="margin-top: 0.75rem; align-items: stretch;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                            <label style="margin-bottom: 0; font-weight: 700;">المبلغ المدفوع (ج.م)</label>
+                            <div style="display: flex; gap: 0.35rem;">
+                                <button type="button" class="btn btn-sm @(editPurchasePaidAmount == editPurchaseInvoiceTotal && editPurchaseInvoiceTotal > 0 ? "btn-primary" : "btn-secondary")" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;" @onclick="SetFullEditPurchasePayment">
+                                    <i class="fa-solid fa-check-double me-1"></i> سداد كامل
+                                </button>
+                                <button type="button" class="btn btn-sm @(editPurchasePaidAmount == 0 ? "btn-primary" : "btn-secondary")" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;" @onclick="SetZeroEditPurchasePayment">
+                                    آجل (0)
+                                </button>
+                            </div>
+                        </div>
+                        <input type="number" step="0.01" min="0" class="form-control" @bind="editPurchasePaidAmount" @bind:event="oninput" style="font-size: 1.05rem; font-weight: 700; color: var(--accent-emerald);" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="margin-bottom: 0.35rem;">ملاحظات</label>
+                        <input class="form-control" @bind="editPurchaseNotes" placeholder="ملاحظات الفاتورة..." />
+                    </div>
+                </div>
+
+                <div style="background: var(--bg-card); padding: 0.75rem 1rem; border-radius: 0.5rem; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); margin-top: 0.75rem;">
+                    <div>
+                        <span style="font-size: 0.85rem; color: var(--text-secondary);">إجمالي الفاتورة الجديد: </span>
+                        <strong style="color: var(--accent-amber); font-size: 1.15rem;">@editPurchaseInvoiceTotal.ToString("N2") ج.م</strong>
+                    </div>
+                    <div>
+                        <span style="font-size: 0.85rem; color: var(--text-secondary);">المتبقي (مديونية): </span>
+                        <strong style="color: @(editPurchaseRemainingDebt > 0 ? "var(--accent-red)" : "var(--accent-emerald)"); font-size: 1rem;">@editPurchaseRemainingDebt.ToString("N2") ج.م</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSaving">إلغاء</button>
+                <button class="btn btn-primary" @onclick="SaveEditPurchase" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحفظ...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-floppy-disk me-1"></i> <span>حفظ التعديلات</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Delete Purchase Confirmation Modal -->
+@if (showDeletePurchaseModal && purchaseToDelete != null)
+{
+    <div class="modal-overlay" @onclick="CloseModals">
+        <div class="modal-card" style="width: 500px;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: #ef4444;">
+                    <i class="fa-solid fa-triangle-exclamation me-2"></i> تأكيد حذف فاتورة الشراء
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @errorMessage
+                    </div>
+                }
+
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; font-size: 0.9rem;">
+                    <div>
+                        <span style="color: var(--text-secondary); display: block; font-size: 0.8rem;">رقم الفاتورة:</span>
+                        <strong style="color: var(--accent-blue);">@purchaseToDelete.InvoiceNumber</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary); display: block; font-size: 0.8rem;">المورد:</span>
+                        <strong>@purchaseToDelete.SupplierName</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary); display: block; font-size: 0.8rem;">المبلغ الإجمالي:</span>
+                        <strong style="color: var(--accent-amber);">@purchaseToDelete.TotalAmount.ToString("N2") ج.م</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary); display: block; font-size: 0.8rem;">تاريخ الشراء:</span>
+                        <strong>@purchaseToDelete.PurchaseDate.ToString("yyyy-MM-dd")</strong>
+                    </div>
+                </div>
+
+                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; line-height: 1.5;">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                    <strong>تحذير الأثر المخزني:</strong> سيتم حذف هذه الفاتورة نهائياً، وسيتم تلقائياً خصم وإلغاء كافة الكميات التي وردت بها من رصيد المخزن الفعلي وتسجيل حركة تصحيحية (Adjustment) لكل صنف بالمخزن.
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSaving">إلغاء</button>
+                <button class="btn btn-danger" @onclick="DeletePurchaseConfirmed" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحذف...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-trash me-1"></i> <span>نعم، احذف الفاتورة</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Apply Product Prices Modal -->
+@if (showApplyPricesModal && applyPricesProduct != null)
+{
+    <div class="modal-overlay" @onclick="CloseApplyPricesModal">
+        <div class="modal-card" style="width: 490px;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--accent-emerald);">
+                    <i class="fa-solid fa-wand-magic-sparkles me-2"></i> تطبيق الأسعار على المنتج
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseApplyPricesModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.75rem 1rem; margin-bottom: 1rem;">
+                    <div style="font-weight: 700; font-size: 1rem; color: var(--text-primary);">@applyPricesProduct.NameAr</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        الوحدة الأساسية: @(applyPricesProduct.BaseUnit ?? "قطعة") | معامل الكرتونة: @applyPricesProduct.ConversionFactor
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(applyPricesError))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.5rem 0.75rem; border-radius: 0.4rem; margin-bottom: 0.75rem; font-size: 0.82rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @applyPricesError
+                    </div>
+                }
+
+                <div class="grid-3" style="gap: 0.6rem; margin-bottom: 0.75rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-size: 0.8rem;">سعر الشراء / التكلفة</label>
+                        <input type="number" step="0.01" class="form-control" @bind="applyPurchasePrice" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-size: 0.8rem;">سعر بيع القطاعي <span style="color: var(--accent-red);">*</span></label>
+                        <input type="number" step="0.01" class="form-control" @bind="applySellingPrice" />
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="font-size: 0.8rem;">سعر بيع الجملة</label>
+                        <input type="number" step="0.01" class="form-control" @bind="applyWholesalePrice" />
+                    </div>
+                </div>
+
+                @if (applyPricesProduct.ConversionFactor > 1)
+                {
+                    <div style="background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 0.5rem; padding: 0.6rem 0.85rem; font-size: 0.8rem;">
+                        <div style="font-weight: 700; color: var(--accent-emerald); margin-bottom: 0.25rem;">
+                            معاينة أسعار الكرتونة المقابلة (@applyPricesProduct.ConversionFactor قطعة):
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>تكلفة الكرتونة: <strong>@((applyPurchasePrice * applyPricesProduct.ConversionFactor).ToString("N2")) ج.م</strong></span>
+                            <span>قطاعي: <strong>@((applySellingPrice * applyPricesProduct.ConversionFactor).ToString("N2")) ج.م</strong></span>
+                            <span>جملة: <strong>@((applyWholesalePrice * applyPricesProduct.ConversionFactor).ToString("N2")) ج.م</strong></span>
+                        </div>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseApplyPricesModal" disabled="@isApplyingPrices">إلغاء</button>
+                <button class="btn btn-primary" @onclick="ExecuteApplyPrices" disabled="@isApplyingPrices">
+                    @if (isApplyingPrices)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري التطبيق...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check me-1"></i> <span>حفظ وتطبيق الأسعار</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private string activeTab = "purchases";
     private List<PurchaseDto> purchases = new();
@@ -477,10 +1307,320 @@
 
 
     private bool showAddSupplierModal = false;
+    private bool showEditSupplierModal = false;
     private bool showAddPurchaseModal = false;
     private bool showPayModal = false;
     private PurchaseDto? selectedPurchaseForPayment = null;
     private decimal payAmount = 0;
+    private Guid? activeMenuPurchaseId;
+    private void TogglePurchaseMenu(Guid id) => activeMenuPurchaseId = activeMenuPurchaseId == id ? null : id;
+    private void ClosePurchaseMenu() => activeMenuPurchaseId = null;
+
+    private ProductDto? SelectedProduct =>
+        Guid.TryParse(selectedProductIdString, out var id) ? availableProducts.FirstOrDefault(p => p.Id == id) : null;
+
+    private ProductDto? EditSelectedProduct =>
+        Guid.TryParse(editSelectedProductIdString, out var id) ? availableProducts.FirstOrDefault(p => p.Id == id) : null;
+
+    // Apply Prices directly from Purchases
+    private bool showApplyPricesModal = false;
+    private ProductDto? applyPricesProduct = null;
+    private decimal applyPurchasePrice = 0;
+    private decimal applySellingPrice = 0;
+    private decimal applyWholesalePrice = 0;
+    private bool isApplyingPrices = false;
+    private string applyPricesError = string.Empty;
+
+    private void OpenApplyPricesModal(ProductDto? prod, decimal? pieceCost = null)
+    {
+        if (prod == null) return;
+        applyPricesProduct = prod;
+        applyPurchasePrice = pieceCost.HasValue && pieceCost.Value > 0 ? Math.Round(pieceCost.Value, 2) : prod.PurchasePrice;
+        applySellingPrice = prod.SellingPrice;
+        applyWholesalePrice = prod.WholesalePrice;
+        applyPricesError = string.Empty;
+        showApplyPricesModal = true;
+    }
+
+    private void CloseApplyPricesModal()
+    {
+        showApplyPricesModal = false;
+        applyPricesProduct = null;
+    }
+
+    private async Task ExecuteApplyPrices()
+    {
+        if (applyPricesProduct == null) return;
+        if (applySellingPrice <= 0)
+        {
+            applyPricesError = "الرجاء إدخال سعر بيع صحيح.";
+            return;
+        }
+
+        isApplyingPrices = true;
+        applyPricesError = string.Empty;
+        var req = new ApplyProductPricesRequest(applyPurchasePrice, applySellingPrice, applyWholesalePrice);
+        var (success, err) = await ApiClient.ApplyProductPricesAsync(applyPricesProduct.Id, req);
+        isApplyingPrices = false;
+
+        if (success)
+        {
+            CloseApplyPricesModal();
+            availableProducts = await ApiClient.GetProductsAsync();
+        }
+        else
+        {
+            applyPricesError = !string.IsNullOrEmpty(err) ? err : "فشل تطبيق الأسعار على المنتج.";
+        }
+    }
+
+    // Floating Expiry Notifications State
+    public class ExpiryAlertNotification
+    {
+        public Guid Id { get; set; } = Guid.NewGuid();
+        public string Title { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public bool IsExpired { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+    }
+    private List<ExpiryAlertNotification> activeExpiryAlerts = new();
+
+    private void TriggerExpiryAlert(string title, string message, bool isExpired)
+    {
+        activeExpiryAlerts.RemoveAll(a => a.Title == title);
+        var alert = new ExpiryAlertNotification
+        {
+            Title = title,
+            Message = message,
+            IsExpired = isExpired
+        };
+        activeExpiryAlerts.Insert(0, alert);
+        if (activeExpiryAlerts.Count > 4)
+        {
+            activeExpiryAlerts.RemoveAt(activeExpiryAlerts.Count - 1);
+        }
+        StateHasChanged();
+
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(6000);
+            await InvokeAsync(() =>
+            {
+                activeExpiryAlerts.RemoveAll(a => a.Id == alert.Id);
+                StateHasChanged();
+            });
+        });
+    }
+
+    private void DismissExpiryAlert(Guid id)
+    {
+        activeExpiryAlerts.RemoveAll(a => a.Id == id);
+    }
+
+    private void CheckProductStockExpiry(ProductDto? prod)
+    {
+        if (prod == null || expiringProducts == null || !expiringProducts.Any()) return;
+
+        var expiredBatch = expiringProducts.FirstOrDefault(e => e.ProductId == prod.Id && e.DaysRemaining < 0);
+        if (expiredBatch != null)
+        {
+            var daysAgo = Math.Abs(expiredBatch.DaysRemaining);
+            TriggerExpiryAlert(
+                "⚠️ تحذير: الصنف به كميات منتهية الصلاحية بالمخزن!",
+                $"المنتج: <strong style='color:#fff;'>{prod.NameAr}</strong><br/>توجد دفعة منتهية بالمخزن منذ {daysAgo} يوم ({expiredBatch.ExpiryDate:yyyy-MM-dd})، المتبقي منها: <strong style='color:#fecaca;'>{expiredBatch.QuantityInStock:N0} قطعة</strong>.",
+                isExpired: true);
+            return;
+        }
+
+        var soonBatch = expiringProducts.FirstOrDefault(e => e.ProductId == prod.Id && e.DaysRemaining >= 0 && e.DaysRemaining <= 30);
+        if (soonBatch != null)
+        {
+            TriggerExpiryAlert(
+                "⚠️ تنبيه: الصنف يقترب من انتهاء الصلاحية بالمخزن!",
+                $"المنتج: <strong style='color:#fff;'>{prod.NameAr}</strong><br/>توجد دفعة بالمخزن تنتهي بعد {soonBatch.DaysRemaining} يوم ({soonBatch.ExpiryDate:yyyy-MM-dd})، المتبقي منها: <strong style='color:#fef08a;'>{soonBatch.QuantityInStock:N0} قطعة</strong>.",
+                isExpired: false);
+        }
+    }
+
+    private void OnProductionDateInputChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+        {
+            addItemProductionDate = dt.Date;
+            if (SelectedProduct != null && (SelectedProduct.TrackExpiry || SelectedProduct.ShelfLifeDays > 0))
+            {
+                int days = SelectedProduct.ShelfLifeDays > 0 ? SelectedProduct.ShelfLifeDays : 365;
+                addItemExpiryDate = dt.Date.AddDays(days);
+                CheckEnteredExpiryDate(addItemExpiryDate.Value);
+            }
+        }
+        else
+        {
+            addItemProductionDate = null;
+        }
+    }
+
+    private void OnEditProductionDateInputChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+        {
+            editAddItemProductionDate = dt.Date;
+            if (EditSelectedProduct != null && (EditSelectedProduct.TrackExpiry || EditSelectedProduct.ShelfLifeDays > 0))
+            {
+                int days = EditSelectedProduct.ShelfLifeDays > 0 ? EditSelectedProduct.ShelfLifeDays : 365;
+                editAddItemExpiryDate = dt.Date.AddDays(days);
+                CheckEnteredExpiryDate(editAddItemExpiryDate.Value);
+            }
+        }
+        else
+        {
+            editAddItemProductionDate = null;
+        }
+    }
+
+    private void OnExpiryDateInputChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+        {
+            addItemExpiryDate = dt;
+            CheckEnteredExpiryDate(dt);
+        }
+        else
+        {
+            addItemExpiryDate = null;
+        }
+    }
+
+    private void OnEditExpiryDateInputChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+        {
+            editAddItemExpiryDate = dt;
+            CheckEnteredExpiryDate(dt);
+        }
+        else
+        {
+            editAddItemExpiryDate = null;
+        }
+    }
+
+    private void CheckEnteredExpiryDate(DateTime dt)
+    {
+        var today = DateTime.Today;
+        if (dt.Date <= today)
+        {
+            var daysPast = (today - dt.Date).Days;
+            TriggerExpiryAlert(
+                "⚠️ تحذير: تاريخ الصلاحية المدخل منتهي بالفعل!",
+                $"تاريخ الصلاحية الذي أدخلته (<strong style='color:#fff;'>{dt:yyyy-MM-dd}</strong>) مضى عليه {daysPast} يوم! يرجى مراجعة صلاحية البضاعة.",
+                isExpired: true);
+        }
+        else if (dt.Date <= today.AddDays(30))
+        {
+            var daysLeft = (dt.Date - today).Days;
+            TriggerExpiryAlert(
+                "⚠️ تنبيه: تاريخ الصلاحية المدخل يقترب من الانتهاء!",
+                $"البضاعة الجديدة تنتهي بعد <strong style='color:#fff;'>{daysLeft} يوم فقط</strong> ({dt:yyyy-MM-dd})! انتبه لفترة تصريفها بالمخزن.",
+                isExpired: false);
+        }
+    }
+
+    private decimal baseProductPieceCost = 0;
+    private decimal editBaseProductPieceCost = 0;
+
+    private int ResolveProductCartonFactor(ProductDto? prod)
+    {
+        if (prod == null) return 12;
+        if (prod.ConversionFactor > 1) return prod.ConversionFactor;
+        var pkg = PackagingUnitHelper.Parse(prod.Description);
+        if (pkg.TotalPiecesPerCarton > 1) return pkg.TotalPiecesPerCarton;
+        return 12;
+    }
+
+    private void OnUnitTypeChanged(ChangeEventArgs e)
+    {
+        selectedUnitType = e.Value?.ToString() ?? "piece";
+        UpdateAddItemCostByUnit();
+    }
+
+    private void UpdateAddItemCostByUnit()
+    {
+        if (baseProductPieceCost <= 0) return;
+
+        decimal factor = (selectedUnitType == "carton")
+            ? Math.Max(1, addItemCartonFactor)
+            : 1m;
+
+        addItemCost = Math.Round(baseProductPieceCost * factor, 2);
+    }
+
+    private void OnCartonFactorChanged()
+    {
+        if (addItemCartonFactor < 1) addItemCartonFactor = 1;
+        if (baseProductPieceCost > 0)
+        {
+            addItemCost = Math.Round(baseProductPieceCost * addItemCartonFactor, 2);
+        }
+        else if (addItemCost > 0)
+        {
+            baseProductPieceCost = addItemCost / addItemCartonFactor;
+        }
+    }
+
+    private void OnEditUnitTypeChanged(ChangeEventArgs e)
+    {
+        editSelectedUnitType = e.Value?.ToString() ?? "piece";
+        UpdateEditAddItemCostByUnit();
+    }
+
+    private void UpdateEditAddItemCostByUnit()
+    {
+        if (editBaseProductPieceCost <= 0) return;
+
+        decimal factor = (editSelectedUnitType == "carton")
+            ? Math.Max(1, editAddItemCartonFactor)
+            : 1m;
+
+        editAddItemCost = Math.Round(editBaseProductPieceCost * factor, 2);
+    }
+
+    private void OnEditCartonFactorChanged()
+    {
+        if (editAddItemCartonFactor < 1) editAddItemCartonFactor = 1;
+        if (editBaseProductPieceCost > 0)
+        {
+            editAddItemCost = Math.Round(editBaseProductPieceCost * editAddItemCartonFactor, 2);
+        }
+        else if (editAddItemCost > 0)
+        {
+            editBaseProductPieceCost = editAddItemCost / editAddItemCartonFactor;
+        }
+    }
+
+    private void OnAddItemCostChanged()
+    {
+        decimal factor = (selectedUnitType == "carton")
+            ? Math.Max(1, addItemCartonFactor)
+            : 1m;
+
+        if (factor > 0 && addItemCost > 0)
+        {
+            baseProductPieceCost = addItemCost / factor;
+        }
+    }
+
+    private void OnEditAddItemCostChanged()
+    {
+        decimal factor = (editSelectedUnitType == "carton")
+            ? Math.Max(1, editAddItemCartonFactor)
+            : 1m;
+
+        if (factor > 0 && editAddItemCost > 0)
+        {
+            editBaseProductPieceCost = editAddItemCost / factor;
+        }
+    }
+
     private bool isSaving = false;
     private string errorMessage = string.Empty;
 
@@ -494,17 +1634,111 @@
         public string? Address { get; set; }
     }
 
+    private class EditSupplierFormModel
+    {
+        public Guid Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public string? ContactPerson { get; set; }
+        public string? Address { get; set; }
+    }
+
     private CreateSupplierFormModel newSupplier = new();
+    private EditSupplierFormModel editSupplier = new();
+
+    // Expiry Tab State
+    private List<ExpiringProductDto> expiringProducts = new();
+    private List<ExpiringProductDto> filteredExpiringProducts = new();
+    private string searchQueryExpiry = string.Empty;
+    private string expiryFilterStatus = "all";
+    private int expiryCurrentPage = 1;
+    private IEnumerable<ExpiringProductDto> PagedExpiringProducts => filteredExpiringProducts.Skip((expiryCurrentPage - 1) * pageSize).Take(pageSize);
 
     // Purchase Form
     private string selectedSupplierIdString = string.Empty;
     private string purchaseInvoiceNumber = string.Empty;
+    private DateTime purchaseInvoiceDate = DateTime.Today;
     private string selectedProductIdString = string.Empty;
     private string scannedPurchaseBarcode = string.Empty;
+    private string searchProductByName = string.Empty;
+    private string selectedUnitType = "piece";
+    private int addItemCartonFactor = 12;
     private decimal addItemQty = 1;
     private decimal addItemCost = 0;
+    private DateTime? addItemProductionDate = null;
+    private DateTime? addItemExpiryDate = null;
+    private string? addItemBatchNumber = null;
+    private PackagingConfig currentProductPackaging = new(1, 1);
     private decimal purchasePaidAmount = 0;
+    private bool isFullPayment = true;
     private List<CreatePurchaseItemRequest> purchaseItems = new();
+    private decimal purchaseInvoiceTotal => purchaseItems.Sum(i => i.Quantity * i.UnitCost);
+    private decimal purchaseRemainingDebt => Math.Max(0, purchaseInvoiceTotal - purchasePaidAmount);
+
+    private void SetFullPurchasePayment()
+    {
+        isFullPayment = true;
+        purchasePaidAmount = purchaseInvoiceTotal;
+    }
+
+    private void SetZeroPurchasePayment()
+    {
+        isFullPayment = false;
+        purchasePaidAmount = 0;
+    }
+
+    private void RemovePurchaseItem(CreatePurchaseItemRequest item)
+    {
+        purchaseItems.Remove(item);
+        if (isFullPayment)
+        {
+            purchasePaidAmount = purchaseInvoiceTotal;
+        }
+    }
+
+    private decimal editPurchaseInvoiceTotal => editPurchaseItems.Sum(i => i.Quantity * i.UnitCost);
+    private decimal editPurchaseRemainingDebt => Math.Max(0, editPurchaseInvoiceTotal - editPurchasePaidAmount);
+
+    private void SetFullEditPurchasePayment()
+    {
+        editPurchasePaidAmount = editPurchaseInvoiceTotal;
+    }
+
+    private void SetZeroEditPurchasePayment()
+    {
+        editPurchasePaidAmount = 0;
+    }
+
+    private List<ProductDto> FilteredPurchaseProducts
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchProductByName))
+                return availableProducts;
+
+            return availableProducts.Where(p =>
+                (p.NameAr != null && p.NameAr.Contains(searchProductByName, StringComparison.OrdinalIgnoreCase)) ||
+                (p.NameEn != null && p.NameEn.Contains(searchProductByName, StringComparison.OrdinalIgnoreCase)) ||
+                (p.Barcode != null && p.Barcode.Contains(searchProductByName, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+        }
+    }
+
+    private List<ProductDto> FilteredEditPurchaseProducts
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(editSearchProductByName))
+                return availableProducts;
+
+            return availableProducts.Where(p =>
+                (p.NameAr != null && p.NameAr.Contains(editSearchProductByName, StringComparison.OrdinalIgnoreCase)) ||
+                (p.NameEn != null && p.NameEn.Contains(editSearchProductByName, StringComparison.OrdinalIgnoreCase)) ||
+                (p.Barcode != null && p.Barcode.Contains(editSearchProductByName, StringComparison.OrdinalIgnoreCase))
+            ).ToList();
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -517,6 +1751,7 @@
         purchases = await ApiClient.GetPurchasesListAsync();
         suppliers = await ApiClient.GetSuppliersAsync();
         availableProducts = await ApiClient.GetProductsAsync();
+        expiringProducts = await ApiClient.GetExpiringProductsAsync();
         FilterPurchases();
         FilterSuppliers();
         isLoading = false;
@@ -574,25 +1809,479 @@
         showAddSupplierModal = true;
     }
 
+    private void OpenEditSupplierModal(SupplierDto sup)
+    {
+        editSupplier = new EditSupplierFormModel
+        {
+            Id = sup.Id,
+            Name = sup.Name,
+            Phone = sup.Phone,
+            Email = sup.Email,
+            ContactPerson = sup.ContactPerson,
+            Address = sup.Address
+        };
+        errorMessage = string.Empty;
+        showEditSupplierModal = true;
+    }
+
+    private async Task SaveEditSupplier()
+    {
+        if (string.IsNullOrWhiteSpace(editSupplier.Name))
+        {
+            errorMessage = "الرجاء إدخال اسم المورد.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editSupplier.Phone))
+        {
+            errorMessage = "الرجاء إدخال رقم هاتف المورد.";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = string.Empty;
+
+        var req = new UpdateSupplierRequest(editSupplier.Id, editSupplier.Name, editSupplier.Phone, editSupplier.Email, editSupplier.Address, editSupplier.ContactPerson);
+        var (success, error) = await ApiClient.UpdateSupplierAsync(editSupplier.Id, req);
+        isSaving = false;
+
+        if (success)
+        {
+            CloseModals();
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = !string.IsNullOrEmpty(error) ? error : "فشل تحديث بيانات المورد.";
+        }
+    }
+
+    private async Task SwitchToExpiryTab()
+    {
+        activeTab = "expiry";
+        await LoadExpiringProducts();
+    }
+
+    private async Task LoadExpiringProducts()
+    {
+        isLoading = true;
+        expiringProducts = await ApiClient.GetExpiringProductsAsync();
+        FilterExpiringProducts();
+        isLoading = false;
+    }
+
+    private void SetExpiryFilter(string status)
+    {
+        expiryFilterStatus = status;
+        FilterExpiringProducts();
+    }
+
+    private void FilterExpiringProducts()
+    {
+        expiryCurrentPage = 1;
+        var q = expiringProducts.AsEnumerable();
+        if (!string.IsNullOrWhiteSpace(searchQueryExpiry))
+        {
+            q = q.Where(p => (p.ProductName != null && p.ProductName.Contains(searchQueryExpiry, StringComparison.OrdinalIgnoreCase))
+                          || (p.Barcode != null && p.Barcode.Contains(searchQueryExpiry, StringComparison.OrdinalIgnoreCase)));
+        }
+        if (expiryFilterStatus == "expired")
+        {
+            q = q.Where(p => p.DaysRemaining < 0);
+        }
+        else if (expiryFilterStatus == "soon")
+        {
+            q = q.Where(p => p.DaysRemaining >= 0 && p.DaysRemaining <= 30);
+        }
+        else if (expiryFilterStatus == "valid")
+        {
+            q = q.Where(p => p.DaysRemaining > 30);
+        }
+        filteredExpiringProducts = q.ToList();
+        EnsureValidExpiryPage();
+    }
+
+    private void EnsureValidExpiryPage()
+    {
+        int maxPage = Math.Max(1, (int)Math.Ceiling((double)filteredExpiringProducts.Count / pageSize));
+        if (expiryCurrentPage > maxPage) expiryCurrentPage = maxPage;
+    }
+
+    private async Task FocusPurchaseBarcodeAsync(int delay = 0)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("focusElementById", "purchase-barcode-input", delay);
+        }
+        catch { }
+    }
+
     private void OpenAddPurchaseModal()
     {
+        purchaseInvoiceDate = DateTime.Today;
         purchaseInvoiceNumber = $"PUR-{DateTime.Now:yyyyMMdd}-{Random.Shared.Next(100, 999)}";
         selectedSupplierIdString = suppliers.FirstOrDefault()?.Id.ToString() ?? string.Empty;
         selectedProductIdString = string.Empty;
         scannedPurchaseBarcode = string.Empty;
-        purchaseItems.Clear();
-        purchasePaidAmount = 0;
+        searchProductByName = string.Empty;
+        selectedUnitType = "piece";
+        addItemCartonFactor = 12;
         addItemQty = 1;
         addItemCost = 0;
+        addItemProductionDate = null;
+        addItemExpiryDate = null;
+        addItemBatchNumber = null;
+        currentProductPackaging = new(1, 1);
+        purchaseItems.Clear();
+        isFullPayment = true;
+        purchasePaidAmount = 0;
         errorMessage = string.Empty;
         showAddPurchaseModal = true;
+        _ = FocusPurchaseBarcodeAsync(100);
+    }
+
+    private void OnPurchaseInvoiceDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+        {
+            purchaseInvoiceDate = dt;
+            if (SelectedProduct != null && (SelectedProduct.TrackExpiry || SelectedProduct.ShelfLifeDays > 0))
+            {
+                addItemProductionDate ??= purchaseInvoiceDate.Date;
+                int days = SelectedProduct.ShelfLifeDays > 0 ? SelectedProduct.ShelfLifeDays : 365;
+                addItemExpiryDate = addItemProductionDate.Value.Date.AddDays(days);
+            }
+        }
+    }
+
+    private void OnEditPurchaseDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+        {
+            editPurchaseDate = dt;
+            if (EditSelectedProduct != null && (EditSelectedProduct.TrackExpiry || EditSelectedProduct.ShelfLifeDays > 0))
+            {
+                editAddItemProductionDate ??= editPurchaseDate.Date;
+                int days = EditSelectedProduct.ShelfLifeDays > 0 ? EditSelectedProduct.ShelfLifeDays : 365;
+                editAddItemExpiryDate = editAddItemProductionDate.Value.Date.AddDays(days);
+            }
+        }
     }
 
     private void CloseModals()
     {
         showAddSupplierModal = false;
+        showEditSupplierModal = false;
         showAddPurchaseModal = false;
         showPayModal = false;
+        showDetailsModal = false;
+        showEditPurchaseModal = false;
+        showDeletePurchaseModal = false;
+        selectedPurchaseDetail = null;
+        purchaseToDelete = null;
+        errorMessage = string.Empty;
+    }
+
+    // Purchase Details State & Methods
+    private bool showDetailsModal = false;
+    private bool isLoadingDetails = false;
+    private PurchaseDetailDto? selectedPurchaseDetail = null;
+
+    private async Task OpenDetailsModal(PurchaseDto pur)
+    {
+        errorMessage = string.Empty;
+        isLoadingDetails = true;
+        showDetailsModal = true;
+        selectedPurchaseDetail = await ApiClient.GetPurchaseDetailsAsync(pur.Id);
+        isLoadingDetails = false;
+    }
+
+    // Purchase Edit State & Methods
+    private bool showEditPurchaseModal = false;
+    private Guid? editingPurchaseId = null;
+    private string editSupplierIdString = string.Empty;
+    private string editPurchaseInvoiceNumber = string.Empty;
+    private DateTime editPurchaseDate = DateTime.Today;
+    private decimal editPurchasePaidAmount = 0;
+    private string? editPurchaseNotes = null;
+    private List<CreatePurchaseItemRequest> editPurchaseItems = new();
+    private string editSelectedProductIdString = string.Empty;
+    private string editScannedBarcode = string.Empty;
+    private string editSearchProductByName = string.Empty;
+    private string editSelectedUnitType = "piece";
+    private int editAddItemCartonFactor = 12;
+    private decimal editAddItemQty = 1;
+    private decimal editAddItemCost = 0;
+    private DateTime? editAddItemProductionDate = null;
+    private DateTime? editAddItemExpiryDate = null;
+    private string? editAddItemBatchNumber = null;
+    private PackagingConfig editCurrentProductPackaging = new(1, 1);
+
+    private async Task OpenEditPurchaseModal(PurchaseDto pur)
+    {
+        errorMessage = string.Empty;
+        editingPurchaseId = pur.Id;
+        editPurchaseInvoiceNumber = pur.InvoiceNumber;
+        editPurchaseDate = pur.PurchaseDate;
+        editSupplierIdString = pur.SupplierId.ToString();
+        editPurchasePaidAmount = pur.PaidAmount;
+        editPurchaseNotes = pur.Notes;
+        editSelectedProductIdString = string.Empty;
+        editScannedBarcode = string.Empty;
+        editSearchProductByName = string.Empty;
+        editSelectedUnitType = "piece";
+        editAddItemCartonFactor = 12;
+        editAddItemQty = 1;
+        editAddItemCost = 0;
+        editAddItemProductionDate = null;
+        editAddItemExpiryDate = null;
+        editAddItemBatchNumber = null;
+        editCurrentProductPackaging = new(1, 1);
+
+        var details = await ApiClient.GetPurchaseDetailsAsync(pur.Id);
+        if (details != null && details.Items != null)
+        {
+            editPurchaseItems = details.Items.Select(i => new CreatePurchaseItemRequest(
+                i.ProductId,
+                i.Quantity,
+                i.UnitCost,
+                i.Discount,
+                i.Tax,
+                i.ExpiryDate,
+                i.BatchNumber)).ToList();
+        }
+        else
+        {
+            editPurchaseItems = new();
+        }
+
+        showEditPurchaseModal = true;
+    }
+
+    private void OnEditProductSelected(ChangeEventArgs e)
+    {
+        editSelectedProductIdString = e.Value?.ToString() ?? string.Empty;
+        editSelectedUnitType = "piece";
+        if (Guid.TryParse(editSelectedProductIdString, out var pId))
+        {
+            var prod = availableProducts.FirstOrDefault(p => p.Id == pId);
+            if (prod != null)
+            {
+                editCurrentProductPackaging = PackagingUnitHelper.Parse(prod.Description);
+                editAddItemCartonFactor = ResolveProductCartonFactor(prod);
+                editBaseProductPieceCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
+                editAddItemCost = editBaseProductPieceCost;
+                if (prod.TrackExpiry || prod.ShelfLifeDays > 0)
+                {
+                    editAddItemProductionDate ??= editPurchaseDate.Date;
+                    int days = prod.ShelfLifeDays > 0 ? prod.ShelfLifeDays : 365;
+                    editAddItemExpiryDate = editAddItemProductionDate.Value.Date.AddDays(days);
+                }
+                else
+                {
+                    editAddItemProductionDate = null;
+                    editAddItemExpiryDate = null;
+                }
+                CheckProductStockExpiry(prod);
+            }
+        }
+        else
+        {
+            editCurrentProductPackaging = new(1, 1);
+            editAddItemCartonFactor = 12;
+            editBaseProductPieceCost = 0;
+            editAddItemCost = 0;
+            editAddItemProductionDate = null;
+            editAddItemExpiryDate = null;
+        }
+    }
+
+    private async Task HandleEditBarcodeKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(editScannedBarcode))
+        {
+            var code = editScannedBarcode.Trim();
+            editScannedBarcode = string.Empty;
+
+            var prod = availableProducts.FirstOrDefault(p => string.Equals(p.Barcode, code, StringComparison.OrdinalIgnoreCase));
+            if (prod is null)
+            {
+                prod = await ApiClient.GetProductByBarcodeAsync(code);
+            }
+
+            if (prod is not null)
+            {
+                editSelectedProductIdString = prod.Id.ToString();
+                editCurrentProductPackaging = PackagingUnitHelper.Parse(prod.Description);
+                editAddItemCartonFactor = ResolveProductCartonFactor(prod);
+                editSelectedUnitType = "piece";
+                editBaseProductPieceCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
+                editAddItemCost = editBaseProductPieceCost;
+                if (prod.TrackExpiry || prod.ShelfLifeDays > 0)
+                {
+                    editAddItemProductionDate ??= editPurchaseDate.Date;
+                    int days = prod.ShelfLifeDays > 0 ? prod.ShelfLifeDays : 365;
+                    editAddItemExpiryDate = editAddItemProductionDate.Value.Date.AddDays(days);
+                }
+                else
+                {
+                    editAddItemProductionDate = null;
+                    editAddItemExpiryDate = null;
+                }
+                errorMessage = string.Empty;
+                CheckProductStockExpiry(prod);
+            }
+            else
+            {
+                errorMessage = $"المنتج بالباركود '{code}' غير موجود.";
+            }
+        }
+    }
+
+    private void AddEditPurchaseLineItem()
+    {
+        if (!Guid.TryParse(editSelectedProductIdString, out var pId) || pId == Guid.Empty)
+        {
+            errorMessage = "الرجاء اختيار المنتج أولاً.";
+            return;
+        }
+
+        if (editAddItemQty <= 0 || editAddItemCost <= 0)
+        {
+            errorMessage = "الرجاء إدخال كمية وسعر شراء صحيحين.";
+            return;
+        }
+
+        var prod = availableProducts.FirstOrDefault(p => p.Id == pId);
+        string unitName = editSelectedUnitType == "carton" ? (prod?.ParentUnit ?? "كرتونة") : (prod?.BaseUnit ?? "قطعة");
+
+        editPurchaseItems.Add(new CreatePurchaseItemRequest(
+            pId,
+            editAddItemQty,
+            editAddItemCost,
+            ExpiryDate: editAddItemExpiryDate,
+            BatchNumber: editAddItemBatchNumber,
+            Unit: unitName));
+
+        editAddItemQty = 1;
+        editAddItemCost = 0;
+        editBaseProductPieceCost = 0;
+        editAddItemProductionDate = null;
+        editAddItemExpiryDate = null;
+        editAddItemBatchNumber = null;
+        editSelectedUnitType = "piece";
+        editSelectedProductIdString = string.Empty;
+        errorMessage = string.Empty;
+    }
+
+    private void UpdateEditItemQty(CreatePurchaseItemRequest item, object? val)
+    {
+        if (val != null && decimal.TryParse(val.ToString(), out var q) && q > 0)
+        {
+            var idx = editPurchaseItems.IndexOf(item);
+            if (idx >= 0)
+            {
+                editPurchaseItems[idx] = item with { Quantity = q };
+            }
+        }
+    }
+
+    private void UpdateEditItemCost(CreatePurchaseItemRequest item, object? val)
+    {
+        if (val != null && decimal.TryParse(val.ToString(), out var c) && c >= 0)
+        {
+            var idx = editPurchaseItems.IndexOf(item);
+            if (idx >= 0)
+            {
+                editPurchaseItems[idx] = item with { UnitCost = c };
+            }
+        }
+    }
+
+    private async Task SaveEditPurchase()
+    {
+        if (!editingPurchaseId.HasValue) return;
+
+        if (!Guid.TryParse(editSupplierIdString, out var supId) || supId == Guid.Empty)
+        {
+            errorMessage = "الرجاء اختيار المورد.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(editPurchaseInvoiceNumber))
+        {
+            errorMessage = "الرجاء إدخال رقم الفاتورة.";
+            return;
+        }
+
+        if (!editPurchaseItems.Any())
+        {
+            errorMessage = "الرجاء إضافة صنف واحد على الأقل في فاتورة الشراء.";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = string.Empty;
+
+        var userId = AuthState.UserId != Guid.Empty ? AuthState.UserId : Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var req = new UpdatePurchaseRequest(
+            Id: editingPurchaseId.Value,
+            InvoiceNumber: editPurchaseInvoiceNumber,
+            SupplierId: supId,
+            UserId: userId,
+            Items: editPurchaseItems,
+            InternalNumber: null,
+            DiscountAmount: 0,
+            TaxAmount: 0,
+            PaidAmount: editPurchasePaidAmount,
+            PaymentMethod: 1,
+            Notes: editPurchaseNotes,
+            PurchaseDate: editPurchaseDate);
+
+        var (success, error) = await ApiClient.UpdatePurchaseAsync(editingPurchaseId.Value, req);
+        isSaving = false;
+
+        if (success)
+        {
+            CloseModals();
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = !string.IsNullOrEmpty(error) ? error : "فشل تعديل فاتورة الشراء.";
+        }
+    }
+
+    // Purchase Delete State & Methods
+    private bool showDeletePurchaseModal = false;
+    private PurchaseDto? purchaseToDelete = null;
+
+    private void ConfirmDeletePurchase(PurchaseDto pur)
+    {
+        errorMessage = string.Empty;
+        purchaseToDelete = pur;
+        showDeletePurchaseModal = true;
+    }
+
+    private async Task DeletePurchaseConfirmed()
+    {
+        if (purchaseToDelete == null) return;
+
+        isSaving = true;
+        errorMessage = string.Empty;
+
+        var (success, error) = await ApiClient.DeletePurchaseAsync(purchaseToDelete.Id);
+        isSaving = false;
+
+        if (success)
+        {
+            CloseModals();
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = !string.IsNullOrEmpty(error) ? error : "فشل حذف فاتورة الشراء.";
+        }
     }
 
     private void OpenPayModal(PurchaseDto purchase)
@@ -640,13 +2329,38 @@
     private void OnProductSelected(ChangeEventArgs e)
     {
         selectedProductIdString = e.Value?.ToString() ?? string.Empty;
+        selectedUnitType = "piece";
         if (Guid.TryParse(selectedProductIdString, out var pId))
         {
             var prod = availableProducts.FirstOrDefault(p => p.Id == pId);
             if (prod != null)
             {
-                addItemCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
+                currentProductPackaging = PackagingUnitHelper.Parse(prod.Description);
+                addItemCartonFactor = ResolveProductCartonFactor(prod);
+                baseProductPieceCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
+                addItemCost = baseProductPieceCost;
+                if (prod.TrackExpiry || prod.ShelfLifeDays > 0)
+                {
+                    addItemProductionDate ??= purchaseInvoiceDate.Date;
+                    int days = prod.ShelfLifeDays > 0 ? prod.ShelfLifeDays : 365;
+                    addItemExpiryDate = addItemProductionDate.Value.Date.AddDays(days);
+                }
+                else
+                {
+                    addItemProductionDate = null;
+                    addItemExpiryDate = null;
+                }
+                CheckProductStockExpiry(prod);
             }
+        }
+        else
+        {
+            currentProductPackaging = new(1, 1);
+            addItemCartonFactor = 12;
+            baseProductPieceCost = 0;
+            addItemCost = 0;
+            addItemProductionDate = null;
+            addItemExpiryDate = null;
         }
     }
 
@@ -666,12 +2380,89 @@
             if (prod is not null)
             {
                 selectedProductIdString = prod.Id.ToString();
-                addItemCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
+                currentProductPackaging = PackagingUnitHelper.Parse(prod.Description);
+                addItemCartonFactor = ResolveProductCartonFactor(prod);
+                selectedUnitType = "piece";
+                baseProductPieceCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
+                addItemCost = baseProductPieceCost;
+                if (prod.TrackExpiry || prod.ShelfLifeDays > 0)
+                {
+                    addItemProductionDate ??= purchaseInvoiceDate.Date;
+                    int days = prod.ShelfLifeDays > 0 ? prod.ShelfLifeDays : 365;
+                    addItemExpiryDate = addItemProductionDate.Value.Date.AddDays(days);
+                }
+                else
+                {
+                    addItemProductionDate = null;
+                    addItemExpiryDate = null;
+                }
                 errorMessage = string.Empty;
+                CheckProductStockExpiry(prod);
             }
             else
             {
                 errorMessage = $"المنتج بالباركود '{code}' غير موجود.";
+            }
+            await FocusPurchaseBarcodeAsync();
+        }
+    }
+
+    private void HandleProductNameSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            var matched = FilteredPurchaseProducts.FirstOrDefault();
+            if (matched != null)
+            {
+                selectedProductIdString = matched.Id.ToString();
+                currentProductPackaging = PackagingUnitHelper.Parse(matched.Description);
+                addItemCartonFactor = ResolveProductCartonFactor(matched);
+                selectedUnitType = "piece";
+                baseProductPieceCost = matched.PurchasePrice > 0 ? matched.PurchasePrice : matched.SellingPrice;
+                addItemCost = baseProductPieceCost;
+                if (matched.TrackExpiry || matched.ShelfLifeDays > 0)
+                {
+                    addItemProductionDate ??= purchaseInvoiceDate.Date;
+                    int days = matched.ShelfLifeDays > 0 ? matched.ShelfLifeDays : 365;
+                    addItemExpiryDate = addItemProductionDate.Value.Date.AddDays(days);
+                }
+                else
+                {
+                    addItemProductionDate = null;
+                    addItemExpiryDate = null;
+                }
+                errorMessage = string.Empty;
+                CheckProductStockExpiry(matched);
+            }
+        }
+    }
+
+    private void HandleEditProductNameSearchKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            var matched = FilteredEditPurchaseProducts.FirstOrDefault();
+            if (matched != null)
+            {
+                editSelectedProductIdString = matched.Id.ToString();
+                editCurrentProductPackaging = PackagingUnitHelper.Parse(matched.Description);
+                editAddItemCartonFactor = ResolveProductCartonFactor(matched);
+                editSelectedUnitType = "piece";
+                editBaseProductPieceCost = matched.PurchasePrice > 0 ? matched.PurchasePrice : matched.SellingPrice;
+                editAddItemCost = editBaseProductPieceCost;
+                if (matched.TrackExpiry || matched.ShelfLifeDays > 0)
+                {
+                    editAddItemProductionDate ??= editPurchaseDate.Date;
+                    int days = matched.ShelfLifeDays > 0 ? matched.ShelfLifeDays : 365;
+                    editAddItemExpiryDate = editAddItemProductionDate.Value.Date.AddDays(days);
+                }
+                else
+                {
+                    editAddItemProductionDate = null;
+                    editAddItemExpiryDate = null;
+                }
+                errorMessage = string.Empty;
+                CheckProductStockExpiry(matched);
             }
         }
     }
@@ -690,11 +2481,31 @@
             return;
         }
 
-        purchaseItems.Add(new CreatePurchaseItemRequest(pId, addItemQty, addItemCost));
+        var prod = availableProducts.FirstOrDefault(p => p.Id == pId);
+        string unitName = selectedUnitType == "carton" ? (prod?.ParentUnit ?? "كرتونة") : (prod?.BaseUnit ?? "قطعة");
+
+        purchaseItems.Add(new CreatePurchaseItemRequest(
+            pId,
+            addItemQty,
+            addItemCost,
+            ExpiryDate: addItemExpiryDate,
+            BatchNumber: addItemBatchNumber,
+            Unit: unitName));
+
+        if (isFullPayment)
+        {
+            purchasePaidAmount = purchaseInvoiceTotal;
+        }
         addItemQty = 1;
         addItemCost = 0;
+        baseProductPieceCost = 0;
+        addItemProductionDate = null;
+        addItemExpiryDate = null;
+        addItemBatchNumber = null;
+        selectedUnitType = "piece";
         selectedProductIdString = string.Empty;
         errorMessage = string.Empty;
+        _ = FocusPurchaseBarcodeAsync();
     }
 
     private async Task SaveSupplier()
@@ -749,6 +2560,9 @@
         errorMessage = string.Empty;
 
         var userId = AuthState.UserId != Guid.Empty ? AuthState.UserId : Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var totalAmount = purchaseItems.Sum(i => i.Quantity * i.UnitCost);
+        var finalPaid = isFullPayment ? totalAmount : Math.Clamp(purchasePaidAmount, 0, totalAmount);
+
         var req = new CreatePurchaseRequest(
             InvoiceNumber: purchaseInvoiceNumber,
             SupplierId: supId,
@@ -757,9 +2571,10 @@
             InternalNumber: null,
             DiscountAmount: 0,
             TaxAmount: 0,
-            PaidAmount: purchasePaidAmount,
+            PaidAmount: finalPaid,
             PaymentMethod: 1, // Cash
-            Notes: "فاتورة مشتريات جديدة");
+            Notes: "فاتورة مشتريات جديدة",
+            PurchaseDate: purchaseInvoiceDate);
 
         var (success, error) = await ApiClient.CreatePurchaseAsync(req);
         isSaving = false;

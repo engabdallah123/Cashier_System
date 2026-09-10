@@ -34,8 +34,7 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th>الاسم (عربي)</th>
-                    <th>الاسم (إنجليزي)</th>
+                    <th>اسم التصنيف</th>
                     <th>التصنيف الرئيسي</th>
                     <th>الحالة</th>
                     <th>تاريخ الإنشاء</th>
@@ -49,7 +48,7 @@
                 @if (!filteredCategories.Any())
                 {
                     <tr>
-                        <td colspan="@(CanManageCategories ? 6 : 5)" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                        <td colspan="@(CanManageCategories ? 5 : 4)" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
                             <i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
                             لا توجد تصنيفات حالياً.
                         </td>
@@ -57,12 +56,14 @@
                 }
                 else
                 {
-                    @foreach (var cat in PagedCategories)
+                    var pagedList = PagedCategories.ToList();
+                    for (int i = 0; i < pagedList.Count; i++)
                     {
+                        var cat = pagedList[i];
+                        bool isNearBottom = i >= pagedList.Count - 3 && pagedList.Count > 3;
                         var parent = categories.FirstOrDefault(c => c.Id == cat.ParentCategoryId);
                         <tr>
                             <td style="font-weight: 600;">@cat.NameAr</td>
-                            <td>@cat.NameEn</td>
                             <td>
                                 @if (parent != null)
                                 {
@@ -94,7 +95,7 @@
                                         @if (activeMenuCategoryId == cat.Id)
                                         {
                                             <div class="action-dropdown-backdrop" @onclick="CloseCategoryMenu"></div>
-                                            <div class="action-dropdown-menu" @onclick:stopPropagation="true">
+                                            <div class="action-dropdown-menu @(isNearBottom ? "dropup" : "")" @onclick:stopPropagation="true">
                                                 <button class="action-dropdown-item item-primary" @onclick="() => { CloseCategoryMenu(); OpenEditModal(cat); }">
                                                     <i class="fa-solid fa-pen-to-square" style="color: var(--accent-blue);"></i>
                                                     <span>تعديل البيانات</span>
@@ -147,13 +148,8 @@
                 }
 
                 <div class="form-group">
-                    <label>الاسم (بالعربية) <span style="color: var(--accent-red);">*</span></label>
+                    <label>اسم التصنيف <span style="color: var(--accent-red);">*</span></label>
                     <input class="form-control" @bind="categoryForm.NameAr" placeholder="مثال: مشروبات ساخنة" />
-                </div>
-
-                <div class="form-group">
-                    <label>الاسم (بالإنجليزية) <span style="color: var(--accent-red);">*</span></label>
-                    <input class="form-control" @bind="categoryForm.NameEn" placeholder="مثال: Hot Beverages" />
                 </div>
 
                 <div class="form-group">
@@ -162,7 +158,7 @@
                         <option value="">-- بدون (تصنيف رئيسي) --</option>
                         @foreach (var cat in categories.Where(c => !showEditModal || c.Id != editingCategoryId))
                         {
-                            <option value="@cat.Id.ToString()">@cat.NameAr (@cat.NameEn)</option>
+                            <option value="@cat.Id.ToString()">@cat.NameAr</option>
                         }
                     </select>
                 </div>
@@ -188,18 +184,31 @@
 @if (showDeleteModal && categoryToDelete != null)
 {
     <div class="modal-overlay" @onclick="CloseModals">
-        <div class="modal-card" style="width: 440px;" @onclick:stopPropagation="true">
+        <div class="modal-card" style="width: 480px;" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3 class="modal-title" style="color: var(--accent-red);">
-                    <i class="fa-solid fa-triangle-exclamation me-2"></i> حذف التصنيف
+                    <i class="fa-solid fa-triangle-exclamation me-2"></i> تأكيد حذف التصنيف
                 </h3>
                 <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
             <div class="modal-body">
-                <p style="margin-bottom: 1rem;">هل أنت تأكد من رغبتك في حذف التصنيف <strong style="color: var(--text-primary);">@categoryToDelete.NameAr</strong> (@categoryToDelete.NameEn)؟</p>
-                <p style="font-size: 0.85rem; color: var(--text-muted);">لا يمكن التراجع عن هذا الإجراء بعد تنفيذه.</p>
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @errorMessage
+                    </div>
+                }
+
+                <p style="font-size: 0.95rem; line-height: 1.6; margin-bottom: 0.75rem;">
+                    هل أنت متأكد من رغبتك في حذف التصنيف <strong style="color: var(--accent-blue);">@categoryToDelete.NameAr</strong> نهائياً من النظام؟
+                </p>
+
+                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; line-height: 1.5;">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                    <strong>تحذير الأثر:</strong> سيتم حذف هذا التصنيف نهائياً من شجرة التصنيفات. يرجى التأكد من عدم وجود منتجات تابعة له، حيث ستفشل عملية الحذف تلقائياً لحماية سلامة بيانات الأصناف إذا كانت هناك منتجات مرتبطة به.
+                </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSaving">إلغاء</button>
@@ -210,7 +219,7 @@
                     }
                     else
                     {
-                        <i class="fa-solid fa-trash-can me-1"></i> <span>تأكيد الحذف</span>
+                        <i class="fa-solid fa-trash-can me-1"></i> <span>نعم، احذف التصنيف</span>
                     }
                 </button>
             </div>
@@ -248,7 +257,6 @@
     private class CategoryFormModel
     {
         public string NameAr { get; set; } = string.Empty;
-        public string NameEn { get; set; } = string.Empty;
     }
 
     protected override async Task OnInitializedAsync()
@@ -272,8 +280,7 @@
         else
         {
             filteredCategories = categories.Where(c => 
-                c.NameAr.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) || 
-                c.NameEn.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
+                c.NameAr.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
         }
         EnsureValidPage();
     }
@@ -298,8 +305,7 @@
         editingCategoryId = cat.Id;
         categoryForm = new CategoryFormModel
         {
-            NameAr = cat.NameAr,
-            NameEn = cat.NameEn
+            NameAr = cat.NameAr
         };
         parentCategoryIdString = cat.ParentCategoryId?.ToString() ?? string.Empty;
         errorMessage = string.Empty;
@@ -325,13 +331,7 @@
     {
         if (string.IsNullOrWhiteSpace(categoryForm.NameAr))
         {
-            errorMessage = "الرجاء إدخال اسم التصنيف بالعربية.";
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(categoryForm.NameEn))
-        {
-            errorMessage = "الرجاء إدخال اسم التصنيف بالإنجليزية.";
+            errorMessage = "الرجاء إدخال اسم التصنيف.";
             return;
         }
 
@@ -342,7 +342,7 @@
 
         if (showEditModal)
         {
-            var updateReq = new UpdateCategoryRequest(editingCategoryId, categoryForm.NameAr, categoryForm.NameEn, parentId);
+            var updateReq = new UpdateCategoryRequest(editingCategoryId, categoryForm.NameAr, categoryForm.NameAr, parentId);
             var success = await ApiClient.UpdateCategoryAsync(updateReq);
             isSaving = false;
 
@@ -358,7 +358,7 @@
         }
         else
         {
-            var createReq = new CreateCategoryRequest(categoryForm.NameAr, categoryForm.NameEn, parentId);
+            var createReq = new CreateCategoryRequest(categoryForm.NameAr, categoryForm.NameAr, parentId);
             var result = await ApiClient.CreateCategoryAsync(createReq);
             isSaving = false;
 

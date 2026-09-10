@@ -1,3 +1,4 @@
+using POS.Shared.Application.IService;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
 using Purchases.Domain;
@@ -8,10 +9,12 @@ namespace Purchases.Application.Purchases.Commands.PayPurchaseInvoice;
 internal sealed class PayPurchaseInvoiceCommandHandler : ICommandHandler<PayPurchaseInvoiceCommand>
 {
     private readonly IPurchasesUnitOfWork _unitOfWork;
+    private readonly ICacheService _cacheService;
 
-    public PayPurchaseInvoiceCommandHandler(IPurchasesUnitOfWork unitOfWork)
+    public PayPurchaseInvoiceCommandHandler(IPurchasesUnitOfWork unitOfWork, ICacheService cacheService)
     {
         _unitOfWork = unitOfWork;
+        _cacheService = cacheService;
     }
 
     public async Task<Result> Handle(PayPurchaseInvoiceCommand request, CancellationToken cancellationToken)
@@ -25,6 +28,8 @@ internal sealed class PayPurchaseInvoiceCommandHandler : ICommandHandler<PayPurc
             return paymentResult;
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+        await _cacheService.RemoveByPrefixAsync("dashboard_", cancellationToken);
 
         return Result.Success();
     }

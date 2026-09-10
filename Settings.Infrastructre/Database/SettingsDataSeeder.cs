@@ -11,7 +11,26 @@ public static class SettingsDataSeeder
         using var scope = serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<SettingsDbContext>();
 
-        await context.Database.MigrateAsync();
+        try
+        {
+            await context.Database.MigrateAsync();
+        }
+        catch { }
+
+        try
+        {
+            await context.Database.ExecuteSqlRawAsync(@"
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[Settings].[StoreSettings]') AND name = 'AutoPrintInvoice')
+                BEGIN
+                    ALTER TABLE [Settings].[StoreSettings] ADD [AutoPrintInvoice] BIT NOT NULL CONSTRAINT DF_StoreSettings_AutoPrintInvoice DEFAULT 1;
+                END
+
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[Settings].[StoreSettings]') AND name = 'LogoUrl')
+                BEGIN
+                    ALTER TABLE [Settings].[StoreSettings] ADD [LogoUrl] NVARCHAR(500) NULL;
+                END");
+        }
+        catch { }
 
         if (!await context.StoreSettings.AnyAsync())
         {
@@ -23,7 +42,8 @@ public static class SettingsDataSeeder
                 address: "القاهرة، مصر",
                 phone: null,
                 invoiceFooterMessage: "شكراً لزيارتكم!",
-                allowNegativeStock: false);
+                allowNegativeStock: false,
+                autoPrintInvoice: true);
 
             if (defaultSetting.IsSuccess)
             {

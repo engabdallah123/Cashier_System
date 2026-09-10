@@ -1,6 +1,5 @@
 using Dapper;
 using POS.Shared.Application.Database;
-using POS.Shared.Application.IService;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
 
@@ -9,26 +8,14 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProducts
     internal sealed class GetProductsQueryHandler : IQueryHandler<GetProductsQuery, IReadOnlyList<ProductResponse>>
     {
         private readonly ISqlConnectionFactory _sqlConnectionFactory;
-        private readonly ICacheService _cacheService;
 
-        public GetProductsQueryHandler(
-            ISqlConnectionFactory sqlConnectionFactory,
-            ICacheService cacheService)
+        public GetProductsQueryHandler(ISqlConnectionFactory sqlConnectionFactory)
         {
             _sqlConnectionFactory = sqlConnectionFactory;
-            _cacheService = cacheService;
         }
 
         public async Task<Result<IReadOnlyList<ProductResponse>>> Handle(GetProductsQuery request, CancellationToken cancellationToken)
         {
-            var cacheKey = $"products_list_cat_{request.CategoryId}_term_{request.SearchTerm}_active_{request.IsActive}_page_{request.Page}_size_{request.PageSize}";
-
-            var cachedProducts = await _cacheService.GetAsync<IReadOnlyList<ProductResponse>>(cacheKey, cancellationToken);
-            if (cachedProducts is not null)
-            {
-                return Result<IReadOnlyList<ProductResponse>>.Success(cachedProducts);
-            }
-
             using var connection = _sqlConnectionFactory.CreateConnection();
 
             var sql = """
@@ -40,7 +27,8 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProducts
                     p.PurchasePrice, p.SellingPrice, p.WholesalePrice,
                     p.QuantityInStock, p.ReorderLevel, p.MaxStockLevel,
                     p.IsWeighable, p.IsActive, p.TrackExpiry, p.TaxRate, p.ImageUrl,
-                    p.CreatedAt, p.UpdatedAt
+                    p.CreatedAt, p.UpdatedAt,
+                    p.BaseUnit, p.ParentUnit, p.ConversionFactor, p.ShelfLifeDays, p.ExpiryAlertDays
                 FROM [Inventory].[Products] p
                 LEFT JOIN [Inventory].[Categories] c ON p.CategoryId = c.Id
                 LEFT JOIN [Inventory].[Units] u ON p.UnitId = u.Id
@@ -71,14 +59,6 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProducts
             });
 
             var resultList = (IReadOnlyList<ProductResponse>)products.ToList();
-
-            await _cacheService.SetAsync(
-                cacheKey,
-                resultList,
-                absoluteExpiration: TimeSpan.FromMinutes(5),
-                slidingExpiration: TimeSpan.FromMinutes(2),
-                ct: cancellationToken);
-
             return Result<IReadOnlyList<ProductResponse>>.Success(resultList);
         }
     }

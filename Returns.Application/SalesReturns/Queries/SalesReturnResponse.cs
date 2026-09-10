@@ -4,6 +4,7 @@ namespace Returns.Application.SalesReturns.Queries
         Guid Id,
         Guid ProductId,
         string? ProductName,
+        string? Barcode,
         Guid OriginalSaleItemId,
         decimal Quantity,
         decimal UnitPrice,
@@ -15,6 +16,7 @@ namespace Returns.Application.SalesReturns.Queries
         Guid Id,
         string ReturnNumber,
         Guid OriginalSaleId,
+        string? OriginalInvoiceNumber,
         Guid CashierId,
         string? CashierName,
         Guid? CustomerId,
@@ -28,5 +30,5 @@ namespace Returns.Application.SalesReturns.Queries
         string? Reason,
         string? Notes,
         string Status,
-        IReadOnlyList<SalesReturnItemResponse> Items);
+        IReadOnlyList<SalesReturnItemResponse>? Items = null);
 }

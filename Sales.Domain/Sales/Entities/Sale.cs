@@ -6,6 +6,7 @@ namespace Sales.Domain.Sales.Entities
     public sealed class Sale : Entity
     {
         private readonly List<SaleItem> _items = new();
+        private readonly List<SalePayment> _payments = new();
 
         public string InvoiceNumber { get; private set; } = default!;
         public DateTime SaleDate { get; private set; }
@@ -25,6 +26,7 @@ namespace Sales.Domain.Sales.Entities
         public string? Notes { get; private set; }
 
         public IReadOnlyList<SaleItem> Items => _items.AsReadOnly();
+        public IReadOnlyList<SalePayment> Payments => _payments.AsReadOnly();
 
         private Sale() { } // EF Core
 
@@ -95,25 +97,65 @@ namespace Sales.Domain.Sales.Entities
             ChangeAmount = PaidAmount > TotalAmount ? PaidAmount - TotalAmount : 0;
             Status = SaleStatus.Completed;
 
+            // تسجيل الدفعة الأولية إذا كانت الفاتورة مسددة كلياً أو جزئياً عند الإنشاء
+            if (PaidAmount > 0 && !_payments.Any())
+            {
+                var initialPayment = SalePayment.Create(
+                    Id,
+                    Math.Min(PaidAmount, TotalAmount),
+                    SaleDate,
+                    PaymentMethod,
+                    CashierId,
+                    ShiftId,
+                    "دفعة أولية عند البيع");
+
+                if (initialPayment.IsSuccess)
+                {
+                    _payments.Add(initialPayment.Value!);
+                }
+            }
+
             RaiseDomainEvent(new SaleCompletedIntegrationEvent(Id, ShiftId, TotalAmount, PaymentMethod));
             return Result.Success();
         }
 
-        public Result AddPayment(decimal amount)
+        public Result<SalePayment> AddPayment(
+            decimal amount,
+            DateTime? paymentDate = null,
+            string paymentMethod = "Cash",
+            Guid? cashierId = null,
+            Guid? shiftId = null,
+            string? notes = null)
         {
             if (amount <= 0)
-                return Result.Failure(new Error("Sale.InvalidPaymentAmount", "مبلغ السداد يجب أن يكون أكبر من صفر."));
+                return Result<SalePayment>.Failure(new Error("Sale.InvalidPaymentAmount", "مبلغ السداد يجب أن يكون أكبر من صفر."));
 
             var remaining = TotalAmount - PaidAmount;
             if (remaining <= 0.001m)
-                return Result.Failure(new Error("Sale.AlreadyFullyPaid", "الفاتورة مسددة بالكامل بالفعل."));
+                return Result<SalePayment>.Failure(new Error("Sale.AlreadyFullyPaid", "الفاتورة مسددة بالكامل بالفعل."));
 
             if (amount > remaining + 0.01m)
-                return Result.Failure(new Error("Sale.PaymentExceedsRemaining", $"مبلغ السداد ({amount:N2} ج.م) أكبر من المبلغ المتبقي على الفاتورة ({remaining:N2} ج.م)."));
+                return Result<SalePayment>.Failure(new Error("Sale.PaymentExceedsRemaining", $"مبلغ السداد ({amount:N2} ج.م) أكبر من المبلغ المتبقي على الفاتورة ({remaining:N2} ج.م)."));
 
             PaidAmount += amount;
-            CalculateTotals();
-            return Result.Success();
+            ChangeAmount = PaidAmount > TotalAmount ? PaidAmount - TotalAmount : 0;
+
+            var paymentResult = SalePayment.Create(
+                Id,
+                amount,
+                paymentDate ?? DateTime.UtcNow,
+                paymentMethod,
+                cashierId ?? CashierId,
+                shiftId ?? ShiftId,
+                notes);
+
+            if (paymentResult.IsFailure)
+                return Result<SalePayment>.Failure(paymentResult.Error);
+
+            var payment = paymentResult.Value!;
+            _payments.Add(payment);
+
+            return Result<SalePayment>.Success(payment);
         }
 
         public Result Cancel()

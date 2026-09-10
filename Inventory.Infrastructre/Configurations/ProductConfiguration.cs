@@ -57,6 +57,26 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
         builder.Property(p => p.ImageUrl)
             .HasMaxLength(500);
 
+        builder.Property(p => p.BaseUnit)
+            .IsRequired()
+            .HasMaxLength(50)
+            .HasDefaultValue("قطعة");
+
+        builder.Property(p => p.ParentUnit)
+            .HasMaxLength(50);
+
+        builder.Property(p => p.ConversionFactor)
+            .HasDefaultValue(1)
+            .IsRequired();
+
+        builder.Property(p => p.ShelfLifeDays)
+            .HasDefaultValue(0)
+            .IsRequired();
+
+        builder.Property(p => p.ExpiryAlertDays)
+            .HasDefaultValue(3)
+            .IsRequired();
+
         builder.HasIndex(p => p.CategoryId);
         builder.HasIndex(p => p.UnitId);
         builder.HasIndex(p => p.SupplierId);

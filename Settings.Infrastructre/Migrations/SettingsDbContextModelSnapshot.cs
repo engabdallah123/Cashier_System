@@ -36,6 +36,11 @@ namespace Settings.Infrastructre.Migrations
                     b.Property<bool>("AllowNegativeStock")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("AutoPrintInvoice")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("Currency")
                         .IsRequired()
                         .HasMaxLength(5)
@@ -47,6 +52,10 @@ namespace Settings.Infrastructre.Migrations
 
                     b.Property<bool>("IsTaxIncluded")
                         .HasColumnType("bit");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Phone")
                         .HasMaxLength(20)

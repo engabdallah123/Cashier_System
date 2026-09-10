@@ -12,13 +12,16 @@ namespace Settings.Domain.StoreSettings.Entities
         public string Currency { get; private set; } = default!;
         public string? InvoiceFooterMessage { get; private set; }
         public bool AllowNegativeStock { get; private set; }
+        public bool AutoPrintInvoice { get; private set; } = true;
+        public string? LogoUrl { get; private set; }
         public DateTime UpdatedAt { get; private set; }
 
         private StoreSetting() { } // EF Core
 
         private StoreSetting(Guid id, string storeName, string? address, string? phone,
             decimal taxRate, bool isTaxIncluded, string currency,
-            string? invoiceFooterMessage, bool allowNegativeStock)
+            string? invoiceFooterMessage, bool allowNegativeStock, bool autoPrintInvoice = true,
+            string? logoUrl = null)
             : base(id)
         {
             StoreName = storeName;
@@ -29,6 +32,8 @@ namespace Settings.Domain.StoreSettings.Entities
             Currency = currency;
             InvoiceFooterMessage = invoiceFooterMessage;
             AllowNegativeStock = allowNegativeStock;
+            AutoPrintInvoice = autoPrintInvoice;
+            LogoUrl = logoUrl;
             UpdatedAt = DateTime.UtcNow;
         }
 
@@ -36,7 +41,8 @@ namespace Settings.Domain.StoreSettings.Entities
             string storeName, string currency,
             decimal taxRate = 0, bool isTaxIncluded = true,
             string? address = null, string? phone = null,
-            string? invoiceFooterMessage = null, bool allowNegativeStock = false)
+            string? invoiceFooterMessage = null, bool allowNegativeStock = false,
+            bool autoPrintInvoice = true, string? logoUrl = null)
         {
             if (string.IsNullOrWhiteSpace(storeName))
                 return Result<StoreSetting>.Failure(StoreSettingErrors.StoreNameRequired);
@@ -50,7 +56,7 @@ namespace Settings.Domain.StoreSettings.Entities
             var setting = new StoreSetting(
                 Guid.NewGuid(), storeName.Trim(), address?.Trim(), phone?.Trim(),
                 taxRate, isTaxIncluded, currency.Trim().ToUpperInvariant(),
-                invoiceFooterMessage?.Trim(), allowNegativeStock);
+                invoiceFooterMessage?.Trim(), allowNegativeStock, autoPrintInvoice, logoUrl?.Trim());
 
             return Result<StoreSetting>.Success(setting);
         }
@@ -58,7 +64,8 @@ namespace Settings.Domain.StoreSettings.Entities
         public Result Update(
             string storeName, string? address, string? phone,
             decimal taxRate, bool isTaxIncluded, string currency,
-            string? invoiceFooterMessage, bool allowNegativeStock)
+            string? invoiceFooterMessage, bool allowNegativeStock,
+            bool autoPrintInvoice = true, string? logoUrl = null)
         {
             if (string.IsNullOrWhiteSpace(storeName))
                 return Result.Failure(StoreSettingErrors.StoreNameRequired);
@@ -77,6 +84,11 @@ namespace Settings.Domain.StoreSettings.Entities
             Currency = currency.Trim().ToUpperInvariant();
             InvoiceFooterMessage = invoiceFooterMessage?.Trim();
             AllowNegativeStock = allowNegativeStock;
+            AutoPrintInvoice = autoPrintInvoice;
+            if (logoUrl != null)
+            {
+                LogoUrl = string.IsNullOrWhiteSpace(logoUrl) ? null : logoUrl.Trim();
+            }
             UpdatedAt = DateTime.UtcNow;
 
             return Result.Success();

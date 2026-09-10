@@ -40,6 +40,12 @@ internal sealed class StoreSettingConfiguration : IEntityTypeConfiguration<Store
         builder.Property(s => s.AllowNegativeStock)
             .IsRequired();
 
+        builder.Property(s => s.AutoPrintInvoice)
+            .HasDefaultValue(true);
+
+        builder.Property(s => s.LogoUrl)
+            .HasMaxLength(500);
+
         builder.Property(s => s.UpdatedAt)
             .IsRequired();
     }

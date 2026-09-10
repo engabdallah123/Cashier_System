@@ -1,4 +1,4 @@
-﻿@page "/debts"
+@page "/debts"
 @using Microsoft.AspNetCore.Authorization
 @using global::POS.Desktop.Services.Api
 @attribute [Authorize]
@@ -136,7 +136,10 @@
                                 <td>@debt.TotalAmount.ToString("N2") ج.م</td>
                                 <td style="color: var(--accent-emerald);">@debt.PaidAmount.ToString("N2") ج.م</td>
                                 <td style="color: #f87171; font-weight: 800; font-size: 1.05rem;">@debt.RemainingAmount.ToString("N2") ج.م</td>
-                                <td style="text-align: center;">
+                                <td style="text-align: center; white-space: nowrap;">
+                                    <button class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; margin-left: 0.35rem;" @onclick="() => ViewSaleInvoiceDetails(debt.SaleId)" title="عرض تفاصيل الفاتورة">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
                                     <button class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" @onclick="() => OpenCustomerPayModal(debt)" title="تحصيل دفعة مديونية">
                                         <i class="fa-solid fa-hand-holding-dollar me-1"></i> تحصيل دفعة
                                     </button>
@@ -189,7 +192,10 @@
                                 <td>@debt.TotalAmount.ToString("N2") ج.م</td>
                                 <td style="color: var(--accent-emerald);">@debt.PaidAmount.ToString("N2") ج.م</td>
                                 <td style="color: var(--accent-amber); font-weight: 800; font-size: 1.05rem;">@debt.RemainingAmount.ToString("N2") ج.م</td>
-                                <td style="text-align: center;">
+                                <td style="text-align: center; white-space: nowrap;">
+                                    <button class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.8rem; margin-left: 0.35rem;" @onclick="() => ViewPurchaseInvoiceDetails(debt.PurchaseId)" title="عرض تفاصيل الفاتورة">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
                                     <button class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" @onclick="() => OpenPayModal(debt)" title="سداد دفعة للمورد">
                                         <i class="fa-solid fa-money-bill-wave me-1"></i> سداد دفعة
                                     </button>
@@ -315,12 +321,262 @@
     </div>
 }
 
+<!-- Modal: View Full Invoice Details -->
+@if (showInvoiceDetailsModal)
+{
+    <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 1050; padding: 1rem;">
+        <div class="card" style="width: 1200px; max-width: 96vw; height: 90vh; max-height: 880px; display: flex; flex-direction: column; overflow: hidden; padding: 1.25rem 1.5rem; gap: 0.75rem;">
+            <!-- Header -->
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.65rem; flex-shrink: 0;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <span class="badge @(isSaleInvoice ? "badge-primary" : "badge-amber")" style="font-size: 0.85rem; padding: 0.3rem 0.75rem;">
+                        @(isSaleInvoice ? "فاتورة مبيعات عميل" : "فاتورة مشتريات مورد")
+                    </span>
+                    <h3 style="font-size: 1.25rem; font-weight: 800; margin: 0;">
+                        <i class="fa-solid fa-file-invoice me-1" style="color: var(--accent-blue);"></i> تفاصيل الفاتورة كاملة
+                    </h3>
+                </div>
+                <button class="btn btn-secondary" style="padding: 0.35rem 0.75rem;" @onclick="CloseInvoiceDetailsModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            @if (isLoadingInvoiceDetails)
+            {
+                <div style="text-align: center; padding: 3rem; color: var(--text-secondary); margin: auto;">
+                    <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
+                    <p style="margin-top: 0.5rem;">جاري تحميل تفاصيل الفاتورة...</p>
+                </div>
+            }
+            else if (isSaleInvoice && detailedSaleInvoice != null)
+            {
+                <!-- Customer Sale Invoice Details -->
+                <div style="flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; background: var(--bg-primary); padding: 0.65rem 1rem; border-radius: 0.5rem; font-size: 0.86rem; border: 1px solid var(--border-color-light);">
+                    <div><span style="color: var(--text-secondary);">رقم الفاتورة:</span> <code style="font-size: 0.95rem; font-weight: 700;">@detailedSaleInvoice.InvoiceNumber</code></div>
+                    <div><span style="color: var(--text-secondary);">تاريخ الفاتورة:</span> <strong>@detailedSaleInvoice.SaleDate.ToString("yyyy-MM-dd HH:mm")</strong></div>
+                    <div><span style="color: var(--text-secondary);">العميل:</span> <strong style="color: var(--accent-blue);">@(detailedSaleInvoice.CustomerName ?? "عميل عام")</strong></div>
+                    <div><span style="color: var(--text-secondary);">الكاشير:</span> <strong>@(detailedSaleInvoice.CashierName ?? "-")</strong></div>
+                    <div><span style="color: var(--text-secondary);">طريقة الدفع:</span> <span class="badge badge-secondary">@detailedSaleInvoice.PaymentMethod</span></div>
+                    <div><span style="color: var(--text-secondary);">حالة الفاتورة:</span> <span class="badge badge-amber">@detailedSaleInvoice.Status</span></div>
+                </div>
+
+                <div style="flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;">
+                    <h4 style="font-size: 0.95rem; font-weight: 700; margin: 0; color: var(--text-primary);">
+                        <i class="fa-solid fa-boxes-stacked me-1" style="color: var(--accent-blue);"></i> الأصناف في الفاتورة (@(detailedSaleInvoice.Items?.Count ?? 0) صنف)
+                    </h4>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">عرض مريح لجميع سطور الفاتورة (5 أصناف وأكثر ظاهرة معاً)</span>
+                </div>
+
+                <!-- Products Table with expanded vertical space -->
+                <div class="table-container" style="flex: 1; min-height: 320px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+                    <table class="data-table" style="font-size: 0.88rem; width: 100%;">
+                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 2; box-shadow: 0 1px 0 var(--border-color);">
+                            <tr>
+                                <th style="width: 45px; text-align: center; padding: 0.55rem 0.75rem;">#</th>
+                                <th style="min-width: 220px; padding: 0.55rem 0.75rem;">اسم المنتج</th>
+                                <th style="min-width: 140px; padding: 0.55rem 0.75rem;">الباركود</th>
+                                <th style="width: 100px; text-align: center; padding: 0.55rem 0.75rem;">الكمية</th>
+                                <th style="min-width: 120px; text-align: left; padding: 0.55rem 0.75rem;">سعر الوحدة</th>
+                                <th style="min-width: 100px; text-align: left; padding: 0.55rem 0.75rem;">الخصم</th>
+                                <th style="min-width: 130px; text-align: left; padding: 0.55rem 0.75rem;">الإجمالي</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (detailedSaleInvoice.Items != null && detailedSaleInvoice.Items.Any())
+                            {
+                                int rowIdx = 1;
+                                @foreach (var itm in detailedSaleInvoice.Items)
+                                {
+                                    <tr>
+                                        <td style="text-align: center; color: var(--text-muted); padding: 0.5rem 0.75rem;">@(rowIdx++)</td>
+                                        <td style="padding: 0.5rem 0.75rem;"><strong style="color: var(--text-primary);">@itm.ProductName</strong></td>
+                                        <td style="padding: 0.5rem 0.75rem;"><code>@(itm.Barcode ?? "-")</code></td>
+                                        <td style="text-align: center; font-weight: 800; font-size: 0.95rem; padding: 0.5rem 0.75rem;">@itm.Quantity</td>
+                                        <td style="text-align: left; padding: 0.5rem 0.75rem;">@itm.UnitPrice.ToString("N2") ج.م</td>
+                                        <td style="text-align: left; color: var(--text-muted); padding: 0.5rem 0.75rem;">@itm.Discount.ToString("N2") ج.م</td>
+                                        <td style="text-align: left; font-weight: 800; color: var(--accent-emerald); padding: 0.5rem 0.75rem;">@itm.Total.ToString("N2") ج.م</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">لا توجد أصناف مسجلة داخل الفاتورة</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Financial Summary (Compact Ribbon) & Notes -->
+                <div style="flex-shrink: 0; display: flex; flex-direction: column; gap: 0.5rem;">
+                    @if (!string.IsNullOrWhiteSpace(detailedSaleInvoice.Notes))
+                    {
+                        <div style="font-size: 0.82rem; color: var(--text-secondary); background: rgba(255,255,255,0.02); padding: 0.35rem 0.75rem; border-radius: 0.35rem; border: 1px solid var(--border-color-light);">
+                            <strong>ملاحظات:</strong> @detailedSaleInvoice.Notes
+                        </div>
+                    }
+
+                    <div style="background: var(--bg-primary); padding: 0.65rem 1rem; border-radius: 0.5rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; font-size: 0.88rem; border: 1px solid var(--border-color-light);">
+                        <div><span style="color: var(--text-secondary);">المجموع الفرعي:</span> <strong>@detailedSaleInvoice.SubTotal.ToString("N2") ج.م</strong></div>
+                        @if (detailedSaleInvoice.DiscountAmount > 0)
+                        {
+                            <div style="color: var(--accent-amber);"><span style="color: var(--text-secondary);">الخصم:</span> <strong>-@detailedSaleInvoice.DiscountAmount.ToString("N2") ج.م</strong></div>
+                        }
+                        @if (detailedSaleInvoice.TaxAmount > 0)
+                        {
+                            <div><span style="color: var(--text-secondary);">الضريبة:</span> <strong>+@detailedSaleInvoice.TaxAmount.ToString("N2") ج.م</strong></div>
+                        }
+                        <div style="border-right: 1px solid var(--border-color); padding-right: 0.75rem;"><span style="color: var(--text-secondary);">إجمالي الفاتورة:</span> <strong style="color: var(--accent-blue); font-size: 1.05rem;">@detailedSaleInvoice.TotalAmount.ToString("N2") ج.م</strong></div>
+                        <div><span style="color: var(--text-secondary);">المبلغ المسدد:</span> <strong style="color: var(--accent-emerald); font-size: 1.05rem;">@detailedSaleInvoice.PaidAmount.ToString("N2") ج.م</strong></div>
+                        <div style="background: rgba(239, 68, 68, 0.1); padding: 0.25rem 0.6rem; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.25);"><span style="color: #f87171;">المتبقي (الدين):</span> <strong style="color: #f87171; font-size: 1.05rem;">@((detailedSaleInvoice.TotalAmount - detailedSaleInvoice.PaidAmount).ToString("N2")) ج.م</strong></div>
+                    </div>
+                </div>
+            }
+            else if (!isSaleInvoice && detailedPurchaseInvoice != null)
+            {
+                <!-- Supplier Purchase Invoice Details -->
+                <div style="flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; background: var(--bg-primary); padding: 0.65rem 1rem; border-radius: 0.5rem; font-size: 0.86rem; border: 1px solid var(--border-color-light);">
+                    <div><span style="color: var(--text-secondary);">رقم الفاتورة:</span> <code style="font-size: 0.95rem; font-weight: 700;">@detailedPurchaseInvoice.InvoiceNumber</code></div>
+                    <div><span style="color: var(--text-secondary);">تاريخ الشراء:</span> <strong>@detailedPurchaseInvoice.PurchaseDate.ToString("yyyy-MM-dd")</strong></div>
+                    <div><span style="color: var(--text-secondary);">المورد:</span> <strong style="color: var(--accent-amber);">@(detailedPurchaseInvoice.SupplierName ?? "مورد عام")</strong></div>
+                    <div><span style="color: var(--text-secondary);">حالة الفاتورة:</span> <span class="badge badge-amber">@detailedPurchaseInvoice.Status</span></div>
+                </div>
+
+                <div style="flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;">
+                    <h4 style="font-size: 0.95rem; font-weight: 700; margin: 0; color: var(--text-primary);">
+                        <i class="fa-solid fa-boxes-stacked me-1" style="color: var(--accent-amber);"></i> الأصناف في الفاتورة (@(detailedPurchaseInvoice.Items?.Count ?? 0) صنف)
+                    </h4>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">عرض مريح لجميع سطور الفاتورة (5 أصناف وأكثر ظاهرة معاً)</span>
+                </div>
+
+                <!-- Products Table with expanded vertical space -->
+                <div class="table-container" style="flex: 1; min-height: 320px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px;">
+                    <table class="data-table" style="font-size: 0.88rem; width: 100%;">
+                        <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 2; box-shadow: 0 1px 0 var(--border-color);">
+                            <tr>
+                                <th style="width: 45px; text-align: center; padding: 0.55rem 0.75rem;">#</th>
+                                <th style="min-width: 200px; padding: 0.55rem 0.75rem;">اسم المنتج</th>
+                                <th style="min-width: 130px; padding: 0.55rem 0.75rem;">الباركود</th>
+                                <th style="width: 100px; text-align: center; padding: 0.55rem 0.75rem;">الكمية</th>
+                                <th style="min-width: 120px; text-align: left; padding: 0.55rem 0.75rem;">سعر الشراء</th>
+                                <th style="min-width: 120px; text-align: left; padding: 0.55rem 0.75rem;">الإجمالي</th>
+                                <th style="min-width: 120px; padding: 0.55rem 0.75rem;">تاريخ الصلاحية</th>
+                                <th style="min-width: 110px; padding: 0.55rem 0.75rem;">رقم الدفعة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (detailedPurchaseInvoice.Items != null && detailedPurchaseInvoice.Items.Any())
+                            {
+                                int rowIdx = 1;
+                                @foreach (var itm in detailedPurchaseInvoice.Items)
+                                {
+                                    <tr>
+                                        <td style="text-align: center; color: var(--text-muted); padding: 0.5rem 0.75rem;">@(rowIdx++)</td>
+                                        <td style="padding: 0.5rem 0.75rem;"><strong style="color: var(--text-primary);">@itm.ProductName</strong></td>
+                                        <td style="padding: 0.5rem 0.75rem;"><code>@(itm.Barcode ?? "-")</code></td>
+                                        <td style="text-align: center; font-weight: 800; font-size: 0.95rem; padding: 0.5rem 0.75rem;">@itm.Quantity</td>
+                                        <td style="text-align: left; padding: 0.5rem 0.75rem;">@itm.UnitCost.ToString("N2") ج.م</td>
+                                        <td style="text-align: left; font-weight: 800; color: var(--accent-emerald); padding: 0.5rem 0.75rem;">@itm.Total.ToString("N2") ج.م</td>
+                                        <td style="padding: 0.5rem 0.75rem;">@(itm.ExpiryDate.HasValue ? itm.ExpiryDate.Value.ToString("yyyy-MM-dd") : "-")</td>
+                                        <td style="padding: 0.5rem 0.75rem;"><code>@(itm.BatchNumber ?? "-")</code></td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2rem;">لا توجد أصناف مسجلة داخل الفاتورة</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Financial Summary (Compact Ribbon) & Notes -->
+                <div style="flex-shrink: 0; display: flex; flex-direction: column; gap: 0.5rem;">
+                    @if (!string.IsNullOrWhiteSpace(detailedPurchaseInvoice.Notes))
+                    {
+                        <div style="font-size: 0.82rem; color: var(--text-secondary); background: rgba(255,255,255,0.02); padding: 0.35rem 0.75rem; border-radius: 0.35rem; border: 1px solid var(--border-color-light);">
+                            <strong>ملاحظات:</strong> @detailedPurchaseInvoice.Notes
+                        </div>
+                    }
+
+                    <div style="background: var(--bg-primary); padding: 0.65rem 1rem; border-radius: 0.5rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; font-size: 0.88rem; border: 1px solid var(--border-color-light);">
+                        <div><span style="color: var(--text-secondary);">المجموع الفرعي:</span> <strong>@detailedPurchaseInvoice.SubTotal.ToString("N2") ج.م</strong></div>
+                        @if (detailedPurchaseInvoice.DiscountAmount > 0)
+                        {
+                            <div style="color: var(--accent-amber);"><span style="color: var(--text-secondary);">الخصم:</span> <strong>-@detailedPurchaseInvoice.DiscountAmount.ToString("N2") ج.م</strong></div>
+                        }
+                        @if (detailedPurchaseInvoice.TaxAmount > 0)
+                        {
+                            <div><span style="color: var(--text-secondary);">الضريبة:</span> <strong>+@detailedPurchaseInvoice.TaxAmount.ToString("N2") ج.م</strong></div>
+                        }
+                        <div style="border-right: 1px solid var(--border-color); padding-right: 0.75rem;"><span style="color: var(--text-secondary);">إجمالي الفاتورة:</span> <strong style="color: var(--accent-blue); font-size: 1.05rem;">@detailedPurchaseInvoice.TotalAmount.ToString("N2") ج.م</strong></div>
+                        <div><span style="color: var(--text-secondary);">المبلغ المسدد للمورد:</span> <strong style="color: var(--accent-emerald); font-size: 1.05rem;">@detailedPurchaseInvoice.PaidAmount.ToString("N2") ج.م</strong></div>
+                        <div style="background: rgba(245, 158, 11, 0.1); padding: 0.25rem 0.6rem; border-radius: 6px; border: 1px solid rgba(245, 158, 11, 0.25);"><span style="color: var(--accent-amber);">المتبقي علينا (دين للمورد):</span> <strong style="color: var(--accent-amber); font-size: 1.05rem;">@detailedPurchaseInvoice.RemainingAmount.ToString("N2") ج.م</strong></div>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div style="text-align: center; padding: 2rem; color: #f87171; margin: auto;">
+                    <i class="fa-solid fa-circle-exclamation fa-2x"></i>
+                    <p style="margin-top: 0.5rem;">تعذر تحميل تفاصيل الفاتورة.</p>
+                </div>
+            }
+
+            <div style="display: flex; justify-content: flex-end; border-top: 1px solid var(--border-color); padding-top: 0.6rem; flex-shrink: 0;">
+                <button class="btn btn-secondary" @onclick="CloseInvoiceDetailsModal">إغلاق</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private string activeTab = "customers";
     private List<CustomerDebtDto> customerDebts = new();
     private List<CustomerDebtDto> filteredCustomerDebts = new();
     private List<SupplierDebtDto> supplierDebts = new();
     private List<SupplierDebtDto> filteredSupplierDebts = new();
+
+    // Invoice Details Modal
+    private bool showInvoiceDetailsModal = false;
+    private bool isLoadingInvoiceDetails = false;
+    private bool isSaleInvoice = true;
+    private SaleDto? detailedSaleInvoice = null;
+    private PurchaseDetailDto? detailedPurchaseInvoice = null;
+
+    private async Task ViewSaleInvoiceDetails(Guid saleId)
+    {
+        showInvoiceDetailsModal = true;
+        isLoadingInvoiceDetails = true;
+        isSaleInvoice = true;
+        detailedSaleInvoice = null;
+        detailedPurchaseInvoice = null;
+
+        detailedSaleInvoice = await ApiClient.GetSaleByIdAsync(saleId);
+        isLoadingInvoiceDetails = false;
+    }
+
+    private async Task ViewPurchaseInvoiceDetails(Guid purchaseId)
+    {
+        showInvoiceDetailsModal = true;
+        isLoadingInvoiceDetails = true;
+        isSaleInvoice = false;
+        detailedSaleInvoice = null;
+        detailedPurchaseInvoice = null;
+
+        detailedPurchaseInvoice = await ApiClient.GetPurchaseDetailsAsync(purchaseId);
+        isLoadingInvoiceDetails = false;
+    }
+
+    private void CloseInvoiceDetailsModal()
+    {
+        showInvoiceDetailsModal = false;
+        detailedSaleInvoice = null;
+        detailedPurchaseInvoice = null;
+    }
 
     private string searchQuery = string.Empty;
     private string sortBy = "date_desc";

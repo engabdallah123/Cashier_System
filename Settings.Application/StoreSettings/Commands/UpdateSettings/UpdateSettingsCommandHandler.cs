@@ -27,7 +27,8 @@ namespace Settings.Application.StoreSettings.Commands.UpdateSettings
                     request.StoreName, request.Currency,
                     request.TaxRate, request.IsTaxIncluded,
                     request.Address, request.Phone,
-                    request.InvoiceFooterMessage, request.AllowNegativeStock);
+                    request.InvoiceFooterMessage, request.AllowNegativeStock,
+                    request.AutoPrintInvoice, request.LogoUrl);
 
                 if (createResult.IsFailure)
                     return Result.Failure(createResult.Error);
@@ -39,7 +40,8 @@ namespace Settings.Application.StoreSettings.Commands.UpdateSettings
                 var updateResult = settings.Update(
                     request.StoreName, request.Address, request.Phone,
                     request.TaxRate, request.IsTaxIncluded, request.Currency,
-                    request.InvoiceFooterMessage, request.AllowNegativeStock);
+                    request.InvoiceFooterMessage, request.AllowNegativeStock,
+                    request.AutoPrintInvoice, request.LogoUrl);
 
                 if (updateResult.IsFailure)
                     return updateResult;

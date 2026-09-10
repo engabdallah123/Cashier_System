@@ -1,4 +1,4 @@
-﻿using Dapper;
+using Dapper;
 using POS.Shared.Application.Database;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
@@ -34,9 +34,19 @@ namespace Purchases.Application.Purchases.Queries.GetPurchaseById
             var itemsSql = """
                 SELECT 
                     pi2.Id, pi2.ProductId, pr.NameAr AS ProductName, pr.Barcode,
-                    pi2.Quantity, pi2.UnitCost, pi2.Discount, pi2.Tax,
+                    pi2.Quantity,
+                    ISNULL((
+                        SELECT SUM(pri.Quantity) 
+                        FROM [Returns].[PurchaseReturnItems] pri 
+                        JOIN [Returns].[PurchaseReturns] prt ON pri.PurchaseReturnId = prt.Id 
+                        WHERE prt.OriginalPurchaseId = pi2.PurchaseId AND pri.ProductId = pi2.ProductId AND prt.Status != 2
+                    ), 0) AS ReturnedQuantity,
+                    pi2.UnitCost, pi2.Discount, pi2.Tax,
                     (pi2.Quantity * pi2.UnitCost - pi2.Discount + pi2.Tax) AS Total,
-                    pi2.ExpiryDate, pi2.BatchNumber
+                    pi2.ExpiryDate, pi2.BatchNumber,
+                    ISNULL(pr.BaseUnit, 'قطعة') AS BaseUnit,
+                    ISNULL(pr.ParentUnit, 'كرتونة') AS ParentUnit,
+                    ISNULL(pr.ConversionFactor, 1) AS ConversionFactor
                 FROM [Purchases].[PurchaseItems] pi2
                 LEFT JOIN [Inventory].[Products] pr ON pi2.ProductId = pr.Id
                 WHERE pi2.PurchaseId = @PurchaseId
@@ -47,7 +57,32 @@ namespace Purchases.Application.Purchases.Queries.GetPurchaseById
             if (purchaseData is null)
                 return Result<PurchaseDetailResponse>.Failure(new Error("Purchase.NotFound", $"فاتورة الشراء بالرقم '{request.Id}' غير موجودة."));
 
-            var items = await connection.QueryAsync<PurchaseDetailItemResponse>(itemsSql, new { PurchaseId = request.Id });
+            var rawItems = await connection.QueryAsync<dynamic>(itemsSql, new { PurchaseId = request.Id });
+            var items = new List<PurchaseDetailItemResponse>();
+            foreach (var r in rawItems)
+            {
+                decimal qty = (decimal)r.Quantity;
+                decimal retQty = (decimal)r.ReturnedQuantity;
+                decimal remQty = Math.Max(0, qty - retQty);
+
+                items.Add(new PurchaseDetailItemResponse(
+                    (Guid)r.Id,
+                    (Guid)r.ProductId,
+                    (string?)r.ProductName,
+                    (string?)r.Barcode,
+                    qty,
+                    (decimal)r.UnitCost,
+                    (decimal)r.Discount,
+                    (decimal)r.Tax,
+                    (decimal)r.Total,
+                    (DateTime?)r.ExpiryDate,
+                    (string?)r.BatchNumber,
+                    retQty,
+                    remQty,
+                    (string?)r.BaseUnit,
+                    (string?)r.ParentUnit,
+                    (int)r.ConversionFactor));
+            }
 
             var response = new PurchaseDetailResponse(
                 (Guid)purchaseData.Id,

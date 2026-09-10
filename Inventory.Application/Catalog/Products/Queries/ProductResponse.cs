@@ -24,5 +24,10 @@ namespace Inventory.Application.Catalog.Products.Queries
         decimal TaxRate,
         string? ImageUrl,
         DateTime CreatedAt,
-        DateTime? UpdatedAt);
+        DateTime? UpdatedAt,
+        string BaseUnit = "قطعة",
+        string? ParentUnit = "كرتونة",
+        int ConversionFactor = 1,
+        int ShelfLifeDays = 0,
+        int ExpiryAlertDays = 3);
 }

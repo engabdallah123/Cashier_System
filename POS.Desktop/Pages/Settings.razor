@@ -1,14 +1,16 @@
 @page "/settings"
 @using Microsoft.AspNetCore.Authorization
+@using System.IO
 @attribute [Authorize(Roles = "Admin,Manager")]
 @inject PosApiClient ApiClient
 @inject StoreStateContainer StoreState
+@inject IJSRuntime JS
 
 <div style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem;">
     <div>
         <h2 style="font-weight: 700;">إعدادات المتجر والنظام</h2>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
-            تحديث البيانات الأساسية للمتجر، نسبة الضريبة العامة، الخيارات الفنية وسياسة البيع بالسالب
+            تحديث البيانات الأساسية للمتجر، نسبة الضريبة العامة، الخيارات الفنية وسياسة البيع والطباعة
         </p>
     </div>
 
@@ -42,6 +44,51 @@
                     <i class="fa-solid fa-store me-2"></i> بيانات المتجر الأساسية
                 </h3>
 
+                <!-- Logo Branding Section -->
+                <div style="margin-bottom: 1.5rem; padding: 1.25rem; background: var(--bg-primary); border-radius: 0.75rem; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 1.25rem;">
+                        <div style="width: 80px; height: 80px; border-radius: 0.75rem; border: 2px dashed var(--border-color); background: var(--bg-secondary); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative;">
+                            @if (!string.IsNullOrEmpty(logoPreviewUrl) || !string.IsNullOrEmpty(logoUrl))
+                            {
+                                var displayImg = !string.IsNullOrEmpty(logoPreviewUrl) ? logoPreviewUrl : ApiClient.GetImageFullUrl(logoUrl);
+                                <img src="@displayImg" alt="شعار المتجر" style="max-width: 100%; max-height: 100%; object-fit: contain;" />
+                            }
+                            else
+                            {
+                                <i class="fa-solid fa-image fa-2x" style="color: var(--text-secondary); opacity: 0.5;"></i>
+                            }
+                        </div>
+                        <div>
+                            <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.25rem;">شعار المتجر / البراند</h4>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0;">
+                                يظهر الشعار أعلى الفاتورة الحرارية وفواتير A4 ومطبوعات النظام (PNG, JPG, WebP)
+                            </p>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 0.75rem; align-items: center;">
+                        <div style="position: relative; overflow: hidden; display: inline-block;">
+                            <button type="button" class="btn btn-secondary" style="font-size: 0.85rem; padding: 0.5rem 1rem; pointer-events: none;" disabled="@isUploadingLogo">
+                                @if (isUploadingLogo)
+                                {
+                                    <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الرفع...</span>
+                                }
+                                else
+                                {
+                                    <i class="fa-solid fa-upload me-1"></i> <span>@(string.IsNullOrEmpty(logoUrl) && string.IsNullOrEmpty(logoPreviewUrl) ? "رفع شعار" : "تغيير الشعار")</span>
+                                }
+                            </button>
+                            <InputFile OnChange="HandleLogoSelected" accept="image/png, image/jpeg, image/webp" style="position: absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;" disabled="@isUploadingLogo" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(logoUrl) || !string.IsNullOrEmpty(logoPreviewUrl))
+                        {
+                            <button type="button" class="btn btn-danger" style="font-size: 0.85rem; padding: 0.5rem 1rem;" @onclick="RemoveLogo" disabled="@isUploadingLogo">
+                                <i class="fa-solid fa-trash me-1"></i> حذف الشعار
+                            </button>
+                        }
+                    </div>
+                </div>
+
                 <div class="grid-2">
                     <div class="form-group">
                         <label>اسم المتجر / السوبرماركت <span style="color: var(--accent-red);">*</span></label>
@@ -50,7 +97,7 @@
 
                     <div class="form-group">
                         <label>العملة الرسمية</label>
-                        <input @bind="currency" class="form-control" placeholder="مثال: EGP أو ج.م" />
+                        <input @bind="currency" class="form-control" placeholder="مثال: EGP أو ج.م" maxlength="5" />
                     </div>
                 </div>
 
@@ -96,11 +143,29 @@
                 </div>
             </div>
 
-            <!-- Invoice Settings Section -->
+            <!-- Print & Invoice Options Section -->
             <div class="card">
                 <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1.25rem; color: var(--accent-indigo);">
-                    <i class="fa-solid fa-receipt me-2"></i> إعدادات تذييل الفاتورة
+                    <i class="fa-solid fa-print me-2"></i> خيارات الطباعة وتذييل الفاتورة
                 </h3>
+
+                <div style="background: var(--bg-primary); padding: 1rem 1.25rem; border-radius: 0.6rem; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <input type="checkbox" @bind="autoPrintInvoice" id="autoPrintToggle" style="width: 20px; height: 20px; cursor: pointer;" />
+                        <div>
+                            <label for="autoPrintToggle" style="font-size: 0.95rem; font-weight: 700; cursor: pointer; display: block;">
+                                عرض نافذة الطباعة تلقائياً بعد إتمام عملية الشراء
+                            </label>
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);">
+                                عند التفعيل، تظهر نافذة الطابعة تلقائياً فور حفظ الفاتورة. عند التعطيل، يتم إتمام الفاتورة سريعاً بدون فتح الطابعة.
+                            </span>
+                        </div>
+                    </div>
+                    <span class="badge @(autoPrintInvoice ? "badge-green" : "badge-amber")" style="font-size: 0.8rem; white-space: nowrap;">
+                        <i class="fa-solid @(autoPrintInvoice ? "fa-circle-check" : "fa-ban") me-1"></i>
+                        @(autoPrintInvoice ? "الطباعة التلقائية مفعلة" : "الطباعة التلقائية معطلة")
+                    </span>
+                </div>
 
                 <div class="form-group">
                     <label>رسالة التذييل (تطبع في أسفل جميع إيصالات الكاشير)</label>
@@ -110,7 +175,7 @@
 
             <!-- Save Action Bar -->
             <div style="display: flex; justify-content: flex-end;">
-                <button class="btn btn-primary" style="padding: 0.85rem 2rem; font-size: 1rem;" disabled="@isSaving" @onclick="SaveSettings">
+                <button class="btn btn-primary" style="padding: 0.85rem 2rem; font-size: 1rem;" disabled="@(isSaving || isUploadingLogo)" @onclick="SaveSettings">
                     @if (isSaving)
                     {
                         <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحفظ...</span>
@@ -134,6 +199,10 @@
     private string currency = "EGP";
     private string? invoiceFooterMessage;
     private bool allowNegativeStock = false;
+    private bool autoPrintInvoice = true;
+    private string? logoUrl;
+    private string? logoPreviewUrl;
+    private bool isUploadingLogo = false;
 
     private bool isLoading = true;
     private bool isSaving = false;
@@ -151,6 +220,7 @@
         saveErrorMessage = null;
         try
         {
+            autoPrintInvoice = StoreState.AutoPrintInvoiceAfterSale;
             var res = await ApiClient.GetSettingsAsync();
             if (res != null)
             {
@@ -162,6 +232,7 @@
                 currency = string.IsNullOrWhiteSpace(res.Currency) ? "EGP" : res.Currency;
                 invoiceFooterMessage = res.InvoiceFooterMessage;
                 allowNegativeStock = res.AllowNegativeStock;
+                logoUrl = res.LogoUrl;
             }
         }
         catch (Exception ex)
@@ -172,6 +243,54 @@
         {
             isLoading = false;
         }
+    }
+
+    private async Task HandleLogoSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            try
+            {
+                isUploadingLogo = true;
+                saveErrorMessage = null;
+                saveSuccessMessage = null;
+
+                using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                var selectedBytes = ms.ToArray();
+
+                var base64 = Convert.ToBase64String(selectedBytes);
+                logoPreviewUrl = $"data:{file.ContentType};base64,{base64}";
+
+                var uploadRes = await ApiClient.UploadStoreLogoAsync(selectedBytes, file.Name);
+                if (!string.IsNullOrEmpty(uploadRes.LogoUrl))
+                {
+                    logoUrl = uploadRes.LogoUrl;
+                    saveSuccessMessage = "تم رفع شعار المتجر بنجاح. اضغط على حفظ الإعدادات لتأكيد التغييرات.";
+                }
+                else if (!string.IsNullOrEmpty(uploadRes.Error))
+                {
+                    saveErrorMessage = uploadRes.Error;
+                }
+            }
+            catch (Exception ex)
+            {
+                saveErrorMessage = $"فشل قراءة أو رفع ملف الصورة: {ex.Message}";
+            }
+            finally
+            {
+                isUploadingLogo = false;
+            }
+        }
+    }
+
+    private void RemoveLogo()
+    {
+        logoUrl = null;
+        logoPreviewUrl = null;
+        saveSuccessMessage = "تمت إزالة الشعار. اضغط على حفظ الإعدادات لتأكيد التغييرات.";
     }
 
     private async Task SaveSettings()
@@ -194,15 +313,17 @@
             IsTaxIncluded: isTaxIncluded,
             Currency: currency,
             InvoiceFooterMessage: invoiceFooterMessage,
-            AllowNegativeStock: allowNegativeStock);
+            AllowNegativeStock: allowNegativeStock,
+            AutoPrintInvoice: autoPrintInvoice,
+            LogoUrl: logoUrl);
 
         var (success, error) = await ApiClient.UpdateSettingsAsync(req);
         isSaving = false;
 
         if (success)
         {
-            saveSuccessMessage = "تم حفظ إعدادات المتجر بنجاح.";
-            await StoreState.LoadSettingsAsync(ApiClient);
+            saveSuccessMessage = "تم حفظ إعدادات المتجر والشعار والطباعة بنجاح.";
+            await StoreState.LoadSettingsAsync(ApiClient, JS);
         }
         else
         {

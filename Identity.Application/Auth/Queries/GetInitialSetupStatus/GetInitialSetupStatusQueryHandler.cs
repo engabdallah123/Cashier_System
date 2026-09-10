@@ -1,4 +1,4 @@
-﻿using Identity.Domain.Users.Entities;
+using Identity.Domain.Users.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using POS.Shared.Application.Messaging;
@@ -17,9 +17,16 @@ namespace Identity.Application.Auth.Queries.GetInitialSetupStatus
 
         public async Task<Result<bool>> Handle(GetInitialSetupStatusQuery request, CancellationToken cancellationToken)
         {
-            // Returns true if NO users exist (initial setup required)
+            // Returns true if NO admin user exists (initial setup required)
             var hasAnyUsers = await _userManager.Users.AnyAsync(cancellationToken);
-            return Result<bool>.Success(!hasAnyUsers);
+            if (!hasAnyUsers)
+            {
+                return Result<bool>.Success(true);
+            }
+
+            var adminUsers = await _userManager.GetUsersInRoleAsync("Admin");
+            var adminExists = adminUsers.Any();
+            return Result<bool>.Success(!adminExists);
         }
     }
 }

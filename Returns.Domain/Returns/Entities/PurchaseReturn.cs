@@ -60,14 +60,27 @@ namespace Returns.Domain.Returns.Entities
             return Result<PurchaseReturn>.Success(purchaseReturn);
         }
 
-        public Result AddItem(Guid productId, decimal quantity, decimal unitCost, decimal tax = 0)
+        public Result<PurchaseReturnItem> AddItem(Guid productId, decimal quantity, decimal unitCost, decimal tax = 0)
         {
             var itemResult = PurchaseReturnItem.Create(Id, productId, quantity, unitCost, tax);
             if (itemResult.IsFailure)
-                return itemResult;
+                return Result<PurchaseReturnItem>.Failure(itemResult.Error);
 
             _items.Add(itemResult.Value!);
             CalculateTotals();
+            return Result<PurchaseReturnItem>.Success(itemResult.Value!);
+        }
+
+        public void ClearItems()
+        {
+            _items.Clear();
+            CalculateTotals();
+        }
+
+        public Result UpdateDetails(string? reason, string? notes)
+        {
+            Reason = reason?.Trim();
+            Notes = notes?.Trim();
             return Result.Success();
         }
 

@@ -53,9 +53,6 @@ namespace Returns.Domain.Returns.Entities
             if (string.IsNullOrWhiteSpace(returnNumber))
                 return Result<SalesReturn>.Failure(ReturnErrors.ReturnNumberRequired);
 
-            if (originalSaleId == Guid.Empty)
-                return Result<SalesReturn>.Failure(ReturnErrors.OriginalSaleIdRequired);
-
             if (cashierId == Guid.Empty)
                 return Result<SalesReturn>.Failure(ReturnErrors.CashierIdRequired);
 
@@ -69,14 +66,28 @@ namespace Returns.Domain.Returns.Entities
             return Result<SalesReturn>.Success(salesReturn);
         }
 
-        public Result AddItem(Guid productId, Guid originalSaleItemId, decimal quantity, decimal unitPrice, decimal tax = 0, string? reason = null)
+        public Result<SalesReturnItem> AddItem(Guid productId, Guid originalSaleItemId, decimal quantity, decimal unitPrice, decimal tax = 0, string? reason = null)
         {
             var itemResult = SalesReturnItem.Create(Id, productId, originalSaleItemId, quantity, unitPrice, tax, reason);
             if (itemResult.IsFailure)
-                return itemResult;
+                return Result<SalesReturnItem>.Failure(itemResult.Error);
 
             _items.Add(itemResult.Value!);
             CalculateTotals();
+            return Result<SalesReturnItem>.Success(itemResult.Value!);
+        }
+
+        public void ClearItems()
+        {
+            _items.Clear();
+            CalculateTotals();
+        }
+
+        public Result UpdateDetails(RefundMethod refundMethod, string? reason, string? notes)
+        {
+            RefundMethod = refundMethod;
+            Reason = reason?.Trim();
+            Notes = notes?.Trim();
             return Result.Success();
         }
 

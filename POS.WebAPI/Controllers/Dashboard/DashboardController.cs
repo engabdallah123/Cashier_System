@@ -1,4 +1,6 @@
 using Dashboard.Application.Dashboard.Queries.GetDashboard;
+using Dashboard.Application.Dashboard.Queries.GetDaySalesDetails;
+using Dashboard.Application.Dashboard.Queries.GetMonthlySalesCalendar;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -27,5 +29,35 @@ namespace POS.WebAPI.Controllers.Dashboard
 
             return Ok(result.Value);
         }
+
+        [HttpGet("monthly-calendar")]
+        public async Task<IActionResult> GetMonthlyCalendar(
+            [FromQuery] int year,
+            [FromQuery] int month,
+            [FromQuery] string? paymentMethod = null,
+            [FromQuery] Guid? cashierId = null,
+            CancellationToken ct = default)
+        {
+            var result = await _sender.Send(new GetMonthlySalesCalendarQuery(year, month, paymentMethod, cashierId), ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return Ok(result.Value);
+        }
+
+        [HttpGet("day-sales-details")]
+        public async Task<IActionResult> GetDaySalesDetails(
+            [FromQuery] DateTime date,
+            [FromQuery] string? paymentMethod = null,
+            [FromQuery] Guid? cashierId = null,
+            CancellationToken ct = default)
+        {
+            var result = await _sender.Send(new GetDaySalesDetailsQuery(date, paymentMethod, cashierId), ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return Ok(result.Value);
+        }
     }
 }
+

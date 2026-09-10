@@ -7,8 +7,9 @@ namespace Inventory.Application.Catalog.Products.Commands.CreateProduct
         public CreateProductCommandValidator()
         {
             RuleFor(x => x.Barcode).NotEmpty().WithMessage("الباركود مطلوب.");
-            RuleFor(x => x.NameAr).NotEmpty().WithMessage("اسم المنتج بالعربية مطلوب.");
-            RuleFor(x => x.NameEn).NotEmpty().WithMessage("اسم المنتج بالإنجليزية مطلوب.");
+            RuleFor(x => x)
+                .Must(x => !string.IsNullOrWhiteSpace(x.NameAr) || !string.IsNullOrWhiteSpace(x.NameEn))
+                .WithMessage("يجب إدخال اسم المنتج باللغة العربية أو الإنجليزية على الأقل.");
             RuleFor(x => x.CategoryId).NotEmpty().WithMessage("معرف التصنيف مطلوب.");
             RuleFor(x => x.UnitId).NotEmpty().WithMessage("معرف الوحدة مطلوب.");
             RuleFor(x => x.PurchasePrice).GreaterThanOrEqualTo(0).WithMessage("سعر الشراء لا يمكن أن يكون سالباً.");

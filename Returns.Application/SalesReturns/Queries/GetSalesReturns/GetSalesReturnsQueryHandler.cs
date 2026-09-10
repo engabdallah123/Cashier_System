@@ -27,7 +27,7 @@ namespace Returns.Application.SalesReturns.Queries.GetSalesReturns
                     sr.Reason, sr.Notes,
                     CASE sr.Status WHEN 1 THEN 'Completed' WHEN 2 THEN 'Cancelled' ELSE 'Completed' END AS Status
                 FROM [Returns].[SalesReturns] sr
-                LEFT JOIN [Identity].[AspNetUsers] u ON sr.CashierId = CAST(u.Id AS uniqueidentifier)
+                LEFT JOIN [Identity].[AspNetUsers] u ON sr.CashierId = TRY_CAST(u.Id AS uniqueidentifier)
                 LEFT JOIN [Sales].[Customers] c ON sr.CustomerId = c.Id
                 WHERE 1 = 1
                 """;

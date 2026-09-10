@@ -10,7 +10,7 @@
     <div class="page-header">
         <div>
             <h2 class="page-title">إدارة المستخدمين وصلاحيات الموظفين</h2>
-            <p class="page-subtitle">إنشاء حسابات جديدة للموظفين والتحكم في أدوار وصلاحيات الوصول للنظام</p>
+            <p class="page-subtitle">إنشاء حسابات جديدة للموظفين والتحكم في أدوار وصلاحيات الوصول للنظام أو حذفها</p>
         </div>
         @if (AuthState.UserRole == "Admin" || AuthState.UserRole == "Administrator")
         {
@@ -23,7 +23,7 @@
     <div style="display: flex; gap: 1rem; margin-bottom: 1.25rem; align-items: center;">
         <div class="search-box" style="max-width: 380px;">
             <i class="fa-solid fa-search"></i>
-            <input @bind="searchQuery" @bind:event="oninput" @onkeyup="FilterUsers" placeholder="ابحث باسم المستخدم أو البريد أو الهواتف..." />
+            <input @bind="searchQuery" @bind:event="oninput" @onkeyup="FilterUsers" placeholder="ابحث باسم المستخدم أو الاسم الكامل..." />
         </div>
         <div style="font-size: 0.85rem; color: var(--text-secondary);">
             إجمالي المستخدمين: <strong style="color: var(--text-primary);">@filteredUsers.Count</strong>
@@ -36,13 +36,13 @@
                 <tr>
                     <th>الاسم الكامل</th>
                     <th>اسم المستخدم</th>
-                    <th>البريد الإلكتروني</th>
-                    <th>رقم الهاتف</th>
                     <th>الدور / الصلاحية</th>
+                    <th style="width: 130px; text-align: center;">الرقم السري</th>
                     <th>الحالة</th>
+                    <th>تاريخ الإنشاء</th>
                     @if (AuthState.UserRole == "Admin" || AuthState.UserRole == "Administrator")
                     {
-                        <th style="width: 140px; text-align: center;">الإجراءات</th>
+                        <th style="width: 160px; text-align: center;">الإجراءات</th>
                     }
                 </tr>
             </thead>
@@ -72,13 +72,17 @@
                         <tr>
                             <td style="font-weight: 600;">@u.FullName</td>
                             <td><code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@u.UserName</code></td>
-                            <td>@(string.IsNullOrWhiteSpace(u.Email) ? "-" : u.Email)</td>
-                            <td>@(string.IsNullOrWhiteSpace(u.Phone) ? "-" : u.Phone)</td>
                             <td>
                                 <span class="badge @GetRoleBadgeClass(u.Role)">
                                     <i class="fa-solid @GetRoleIcon(u.Role) me-1"></i>
                                     @GetRoleDisplayName(u.Role)
                                 </span>
+                            </td>
+                            <td style="text-align: center;">
+                                <button class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.8rem; border-radius: 0.4rem;" @onclick="() => OpenPasswordModal(u)" title="عرض / تعيين الرقم السري">
+                                    <i class="fa-solid fa-eye text-primary me-1"></i>
+                                    <span>عرض</span>
+                                </button>
                             </td>
                             <td>
                                 <span class="badge @(u.IsActive ? "badge-green" : "badge-red")">
@@ -86,6 +90,7 @@
                                     @(u.IsActive ? "نشط" : "غير نشط")
                                 </span>
                             </td>
+                            <td style="font-size: 0.85rem; color: var(--text-secondary);">@u.CreatedAt.ToString("yyyy-MM-dd")</td>
                             @if (AuthState.UserRole == "Admin" || AuthState.UserRole == "Administrator")
                             {
                                 <td style="text-align: center;">
@@ -93,8 +98,11 @@
                                         <button class="btn btn-secondary" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" @onclick="() => OpenRoleModal(u)" title="تعديل الصلاحيات والدور">
                                             <i class="fa-solid fa-user-shield"></i>
                                         </button>
-                                        <button class="btn @(u.IsActive ? "btn-danger" : "btn-emerald")" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" @onclick="() => ToggleUserStatus(u)" title="@(u.IsActive ? "إيقاف الحساب" : "تفعيل الحساب")">
+                                        <button class="btn @(u.IsActive ? "btn-secondary" : "btn-emerald")" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" @onclick="() => ToggleUserStatus(u)" title="@(u.IsActive ? "إيقاف الحساب مؤقتاً" : "تفعيل الحساب")">
                                             <i class="fa-solid @(u.IsActive ? "fa-user-lock" : "fa-user-check")"></i>
+                                        </button>
+                                        <button class="btn btn-danger" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" @onclick="() => ConfirmDeleteUser(u)" title="حذف الحساب نهائياً">
+                                            <i class="fa-solid fa-trash"></i>
                                         </button>
                                     </div>
                                 </td>
@@ -109,11 +117,11 @@
     <Pagination CurrentPage="@currentPage" TotalItems="@filteredUsers.Count" PageSize="@pageSize" OnPageChanged="@(p => currentPage = p)" OnPageSizeChanged="@(s => { pageSize = s; currentPage = 1; EnsureValidPage(); })" />
 </div>
 
-<!-- Add New User Modal -->
+<!-- Add New User Modal (Name, Username, Password, Role only) -->
 @if (showAddModal)
 {
     <div class="modal-overlay" @onclick="CloseModals">
-        <div class="modal-card" style="width: 540px;" @onclick:stopPropagation="true">
+        <div class="modal-card" style="width: 480px;" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3 class="modal-title">
                     <i class="fa-solid fa-user-plus me-2" style="color: var(--accent-indigo);"></i>
@@ -133,38 +141,24 @@
                 }
 
                 <div class="form-group">
-                    <label>الاسم الكامل للموظف <span style="color: var(--accent-red);">*</span></label>
+                    <label>الاسم الكامل <span style="color: var(--accent-red);">*</span></label>
                     <input class="form-control" @bind="newUser.FullName" placeholder="مثال: أحمد محمود" />
                 </div>
 
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label>اسم المستخدم للدخول <span style="color: var(--accent-red);">*</span></label>
-                        <input class="form-control" @bind="newUser.UserName" placeholder="مثال: ahmed_m" />
-                    </div>
-
-                    <div class="form-group">
-                        <label>رقم الهاتف</label>
-                        <input class="form-control" @bind="newUser.Phone" placeholder="01012345678" />
-                    </div>
+                <div class="form-group">
+                    <label>اسم المستخدم للدخول (Username) <span style="color: var(--accent-red);">*</span></label>
+                    <input class="form-control" @bind="newUser.UserName" placeholder="مثال: ahmed_m" />
                 </div>
 
-                <div class="grid-2">
-                    <div class="form-group">
-                        <label>البريد الإلكتروني <span style="color: var(--accent-red);">*</span></label>
-                        <input type="email" class="form-control" @bind="newUser.Email" placeholder="user@example.com" />
-                    </div>
-
-                    <div class="form-group">
-                        <label>كلمة المرور <span style="color: var(--accent-red);">*</span></label>
-                        <input type="password" class="form-control" @bind="newUser.Password" placeholder="******" />
-                    </div>
+                <div class="form-group">
+                    <label>كلمة المرور (Password) <span style="color: var(--accent-red);">*</span></label>
+                    <input type="password" class="form-control" @bind="newUser.Password" placeholder="******" />
                 </div>
 
                 <div class="form-group">
                     <label>الصلاحية / نوع الحساب <span style="color: var(--accent-red);">*</span></label>
                     <select class="form-select" @bind="newUser.Role">
-                        <option value="Cashier">كاشير (نقطة البيع والشيفتات)</option>
+                        <option value="Cashier">كاشير (نقطة البيع والشيفتات فقط)</option>
                         <option value="Manager">مشرف (الكتالوج، المبيعات، المشتريات، المصروفات)</option>
                         <option value="Admin">مدير نظام (صلاحيات كاملة للتحكم والنظام)</option>
                     </select>
@@ -248,6 +242,148 @@
     </div>
 }
 
+<!-- Delete User Modal -->
+@if (showDeleteModal && selectedUserToDelete != null)
+{
+    <div class="modal-overlay" @onclick="CloseModals">
+        <div class="modal-card" style="width: 480px;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: #ef4444;">
+                    <i class="fa-solid fa-user-xmark me-2"></i> تأكيد حذف حساب المستخدم
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @errorMessage
+                    </div>
+                }
+
+                <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 1rem; margin-bottom: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; font-size: 0.9rem;">
+                    <div>
+                        <span style="color: var(--text-secondary); display: block; font-size: 0.8rem;">اسم المستخدم:</span>
+                        <code>@selectedUserToDelete.UserName</code>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary); display: block; font-size: 0.8rem;">الاسم بالكامل:</span>
+                        <strong style="color: var(--text-primary);">@selectedUserToDelete.FullName</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary); display: block; font-size: 0.8rem;">نوع الصلاحية:</span>
+                        <span class="badge badge-indigo">@selectedUserToDelete.Role</span>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary); display: block; font-size: 0.8rem;">حالة الحساب:</span>
+                        <span class="badge @(selectedUserToDelete.IsActive ? "badge-green" : "badge-red")">@(selectedUserToDelete.IsActive ? "نشط" : "معطل")</span>
+                    </div>
+                </div>
+
+                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; line-height: 1.5;">
+                    <i class="fa-solid fa-triangle-exclamation me-1"></i>
+                    <strong>تحذير الأثر الأمني:</strong> سيتم حذف بيانات اعتماد هذا المستخدم نهائياً ومنعه من تسجيل الدخول للنظام. ستبقى جميع الفواتير والعمليات السابقة التي قام بها مسجلة في سجلات النظام لأغراض التدقيق والمراجعة.
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSaving">إلغاء</button>
+                <button class="btn btn-danger" @onclick="DeleteUserConfirmed" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحذف...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-trash me-1"></i> <span>نعم، احذف الحساب</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- View / Reset Password Modal -->
+@if (showPasswordModal && selectedUserForPassword != null)
+{
+    <div class="modal-overlay" @onclick="CloseModals">
+        <div class="modal-card" style="width: 480px;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--accent-blue);">
+                    <i class="fa-solid fa-key me-2"></i> الرقم السري للمستخدم
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @errorMessage
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(passwordSuccessMessage))
+                {
+                    <div style="background-color: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #34d399; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-check me-1"></i> @passwordSuccessMessage
+                    </div>
+                }
+
+                <div style="background: var(--bg-primary); padding: 0.85rem; border-radius: 0.5rem; margin-bottom: 1.25rem;">
+                    <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-primary);">@selectedUserForPassword.FullName</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">اسم المستخدم: <code>@selectedUserForPassword.UserName</code></div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label>الرقم السري / كلمة المرور</label>
+                    <div style="display: flex; gap: 0.5rem; position: relative;">
+                        <input class="form-control" type="@(revealPassword ? "text" : "password")"
+                               @bind="newPasswordInput" placeholder="اكتب الرقم السري الجديد أو اتركه للتوليد"
+                               style="font-family: monospace; font-size: 1.1rem; font-weight: 700; letter-spacing: 1px;" />
+                        <button type="button" class="btn btn-secondary" style="padding: 0.5rem 0.85rem;" @onclick="() => revealPassword = !revealPassword" title="@(revealPassword ? "إخفاء" : "إظهار")">
+                            <i class="fa-solid @(revealPassword ? "fa-eye-slash text-amber" : "fa-eye text-primary")"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem;">
+                    <button type="button" class="btn btn-secondary" style="flex: 1; font-size: 0.82rem;" @onclick='() => newPasswordInput = "123456"'>
+                        <i class="fa-solid fa-bolt me-1"></i> تعيين إلى 123456
+                    </button>
+                    <button type="button" class="btn btn-secondary" style="flex: 1; font-size: 0.82rem;" @onclick="GenerateRandomPassword">
+                        <i class="fa-solid fa-dice me-1"></i> توليد رقم عشوائي
+                    </button>
+                </div>
+
+                <div style="font-size: 0.8rem; color: var(--text-muted); background: rgba(59, 130, 246, 0.1); border-right: 3px solid var(--accent-blue); padding: 0.6rem 0.8rem; border-radius: 0.35rem;">
+                    <i class="fa-solid fa-info-circle me-1"></i>
+                    إذا نسي الموظف رقمه السري، يمكنك كتابة أو توليد رقم سري جديد والضغط على "حفظ وتعيين الآن".
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSaving">إغلاق</button>
+                <button class="btn btn-primary" @onclick="SaveNewPassword" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحفظ...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check me-1"></i> <span>حفظ وتعيين الرقم السري</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<UserManagementDto> users = new();
     private List<UserManagementDto> filteredUsers = new();
@@ -260,10 +396,17 @@
     private string searchQuery = string.Empty;
     private bool showAddModal = false;
     private bool showRoleModal = false;
+    private bool showDeleteModal = false;
+    private bool showPasswordModal = false;
+    private bool revealPassword = true;
+    private string newPasswordInput = "123456";
+    private string passwordSuccessMessage = string.Empty;
+    private UserManagementDto? selectedUserForPassword;
     private bool isSaving = false;
     private string errorMessage = string.Empty;
 
     private UserManagementDto? selectedUser;
+    private UserManagementDto? selectedUserToDelete;
     private string targetRole = "Cashier";
 
     private CreateUserFormModel newUser = new();
@@ -272,9 +415,7 @@
     {
         public string FullName { get; set; } = string.Empty;
         public string UserName { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
-        public string? Phone { get; set; }
         public string Role { get; set; } = "Cashier";
     }
 
@@ -322,6 +463,7 @@
         errorMessage = string.Empty;
         showAddModal = true;
         showRoleModal = false;
+        showDeleteModal = false;
     }
 
     private void OpenRoleModal(UserManagementDto user)
@@ -331,13 +473,75 @@
         errorMessage = string.Empty;
         showRoleModal = true;
         showAddModal = false;
+        showDeleteModal = false;
+    }
+
+    private void ConfirmDeleteUser(UserManagementDto user)
+    {
+        selectedUserToDelete = user;
+        errorMessage = string.Empty;
+        showDeleteModal = true;
+        showAddModal = false;
+        showRoleModal = false;
+    }
+
+    private void OpenPasswordModal(UserManagementDto user)
+    {
+        selectedUserForPassword = user;
+        newPasswordInput = "123456";
+        revealPassword = true;
+        errorMessage = string.Empty;
+        passwordSuccessMessage = string.Empty;
+        showPasswordModal = true;
+        showAddModal = false;
+        showRoleModal = false;
+        showDeleteModal = false;
+    }
+
+    private void GenerateRandomPassword()
+    {
+        var rnd = new Random();
+        newPasswordInput = rnd.Next(100000, 999999).ToString();
+        revealPassword = true;
+    }
+
+    private async Task SaveNewPassword()
+    {
+        if (selectedUserForPassword == null) return;
+        if (string.IsNullOrWhiteSpace(newPasswordInput) || newPasswordInput.Length < 3)
+        {
+            errorMessage = "الرجاء إدخال كلمة مرور صالحة (3 خانات على الأقل).";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = string.Empty;
+        passwordSuccessMessage = string.Empty;
+
+        var (success, error) = await ApiClient.ResetUserPasswordAsync(selectedUserForPassword.Id, newPasswordInput.Trim());
+        isSaving = false;
+
+        if (success)
+        {
+            passwordSuccessMessage = $"تم تعيين الرقم السري بنجاح: {newPasswordInput.Trim()}";
+        }
+        else
+        {
+            errorMessage = !string.IsNullOrEmpty(error) ? error : "فشل تعيين الرقم السري.";
+        }
     }
 
     private void CloseModals()
     {
         showAddModal = false;
         showRoleModal = false;
+        showDeleteModal = false;
+        showPasswordModal = false;
         selectedUser = null;
+        selectedUserToDelete = null;
+        selectedUserForPassword = null;
+        errorMessage = string.Empty;
+        passwordSuccessMessage = string.Empty;
     }
 
     private async Task SaveUser()
@@ -354,15 +558,9 @@
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(newUser.Email))
+        if (string.IsNullOrWhiteSpace(newUser.Password) || newUser.Password.Length < 3)
         {
-            errorMessage = "الرجاء إدخال البريد الإلكتروني.";
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(newUser.Password) || newUser.Password.Length < 6)
-        {
-            errorMessage = "الرجاء إدخال كلمة مرور لا تقل عن 6 أحرف.";
+            errorMessage = "الرجاء إدخال كلمة مرور لا تقل عن 3 خانات.";
             return;
         }
 
@@ -372,9 +570,7 @@
         var requestModel = new CreateUserRequestModel(
             newUser.FullName,
             newUser.UserName,
-            newUser.Email,
             newUser.Password,
-            newUser.Phone,
             newUser.Role
         );
 
@@ -419,6 +615,27 @@
         if (success)
         {
             await LoadUsers();
+        }
+    }
+
+    private async Task DeleteUserConfirmed()
+    {
+        if (selectedUserToDelete == null) return;
+
+        isSaving = true;
+        errorMessage = string.Empty;
+
+        var (success, error) = await ApiClient.DeleteUserAsync(selectedUserToDelete.Id);
+        isSaving = false;
+
+        if (success)
+        {
+            CloseModals();
+            await LoadUsers();
+        }
+        else
+        {
+            errorMessage = !string.IsNullOrEmpty(error) ? error : "فشل حذف حساب المستخدم.";
         }
     }
 

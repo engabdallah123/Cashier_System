@@ -22,28 +22,26 @@ namespace Inventory.Domain.Catalog.Categories
             CreatedAt = DateTime.UtcNow;
         }
 
-        public static Result<Category> Create(string nameAr, string nameEn, Guid? parentCategoryId = null)
+        public static Result<Category> Create(string nameAr, string? nameEn = null, Guid? parentCategoryId = null)
         {
             if (string.IsNullOrWhiteSpace(nameAr))
                 return Result<Category>.Failure(CategoryErrors.NameArRequired);
 
-            if (string.IsNullOrWhiteSpace(nameEn))
-                return Result<Category>.Failure(CategoryErrors.NameEnRequired);
+            var en = string.IsNullOrWhiteSpace(nameEn) ? nameAr.Trim() : nameEn.Trim();
 
-            var category = new Category(Guid.NewGuid(), nameAr.Trim(), nameEn.Trim(), parentCategoryId);
+            var category = new Category(Guid.NewGuid(), nameAr.Trim(), en, parentCategoryId);
             return Result<Category>.Success(category);
         }
 
-        public Result Update(string nameAr, string nameEn, Guid? parentCategoryId)
+        public Result Update(string nameAr, string? nameEn = null, Guid? parentCategoryId = null)
         {
             if (string.IsNullOrWhiteSpace(nameAr))
                 return Result.Failure(CategoryErrors.NameArRequired);
 
-            if (string.IsNullOrWhiteSpace(nameEn))
-                return Result.Failure(CategoryErrors.NameEnRequired);
+            var en = string.IsNullOrWhiteSpace(nameEn) ? nameAr.Trim() : nameEn.Trim();
 
             NameAr = nameAr.Trim();
-            NameEn = nameEn.Trim();
+            NameEn = en;
             ParentCategoryId = parentCategoryId;
             return Result.Success();
         }

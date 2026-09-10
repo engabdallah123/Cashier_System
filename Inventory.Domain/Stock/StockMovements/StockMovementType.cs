@@ -8,6 +8,7 @@ namespace Inventory.Domain.Stock.StockMovements
         SaleReturn = 4,
         PurchaseReturn = 5,
         Damage = 6,
-        Transfer = 7
+        Transfer = 7,
+        Waste = 8
     }
 }

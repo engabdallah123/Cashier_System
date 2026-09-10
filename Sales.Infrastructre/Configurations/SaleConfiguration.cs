@@ -43,6 +43,11 @@ internal sealed class SaleConfiguration : IEntityTypeConfiguration<Sale>
             .HasForeignKey(i => i.SaleId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany(s => s.Payments)
+            .WithOne()
+            .HasForeignKey(p => p.SaleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasIndex(s => s.CashierId);
         builder.HasIndex(s => s.ShiftId);
         builder.HasIndex(s => s.CustomerId);

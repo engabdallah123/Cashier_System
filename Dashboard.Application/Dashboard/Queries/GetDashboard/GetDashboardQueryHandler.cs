@@ -42,15 +42,52 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
 
             const string salesSql = """
                 SELECT 
-                    ISNULL(SUM(TotalAmount), 0) AS TotalSales,
+                    ISNULL(SUM(s.TotalAmount), 0) AS TotalSales,
+                    ISNULL(SUM(
+                        CASE 
+                            WHEN s.PaidAmount <= 0 THEN 0
+                            WHEN s.PaidAmount - ISNULL(col.TotalCollected, 0) < 0 THEN 0
+                            ELSE s.PaidAmount - ISNULL(col.TotalCollected, 0)
+                        END
+                    ), 0) AS CashPaidAtSale,
+                    ISNULL(SUM(
+                        s.TotalAmount - (
+                            CASE 
+                                WHEN s.PaidAmount <= 0 THEN 0
+                                WHEN s.PaidAmount - ISNULL(col.TotalCollected, 0) < 0 THEN 0
+                                ELSE s.PaidAmount - ISNULL(col.TotalCollected, 0)
+                            END
+                        )
+                    ), 0) AS CreditSales,
                     COUNT(1) AS TotalInvoices
-                FROM [Sales].[Sales]
-                WHERE Status IN (1, 4) AND SaleDate >= @FromDate AND SaleDate <= @ToDate
+                FROM [Sales].[Sales] s
+                OUTER APPLY (
+                    SELECT SUM(p.Amount) AS TotalCollected
+                    FROM [Sales].[SalePayments] p
+                    WHERE p.SaleId = s.Id 
+                      AND (p.Notes LIKE N'%تحصيل%' OR p.PaymentDate > DATEADD(minute, 5, s.SaleDate))
+                ) col
+                WHERE s.Status IN (1, 4) AND s.SaleDate >= @FromDate AND s.SaleDate <= @ToDate
                 """;
 
             var salesMetrics = await connection.QuerySingleAsync(salesSql, new { FromDate = fromDate, ToDate = toDate });
             decimal totalSales = Convert.ToDecimal(salesMetrics.TotalSales);
+            decimal cashSalesAmount = Convert.ToDecimal(salesMetrics.CashPaidAtSale);
+            decimal creditSalesAmount = Convert.ToDecimal(salesMetrics.CreditSales);
             int totalInvoices = Convert.ToInt32(salesMetrics.TotalInvoices);
+
+            // استعلام تحصيلات الديون السابقة خلال الفترة
+            const string collectionsSql = """
+                IF EXISTS (SELECT 1 FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id WHERE t.name = 'SalePayments' AND s.name = 'Sales')
+                    SELECT ISNULL(SUM(p.Amount), 0)
+                    FROM [Sales].[SalePayments] p
+                    JOIN [Sales].[Sales] s ON p.SaleId = s.Id
+                    WHERE p.PaymentDate >= @FromDate AND p.PaymentDate <= @ToDate
+                      AND (p.Notes LIKE N'%تحصيل%' OR p.PaymentDate > DATEADD(minute, 5, s.SaleDate))
+                ELSE
+                    SELECT CAST(0 AS decimal(18,2))
+                """;
+            decimal debtCollectionsAmount = await connection.QuerySingleAsync<decimal>(collectionsSql, new { FromDate = fromDate, ToDate = toDate });
 
             const string purchasesSql = """
                 SELECT ISNULL(SUM(TotalAmount), 0) 
@@ -101,7 +138,7 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
             var lowStockList = (await connection.QueryAsync<LowStockProductResponse>(lowStockListSql)).ToList();
 
             const string topProductsSql = """
-                SELECT TOP 5
+                SELECT TOP 100
                     i.ProductId,
                     p.NameAr AS ProductName,
                     p.Barcode,
@@ -112,7 +149,7 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
                 LEFT JOIN [Inventory].[Products] p ON i.ProductId = p.Id
                 WHERE s.Status IN (1, 4) AND s.SaleDate >= @FromDate AND s.SaleDate <= @ToDate
                 GROUP BY i.ProductId, p.NameAr, p.Barcode
-                ORDER BY TotalRevenue DESC
+                ORDER BY TotalQuantitySold DESC, TotalRevenue DESC
                 """;
             var topProducts = (await connection.QueryAsync<TopProductResponse>(topProductsSql, new { FromDate = fromDate, ToDate = toDate })).ToList();
 
@@ -125,7 +162,7 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
                     ISNULL(SUM(s.TotalSales), 0) AS TotalSalesAmount,
                     ISNULL(SUM(s.CashDifference), 0) AS TotalCashDifference
                 FROM [Shifts].[Shifts] s
-                LEFT JOIN [Identity].[AspNetUsers] u ON s.CashierId = CAST(u.Id AS uniqueidentifier)
+                LEFT JOIN [Identity].[AspNetUsers] u ON s.CashierId = TRY_CAST(u.Id AS uniqueidentifier)
                 WHERE s.OpenedAt >= @FromDate AND s.OpenedAt <= @ToDate
                 GROUP BY s.CashierId, u.FullName
                 """;
@@ -149,6 +186,34 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
                 return new PaymentMethodSummaryResponse(method, amount, count, Math.Round(pct, 1));
             }).ToList();
 
+            // Customer Debts (الديون المستحقة عند العملاء / اللي ليا بره)
+            const string customerDebtsSql = """
+                SELECT 
+                    ISNULL(SUM(TotalAmount - PaidAmount), 0) AS TotalCustomerDebts,
+                    COUNT(1) AS CustomerDebtsCount
+                FROM [Sales].[Sales]
+                WHERE Status = 1 AND (TotalAmount - PaidAmount) > 0.001
+                """;
+            var customerDebtsRaw = await connection.QuerySingleAsync(customerDebtsSql);
+            decimal totalCustomerDebts = Convert.ToDecimal(customerDebtsRaw.TotalCustomerDebts);
+            int customerDebtsCount = Convert.ToInt32(customerDebtsRaw.CustomerDebtsCount);
+
+            const string topDebtsSql = """
+                SELECT TOP 5
+                    s.CustomerId,
+                    ISNULL(c.Name, N'عميل غير مسجل') AS CustomerName,
+                    c.Phone AS CustomerPhone,
+                    SUM(s.TotalAmount - s.PaidAmount) AS TotalDebtAmount,
+                    COUNT(1) AS InvoicesCount,
+                    MAX(s.SaleDate) AS LastSaleDate
+                FROM [Sales].[Sales] s
+                LEFT JOIN [Sales].[Customers] c ON s.CustomerId = c.Id
+                WHERE s.Status = 1 AND (s.TotalAmount - s.PaidAmount) > 0.001
+                GROUP BY s.CustomerId, c.Name, c.Phone
+                ORDER BY TotalDebtAmount DESC
+                """;
+            var topCustomerDebts = (await connection.QueryAsync<CustomerDebtSummaryResponse>(topDebtsSql)).ToList();
+
             var nowLocal = DateTime.Now;
             var todayStart = DateTime.SpecifyKind(nowLocal.Date, DateTimeKind.Local).ToUniversalTime();
             var todayEnd = DateTime.SpecifyKind(nowLocal.Date.AddDays(1).AddTicks(-1), DateTimeKind.Local).ToUniversalTime();
@@ -163,9 +228,42 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
             var monthMetrics = await GetPeriodMetricsAsync(connection, monthStart, monthEnd);
             var yearMetrics = await GetPeriodMetricsAsync(connection, yearStart, yearEnd);
 
-            decimal netProfit = (totalSales - totalSalesReturns) - (totalPurchases - totalPurchaseReturns) - totalExpenses;
-            decimal avgInvoiceValue = totalInvoices > 0 ? totalSales / totalInvoices : 0;
-            decimal profitMarginPct = totalSales > 0 ? (netProfit / totalSales) * 100 : 0;
+            decimal netSales = Math.Max(0, totalSales - totalSalesReturns);
+            decimal totalCashCollected = cashSalesAmount + debtCollectionsAmount;
+            decimal realizedRevenue = Math.Max(0, totalCashCollected - totalSalesReturns);
+            decimal netProfit = realizedRevenue - (totalPurchases - totalPurchaseReturns) - totalExpenses;
+            decimal avgInvoiceValue = totalInvoices > 0 ? netSales / totalInvoices : 0;
+            decimal profitMarginPct = realizedRevenue > 0 ? (netProfit / realizedRevenue) * 100 : 0;
+
+            // إحصائيات الخسائر والهالك بسعر التكلفة (شراء)
+            var weekStart = todayStart.AddDays(-7);
+            const string wasteSql = """
+                SELECT 
+                    ISNULL(SUM(CASE WHEN CreatedAt >= @TodayStart THEN TotalCost ELSE 0 END), 0) AS TodayLoss,
+                    ISNULL(SUM(CASE WHEN CreatedAt >= @WeekStart THEN TotalCost ELSE 0 END), 0) AS WeekLoss,
+                    ISNULL(SUM(CASE WHEN CreatedAt >= @MonthStart THEN TotalCost ELSE 0 END), 0) AS MonthLoss,
+                    ISNULL(SUM(TotalCost), 0) AS TotalLoss
+                FROM [Inventory].[InventoryWastes]
+                """;
+
+            var wasteStats = await connection.QuerySingleAsync(wasteSql, new {
+                TodayStart = todayStart,
+                WeekStart = weekStart,
+                MonthStart = monthStart
+            });
+
+            var wasteLosses = new WasteLossesResponse(
+                Convert.ToDecimal(wasteStats.TodayLoss),
+                Convert.ToDecimal(wasteStats.WeekLoss),
+                Convert.ToDecimal(wasteStats.MonthLoss),
+                Convert.ToDecimal(wasteStats.TotalLoss));
+
+            const string notifsCountSql = """
+                SELECT COUNT(1)
+                FROM [Inventory].[ExpiryNotifications]
+                WHERE Status = 'Active' OR (Status = 'Snoozed' AND SnoozedUntil <= GETUTCDATE())
+                """;
+            int activeNotifsCount = await connection.QuerySingleAsync<int>(notifsCountSql);
 
             var dashboard = new DashboardResponse(
                 totalSales,
@@ -184,7 +282,16 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
                 topProducts,
                 cashierPerformances,
                 paymentMethodsSummary,
-                lowStockList);
+                lowStockList,
+                totalCustomerDebts,
+                customerDebtsCount,
+                topCustomerDebts,
+                wasteLosses,
+                activeNotifsCount,
+                cashSalesAmount,
+                creditSalesAmount,
+                debtCollectionsAmount,
+                realizedRevenue);
 
             await _cacheService.SetAsync(
                 cacheKey,
@@ -201,7 +308,42 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
             const string periodSql = """
                 SELECT 
                     (SELECT ISNULL(SUM(TotalAmount), 0) FROM [Sales].[Sales] WHERE Status IN (1, 4) AND SaleDate >= @Start AND SaleDate <= @End) AS TotalSales,
+                    (SELECT ISNULL(SUM(
+                        CASE 
+                            WHEN s.PaidAmount <= 0 THEN 0
+                            WHEN s.PaidAmount - ISNULL(col.TotalCollected, 0) < 0 THEN 0
+                            ELSE s.PaidAmount - ISNULL(col.TotalCollected, 0)
+                        END
+                    ), 0) 
+                    FROM [Sales].[Sales] s 
+                    OUTER APPLY (
+                        SELECT SUM(p.Amount) AS TotalCollected
+                        FROM [Sales].[SalePayments] p
+                        WHERE p.SaleId = s.Id 
+                          AND (p.Notes LIKE N'%تحصيل%' OR p.PaymentDate > DATEADD(minute, 5, s.SaleDate))
+                    ) col
+                    WHERE s.Status IN (1, 4) AND s.SaleDate >= @Start AND s.SaleDate <= @End) AS CashPaidAtSale,
+                    (SELECT ISNULL(SUM(
+                        s.TotalAmount - (
+                            CASE 
+                                WHEN s.PaidAmount <= 0 THEN 0
+                                WHEN s.PaidAmount - ISNULL(col.TotalCollected, 0) < 0 THEN 0
+                                ELSE s.PaidAmount - ISNULL(col.TotalCollected, 0)
+                            END
+                        )
+                    ), 0) 
+                    FROM [Sales].[Sales] s 
+                    OUTER APPLY (
+                        SELECT SUM(p.Amount) AS TotalCollected
+                        FROM [Sales].[SalePayments] p
+                        WHERE p.SaleId = s.Id 
+                          AND (p.Notes LIKE N'%تحصيل%' OR p.PaymentDate > DATEADD(minute, 5, s.SaleDate))
+                    ) col
+                    WHERE s.Status IN (1, 4) AND s.SaleDate >= @Start AND s.SaleDate <= @End) AS CreditSales,
                     (SELECT COUNT(1) FROM [Sales].[Sales] WHERE Status IN (1, 4) AND SaleDate >= @Start AND SaleDate <= @End) AS TotalInvoices,
+                    (CASE WHEN EXISTS (SELECT 1 FROM sys.tables t JOIN sys.schemas s ON t.schema_id = s.schema_id WHERE t.name = 'SalePayments' AND s.name = 'Sales')
+                          THEN (SELECT ISNULL(SUM(p.Amount), 0) FROM [Sales].[SalePayments] p JOIN [Sales].[Sales] s ON p.SaleId = s.Id WHERE p.PaymentDate >= @Start AND p.PaymentDate <= @End AND (p.Notes LIKE N'%تحصيل%' OR p.PaymentDate > DATEADD(minute, 5, s.SaleDate)))
+                          ELSE 0 END) AS DebtCollections,
                     (SELECT ISNULL(SUM(TotalAmount), 0) FROM [Purchases].[Purchases] WHERE Status = 2 AND PurchaseDate >= @Start AND PurchaseDate <= @End) AS TotalPurchases,
                     (SELECT ISNULL(SUM(Amount), 0) FROM [Expenses].[Expenses] WHERE ExpenseDate >= @Start AND ExpenseDate <= @End) AS TotalExpenses,
                     (SELECT ISNULL(SUM(TotalAmount), 0) FROM [Returns].[SalesReturns] WHERE Status = 1 AND ReturnDate >= @Start AND ReturnDate <= @End) AS SalesReturns,
@@ -209,16 +351,20 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
                 """;
 
             var raw = await connection.QuerySingleAsync(periodSql, new { Start = start, End = end });
-            decimal sales = Convert.ToDecimal(raw.TotalSales);
+            decimal grossSales = Convert.ToDecimal(raw.TotalSales);
+            decimal cashSales = Convert.ToDecimal(raw.CashPaidAtSale);
+            decimal creditSales = Convert.ToDecimal(raw.CreditSales);
+            decimal debtCollections = Convert.ToDecimal(raw.DebtCollections);
             int invoices = Convert.ToInt32(raw.TotalInvoices);
             decimal purchases = Convert.ToDecimal(raw.TotalPurchases);
             decimal expenses = Convert.ToDecimal(raw.TotalExpenses);
             decimal salesReturns = Convert.ToDecimal(raw.SalesReturns);
             decimal purchaseReturns = Convert.ToDecimal(raw.PurchaseReturns);
 
-            decimal netProfit = (sales - salesReturns) - (purchases - purchaseReturns) - expenses;
+            decimal realizedRevenue = Math.Max(0, (cashSales + debtCollections) - salesReturns);
+            decimal netProfit = realizedRevenue - (purchases - purchaseReturns) - expenses;
 
-            return new PeriodMetricsResponse(sales, netProfit, invoices, purchases, expenses);
+            return new PeriodMetricsResponse(grossSales, netProfit, invoices, purchases, expenses, cashSales, creditSales, debtCollections, realizedRevenue);
         }
     }
 }

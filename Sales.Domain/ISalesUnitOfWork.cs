@@ -10,5 +10,6 @@ namespace Sales.Domain
         IBaseRepository<Customer> CustomerRepository { get; }
         IBaseRepository<Sale> SaleRepository { get; }
         IBaseRepository<SaleItem> SaleItemRepository { get; }
+        IBaseRepository<SalePayment> SalePaymentRepository { get; }
     }
 }

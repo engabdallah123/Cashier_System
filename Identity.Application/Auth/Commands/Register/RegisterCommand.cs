@@ -5,8 +5,8 @@ namespace Identity.Application.Auth.Commands.Register
     public sealed record RegisterCommand(
         string FullName,
         string UserName,
-        string Email,
         string Password,
-        string? Phone,
-        string Role) : ICommand<AuthResponse>;
+        string Role,
+        string? Email = null,
+        string? Phone = null) : ICommand<AuthResponse>;
 }

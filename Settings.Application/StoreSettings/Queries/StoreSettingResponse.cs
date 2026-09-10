@@ -10,5 +10,7 @@ namespace Settings.Application.StoreSettings.Queries
         string Currency,
         string? InvoiceFooterMessage,
         bool AllowNegativeStock,
+        bool AutoPrintInvoice,
+        string? LogoUrl,
         DateTime UpdatedAt);
 }

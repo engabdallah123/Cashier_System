@@ -3,6 +3,7 @@
 @using global::POS.Desktop.Services.Api
 @attribute [Authorize(Roles = "Admin,Manager")]
 @inject PosApiClient ApiClient
+@inject NavigationManager Nav
 
 <div class="dashboard-container">
     <!-- Top Header & Title -->
@@ -69,6 +70,71 @@
     }
     else if (data is not null)
     {
+        <!-- Urgent Expiry Notifications Banner -->
+        @if (activeExpiryNotifications.Any())
+        {
+            <div class="expiry-alerts-banner" style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 0.75rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <i class="fa-solid fa-triangle-exclamation" style="color: var(--accent-red); font-size: 1.2rem;"></i>
+                        <h3 style="margin: 0; font-size: 1rem; font-weight: 700; color: var(--text-primary);">
+                            تنبيهات الصلاحية العاجلة بالمخزن (@activeExpiryNotifications.Count دفعة بحاجة لمتابعتك)
+                        </h3>
+                    </div>
+                    <span style="font-size: 0.78rem; color: var(--text-secondary);">التنبيه لا يخصم من المخزون تلقائياً حتى تتخذ الإجراء المطلوب</span>
+                </div>
+
+                <div class="table-container" style="background: var(--bg-card); border-radius: 0.5rem; overflow-x: auto;">
+                    <table class="data-table" style="font-size: 0.85rem;">
+                        <thead>
+                            <tr>
+                                <th>اسم الصنف</th>
+                                <th>رقم التشغيلة</th>
+                                <th>الكمية المتبقية</th>
+                                <th>تاريخ الصلاحية</th>
+                                <th>الحالة</th>
+                                <th style="text-align: center; width: 290px;">الإجراءات المطلوبة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var n in activeExpiryNotifications)
+                            {
+                                <tr>
+                                    <td style="font-weight: 700;">@n.ProductName</td>
+                                    <td><code>@(string.IsNullOrWhiteSpace(n.BatchNumber) ? "افتراضي" : n.BatchNumber)</code></td>
+                                    <td><strong style="color: var(--accent-amber);">@n.RemainingQuantity.ToString("N0")</strong> قطعة</td>
+                                    <td style="color: @(n.IsExpired ? "var(--accent-red)" : "var(--accent-amber)"); font-weight: 600;">
+                                        @(n.ExpiryDate?.ToString("yyyy-MM-dd") ?? "-")
+                                    </td>
+                                    <td>
+                                        @if (n.IsExpired)
+                                        {
+                                            <span class="badge badge-red"><i class="fa-solid fa-triangle-exclamation me-1"></i> منتهي الصلاحية</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-amber"><i class="fa-solid fa-clock me-1"></i> ينتهي خلال @n.DaysRemaining يوم</span>
+                                        }
+                                    </td>
+                                    <td style="text-align: center; white-space: nowrap;">
+                                        <button type="button" class="btn btn-sm btn-secondary me-1" style="color: var(--accent-emerald); border-color: rgba(16, 185, 129, 0.3); font-size: 0.75rem; padding: 0.25rem 0.5rem;" title="تأكيد أن البضاعة سليمة ولا يوجد هالك" @onclick="() => ResolveNotification(n)">
+                                            <i class="fa-solid fa-check me-1"></i> صلاحيةالمخزون تمام 
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-secondary me-1" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;" title="تأجيل هذا التنبيه لمدة 24 ساعة" @onclick="() => SnoozeNotification(n)">
+                                            <i class="fa-solid fa-clock-rotate-left me-1"></i> Skip (24h)
+                                        </button>
+                                        <button type="button" class="btn btn-sm btn-danger" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;" title="تسجيل كمية هالك وخصمها من المخزون" @onclick="() => OpenWasteModal(n)">
+                                            <i class="fa-solid fa-trash-can me-1"></i> أيوه انتهت الصلاحية
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
         <!-- Section 1: Today vs Month vs Year Instant Overview -->
         <div class="period-cards-grid">
             <!-- Today Card -->
@@ -82,9 +148,20 @@
                         <span class="lbl">المبيعات:</span>
                         <span class="val text-green">@((data.TodayMetrics?.TotalSales ?? 0).ToString("N2")) ج.م</span>
                     </div>
+                    @if ((data.TodayMetrics?.CreditSales ?? 0) > 0 || (data.TodayMetrics?.DebtCollections ?? 0) > 0)
+                    {
+                        <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: -3px; margin-bottom: 4px; display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                            <span style="color: var(--accent-emerald);">نقدي: @((data.TodayMetrics?.CashSales ?? 0).ToString("N0"))</span>
+                            <span style="color: var(--accent-amber);">آجل: @((data.TodayMetrics?.CreditSales ?? 0).ToString("N0"))</span>
+                            @if ((data.TodayMetrics?.DebtCollections ?? 0) > 0)
+                            {
+                                <span style="color: var(--accent-blue);">تحصيل: @((data.TodayMetrics?.DebtCollections ?? 0).ToString("N0"))</span>
+                            }
+                        </div>
+                    }
                     <div class="period-stat">
                         <span class="lbl">صافي الربح:</span>
-                        <span class="val @((data.TodayMetrics?.NetProfit ?? 0) >= 0 ? "text-blue" : "text-red")">
+                        <span class="val @((data.TodayMetrics?.NetProfit ?? 0) >= 0 ? "text-blue" : "text-red")" title="ربح محقق من المقبوضات الفعلية">
                             @((data.TodayMetrics?.NetProfit ?? 0).ToString("N2")) ج.م
                         </span>
                     </div>
@@ -106,9 +183,20 @@
                         <span class="lbl">المبيعات:</span>
                         <span class="val text-green">@((data.MonthMetrics?.TotalSales ?? 0).ToString("N2")) ج.م</span>
                     </div>
+                    @if ((data.MonthMetrics?.CreditSales ?? 0) > 0 || (data.MonthMetrics?.DebtCollections ?? 0) > 0)
+                    {
+                        <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: -3px; margin-bottom: 4px; display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                            <span style="color: var(--accent-emerald);">نقدي: @((data.MonthMetrics?.CashSales ?? 0).ToString("N0"))</span>
+                            <span style="color: var(--accent-amber);">آجل: @((data.MonthMetrics?.CreditSales ?? 0).ToString("N0"))</span>
+                            @if ((data.MonthMetrics?.DebtCollections ?? 0) > 0)
+                            {
+                                <span style="color: var(--accent-blue);">تحصيل: @((data.MonthMetrics?.DebtCollections ?? 0).ToString("N0"))</span>
+                            }
+                        </div>
+                    }
                     <div class="period-stat">
                         <span class="lbl">صافي الربح:</span>
-                        <span class="val @((data.MonthMetrics?.NetProfit ?? 0) >= 0 ? "text-blue" : "text-red")">
+                        <span class="val @((data.MonthMetrics?.NetProfit ?? 0) >= 0 ? "text-blue" : "text-red")" title="ربح محقق من المقبوضات الفعلية">
                             @((data.MonthMetrics?.NetProfit ?? 0).ToString("N2")) ج.م
                         </span>
                     </div>
@@ -130,9 +218,20 @@
                         <span class="lbl">المبيعات:</span>
                         <span class="val text-green">@((data.YearMetrics?.TotalSales ?? 0).ToString("N2")) ج.م</span>
                     </div>
+                    @if ((data.YearMetrics?.CreditSales ?? 0) > 0 || (data.YearMetrics?.DebtCollections ?? 0) > 0)
+                    {
+                        <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: -3px; margin-bottom: 4px; display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                            <span style="color: var(--accent-emerald);">نقدي: @((data.YearMetrics?.CashSales ?? 0).ToString("N0"))</span>
+                            <span style="color: var(--accent-amber);">آجل: @((data.YearMetrics?.CreditSales ?? 0).ToString("N0"))</span>
+                            @if ((data.YearMetrics?.DebtCollections ?? 0) > 0)
+                            {
+                                <span style="color: var(--accent-blue);">تحصيل: @((data.YearMetrics?.DebtCollections ?? 0).ToString("N0"))</span>
+                            }
+                        </div>
+                    }
                     <div class="period-stat">
                         <span class="lbl">صافي الربح:</span>
-                        <span class="val @((data.YearMetrics?.NetProfit ?? 0) >= 0 ? "text-blue" : "text-red")">
+                        <span class="val @((data.YearMetrics?.NetProfit ?? 0) >= 0 ? "text-blue" : "text-red")" title="ربح محقق من المقبوضات الفعلية">
                             @((data.YearMetrics?.NetProfit ?? 0).ToString("N2")) ج.م
                         </span>
                     </div>
@@ -152,57 +251,259 @@
         </div>
 
         <div class="kpi-grid">
-            <div class="kpi-card kpi-sales">
-                <div class="kpi-icon-wrapper text-green-bg"><i class="fa-solid fa-cash-register"></i></div>
-                <div class="kpi-info">
-                    <span class="kpi-label">إجمالي المبيعات</span>
-                    <div class="kpi-value text-green">@data.TotalSales.ToString("N2") ج.م</div>
-                    <span class="kpi-footer"><i class="fa-solid fa-receipt"></i> @data.TotalInvoices فاتورة مبيعات</span>
+            <!-- 1. إجمالي المبيعات -->
+            <div class="kpi-card kpi-card-sales">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon-wrapper text-green-bg"><i class="fa-solid fa-cash-register"></i></div>
+                    <span class="kpi-label">إجمالي المبيعات (نقدي + آجل)</span>
                 </div>
+                <div class="kpi-value text-green">@data.TotalSales.ToString("N2") <span class="kpi-currency">ج.م</span></div>
+                <div class="kpi-tags">
+                    <span class="kpi-tag kpi-tag-cash"><i class="fa-solid fa-money-bill-wave"></i> نقدي: @data.CashSalesAmount.ToString("N0")</span>
+                    <span class="kpi-tag kpi-tag-credit"><i class="fa-solid fa-clock"></i> آجل: @data.CreditSalesAmount.ToString("N0")</span>
+                </div>
+                <div class="kpi-footer"><i class="fa-solid fa-receipt"></i> @data.TotalInvoices فاتورة مبيعات</div>
             </div>
 
-            <div class="kpi-card kpi-profit">
-                <div class="kpi-icon-wrapper text-blue-bg"><i class="fa-solid fa-sack-dollar"></i></div>
-                <div class="kpi-info">
-                    <span class="kpi-label">صافي الأرباح</span>
-                    <div class="kpi-value @(data.NetProfit >= 0 ? "text-blue" : "text-red")">@data.NetProfit.ToString("N2") ج.م</div>
-                    <span class="kpi-footer"><i class="fa-solid fa-percent"></i> هامش الربح: @data.ProfitMarginPercentage.ToString("F1")%</span>
+            <!-- 2. صافي الأرباح المحققة -->
+            <div class="kpi-card kpi-card-profit">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon-wrapper text-blue-bg"><i class="fa-solid fa-sack-dollar"></i></div>
+                    <span class="kpi-label">صافي الأرباح المحققة</span>
                 </div>
+                <div class="kpi-value @(data.NetProfit >= 0 ? "text-blue" : "text-red")">@data.NetProfit.ToString("N2") <span class="kpi-currency">ج.م</span></div>
+                <div class="kpi-tags">
+                    <span class="kpi-tag kpi-tag-margin"><i class="fa-solid fa-percent"></i> هامش الربح: @data.ProfitMarginPercentage.ToString("F1")%</span>
+                </div>
+                <div class="kpi-footer" title="ربح فعلي محقق من المقبوضات النقدية"><i class="fa-solid fa-shield-halved"></i> محقق من المقبوضات الفعلية</div>
             </div>
 
-            <div class="kpi-card kpi-purchases">
-                <div class="kpi-icon-wrapper text-amber-bg"><i class="fa-solid fa-cart-flatbed"></i></div>
-                <div class="kpi-info">
+            <!-- 3. المقبوضات النقدية والسيولة الداخلة -->
+            <div class="kpi-card kpi-card-cashin">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon-wrapper text-emerald-bg"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+                    <span class="kpi-label">المقبوضات والسيولة الداخلة</span>
+                </div>
+                @{
+                    var totalRealized = data.CashSalesAmount + data.DebtCollectionsAmount;
+                }
+                <div class="kpi-value text-emerald">@totalRealized.ToString("N2") <span class="kpi-currency">ج.م</span></div>
+                <div class="kpi-tags">
+                    <span class="kpi-tag kpi-tag-cash">كاش: @data.CashSalesAmount.ToString("N0")</span>
+                    @if (data.DebtCollectionsAmount > 0)
+                    {
+                        <span class="kpi-tag kpi-tag-collected">تحصيل: @data.DebtCollectionsAmount.ToString("N0")</span>
+                    }
+                </div>
+                <div class="kpi-footer"><i class="fa-solid fa-vault"></i> إجمالي المقبوضات الفعلية</div>
+            </div>
+
+            <!-- 4. ديون العملاء (ليا بره) -->
+            <div class="kpi-card kpi-card-debts" style="cursor: pointer;" @onclick='() => Nav.NavigateTo("debts")' title="انقر لفتح شاشة فواتير الديون والتحصيل">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon-wrapper text-red-bg"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                    <span class="kpi-label">ديون العملاء (ليا بره)</span>
+                </div>
+                <div class="kpi-value text-red">@data.TotalCustomerDebts.ToString("N2") <span class="kpi-currency">ج.م</span></div>
+                <div class="kpi-tags">
+                    <span class="kpi-tag kpi-tag-debt"><i class="fa-solid fa-triangle-exclamation"></i> غير مسددة</span>
+                </div>
+                <div class="kpi-footer"><i class="fa-solid fa-arrow-up-right-from-square"></i> @data.CustomerDebtsCount فاتورة (انقر للتحصيل)</div>
+            </div>
+
+            <!-- 5. إجمالي المشتريات -->
+            <div class="kpi-card kpi-card-purchases">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon-wrapper text-amber-bg"><i class="fa-solid fa-cart-flatbed"></i></div>
                     <span class="kpi-label">إجمالي المشتريات</span>
-                    <div class="kpi-value text-amber">@data.TotalPurchases.ToString("N2") ج.م</div>
-                    <span class="kpi-footer"><i class="fa-solid fa-boxes-packing"></i> تكلفة البضائع المدخلة</span>
                 </div>
+                <div class="kpi-value text-amber">@data.TotalPurchases.ToString("N2") <span class="kpi-currency">ج.م</span></div>
+                <div class="kpi-tags">
+                    <span class="kpi-tag kpi-tag-purchases"><i class="fa-solid fa-truck-ramp-box"></i> وارد مخزني</span>
+                </div>
+                <div class="kpi-footer"><i class="fa-solid fa-boxes-packing"></i> تكلفة البضائع المدخلة</div>
             </div>
 
-            <div class="kpi-card kpi-expenses">
-                <div class="kpi-icon-wrapper text-red-bg"><i class="fa-solid fa-receipt"></i></div>
-                <div class="kpi-info">
+            <!-- 6. المصروفات العامة -->
+            <div class="kpi-card kpi-card-expenses">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon-wrapper text-rose-bg"><i class="fa-solid fa-receipt"></i></div>
                     <span class="kpi-label">المصروفات العامة</span>
-                    <div class="kpi-value text-red">@data.TotalExpenses.ToString("N2") ج.م</div>
-                    <span class="kpi-footer"><i class="fa-solid fa-money-bill-transfer"></i> مصاريف التشغيل والنثريات</span>
                 </div>
+                <div class="kpi-value text-rose">@data.TotalExpenses.ToString("N2") <span class="kpi-currency">ج.م</span></div>
+                <div class="kpi-tags">
+                    <span class="kpi-tag kpi-tag-expenses"><i class="fa-solid fa-coins"></i> مصاريف تشغيل</span>
+                </div>
+                <div class="kpi-footer"><i class="fa-solid fa-money-bill-transfer"></i> النثريات والإيجار والخدمات</div>
             </div>
 
-            <div class="kpi-card kpi-returns">
-                <div class="kpi-icon-wrapper text-purple-bg"><i class="fa-solid fa-rotate-left"></i></div>
-                <div class="kpi-info">
+            <!-- 7. مرتجعات المبيعات والمشتريات -->
+            <div class="kpi-card kpi-card-returns">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon-wrapper text-purple-bg"><i class="fa-solid fa-rotate-left"></i></div>
                     <span class="kpi-label">مرتجعات المبيعات</span>
-                    <div class="kpi-value text-purple">@data.TotalSalesReturns.ToString("N2") ج.م</div>
-                    <span class="kpi-footer"><i class="fa-solid fa-arrow-right-arrow-left"></i> مرتجع مشتريات: @data.TotalPurchaseReturns.ToString("N2")</span>
                 </div>
+                <div class="kpi-value text-purple">@data.TotalSalesReturns.ToString("N2") <span class="kpi-currency">ج.م</span></div>
+                <div class="kpi-tags">
+                    <span class="kpi-tag kpi-tag-returns">مرتجع شراء: @data.TotalPurchaseReturns.ToString("N2")</span>
+                </div>
+                <div class="kpi-footer"><i class="fa-solid fa-arrow-right-arrow-left"></i> تسوية البضاعة المسترجعة</div>
             </div>
 
-            <div class="kpi-card kpi-avg">
-                <div class="kpi-icon-wrapper text-indigo-bg"><i class="fa-solid fa-chart-pie"></i></div>
-                <div class="kpi-info">
+            <!-- 8. متوسط قيمة الفاتورة -->
+            <div class="kpi-card kpi-card-avg">
+                <div class="kpi-card-header">
+                    <div class="kpi-icon-wrapper text-indigo-bg"><i class="fa-solid fa-chart-pie"></i></div>
                     <span class="kpi-label">متوسط قيمة الفاتورة</span>
-                    <div class="kpi-value text-indigo">@data.AverageInvoiceValue.ToString("N2") ج.م</div>
-                    <span class="kpi-footer"><i class="fa-solid fa-basket-shopping"></i> معدل سلة الشراء لكل عملية</span>
+                </div>
+                <div class="kpi-value text-indigo">@data.AverageInvoiceValue.ToString("N2") <span class="kpi-currency">ج.م</span></div>
+                <div class="kpi-tags">
+                    <span class="kpi-tag kpi-tag-avg"><i class="fa-solid fa-users"></i> متوسط السلة</span>
+                </div>
+                <div class="kpi-footer"><i class="fa-solid fa-basket-shopping"></i> معدل الإنفاق لكل فاتورة</div>
+            </div>
+        </div>
+
+        <!-- Waste & Losses Section (Valued strictly at Purchase Cost) -->
+        <div class="waste-losses-section" style="margin-bottom: 1.5rem; background: var(--bg-card); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 0.75rem; padding: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fa-solid fa-trash-can" style="color: var(--accent-red); font-size: 1.2rem;"></i>
+                    <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700; color: var(--text-primary);">
+                        تقرير خسائر وتوالف المخزون (محسوبة بسعر الشراء)
+                    </h3>
+                </div>
+                <NavLink href="expiry" class="btn btn-sm btn-secondary" style="font-size: 0.78rem;">
+                    <i class="fa-solid fa-list-check me-1"></i> إدارة الهالك وسجل الصلاحية
+                </NavLink>
+            </div>
+            <div class="period-cards-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                <div class="period-card" style="border-right: 4px solid var(--accent-amber);">
+                    <div class="period-header">
+                        <div class="period-title"><i class="fa-solid fa-calendar-day me-1"></i> خسائر اليوم</div>
+                    </div>
+                    <div class="period-body">
+                        <div class="period-stat">
+                            <span class="val text-red">@((data.WasteLosses?.TodayLoss ?? 0).ToString("N2")) ج.م</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="period-card" style="border-right: 4px solid #f97316;">
+                    <div class="period-header">
+                        <div class="period-title"><i class="fa-solid fa-calendar-week me-1"></i> خسائر هذا الأسبوع</div>
+                    </div>
+                    <div class="period-body">
+                        <div class="period-stat">
+                            <span class="val text-red">@((data.WasteLosses?.WeekLoss ?? 0).ToString("N2")) ج.م</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="period-card" style="border-right: 4px solid #ef4444;">
+                    <div class="period-header">
+                        <div class="period-title"><i class="fa-solid fa-calendar-days me-1"></i> خسائر هذا الشهر</div>
+                    </div>
+                    <div class="period-body">
+                        <div class="period-stat">
+                            <span class="val text-red">@((data.WasteLosses?.MonthLoss ?? 0).ToString("N2")) ج.م</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="period-card" style="border-right: 4px solid #991b1b;">
+                    <div class="period-header">
+                        <div class="period-title"><i class="fa-solid fa-boxes-packing me-1"></i> إجمالي الخسائر التراكمي</div>
+                    </div>
+                    <div class="period-body">
+                        <div class="period-stat">
+                            <span class="val text-red">@((data.WasteLosses?.TotalLoss ?? 0).ToString("N2")) ج.م</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section 2.5: Customer Receivables & Debts Summary -->
+        <div class="analytics-row" style="margin-top: 1.25rem;">
+            <div class="card analytics-card" style="grid-column: 1 / -1;">
+                <div class="card-title-box" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                        <div style="width: 40px; height: 40px; border-radius: 10px; background: rgba(239, 68, 68, 0.12); display: flex; align-items: center; justify-content: center; color: var(--accent-red); font-size: 1.2rem;">
+                            <i class="fa-solid fa-hand-holding-dollar"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--text-primary);">
+                                ملخص الديون والمستحقات الخارجية (الديون اللي ليا بره)
+                            </h3>
+                            <span class="card-sub-info">متابعة الفواتير الآجلة والعملاء الأكثر مديونية مع إمكانية التحصيل السريع</span>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                        <span class="badge" style="background: rgba(239, 68, 68, 0.15); color: var(--accent-red); font-size: 0.85rem; padding: 0.4rem 0.85rem;">
+                            إجمالي الديون: @data.TotalCustomerDebts.ToString("N2") ج.م (@data.CustomerDebtsCount فاتورة)
+                        </span>
+                        <NavLink href="debts" class="btn btn-primary-custom" style="padding: 0.45rem 1rem; font-size: 0.85rem; text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem;">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            <span>شاشة الديون والتحصيل</span>
+                        </NavLink>
+                    </div>
+                </div>
+
+                <div class="table-container" style="margin-top: 0.5rem;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>اسم العميل</th>
+                                <th>رقم الهاتف</th>
+                                <th>عدد الفواتير الآجلة</th>
+                                <th>إجمالي الدين المتبقي</th>
+                                <th>تاريخ آخر فاتورة</th>
+                                <th style="text-align: center; width: 130px;">الإجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (data.TopCustomerDebts is null || !data.TopCustomerDebts.Any())
+                            {
+                                <tr>
+                                    <td colspan="6" class="empty-state-td text-green" style="padding: 2rem !important;">
+                                        <i class="fa-solid fa-circle-check" style="font-size: 2rem; margin-bottom: 0.4rem; color: var(--accent-emerald); display: block;"></i>
+                                        ممتاز جداً! لا توجد ديون مستحقة على العملاء، كافة فواتير المبيعات مسددة بالكامل.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var debt in data.TopCustomerDebts)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="font-weight-600" style="color: var(--text-primary);">@debt.CustomerName</div>
+                                            @if (debt.CustomerId == null)
+                                            {
+                                                <small class="text-muted">مبيعات آجلة لعميل نقدي</small>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="text-muted">@(string.IsNullOrWhiteSpace(debt.CustomerPhone) ? "-" : debt.CustomerPhone)</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge-neutral">@debt.InvoicesCount فاتورة</span>
+                                        </td>
+                                        <td>
+                                            <span class="text-red font-weight-700" style="font-size: 1.05rem;">@debt.TotalDebtAmount.ToString("N2") ج.م</span>
+                                        </td>
+                                        <td>
+                                            <span class="small text-muted">@debt.LastSaleDate.ToString("yyyy/MM/dd HH:mm")</span>
+                                        </td>
+                                        <td style="text-align: center;">
+                                            <NavLink href="debts" class="btn btn-refresh" style="padding: 0.3rem 0.75rem; font-size: 0.8rem; text-decoration: none; color: var(--accent-emerald);">
+                                                <i class="fa-solid fa-hand-holding-dollar me-1"></i> تحصيل
+                                            </NavLink>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -246,9 +547,17 @@
 
             <!-- Top Selling Products Table -->
             <div class="card analytics-card">
-                <div class="card-title-box">
-                    <h3><i class="fa-solid fa-trophy text-amber"></i> أعلى 5 منتجات مبيعاً</h3>
-                    <span class="card-sub-info">المنتجات الأكثر توليداً للإيراد</span>
+                <div class="card-title-box" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div>
+                        <h3><i class="fa-solid fa-trophy text-amber"></i> أكثر المنتجات مبيعاً</h3>
+                        <span class="card-sub-info">المنتجات الأكثر مبيعاً من حيث عدد الوحدات المباعة</span>
+                    </div>
+                    @if (data.TopSellingProducts != null && data.TopSellingProducts.Any())
+                    {
+                        <button class="btn btn-secondary" style="font-size: 0.8rem; padding: 0.3rem 0.65rem;" @onclick="OpenTopProductsModal" title="عرض قائمة كافة المنتجات الأكثر مبيعاً">
+                            <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> عرض كافة المنتجات (@data.TopSellingProducts.Count)
+                        </button>
+                    }
                 </div>
                 <div class="table-container">
                     <table class="data-table">
@@ -269,7 +578,7 @@
                             }
                             else
                             {
-                                @foreach (var prod in data.TopSellingProducts)
+                                @foreach (var prod in data.TopSellingProducts.Take(5))
                                 {
                                     var pct = data.TotalSales > 0 ? (prod.TotalRevenue / data.TotalSales) * 100 : 0;
                                     <tr>
@@ -410,6 +719,189 @@
         </div>
     }
 </div>
+
+<!-- All Top Selling Products Modal -->
+@if (showTopProductsModal && data?.TopSellingProducts != null)
+{
+    <div class="modal-overlay" @onclick="CloseTopProductsModal">
+        <div class="modal-card" style="width: 880px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-trophy me-2" style="color: var(--accent-amber);"></i>
+                    كافة المنتجات الأكثر مبيعاً حسب الكمية (@GetPeriodTitle())
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseTopProductsModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body" style="overflow-y: auto; flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap;">
+                    <div class="search-box" style="flex: 1; min-width: 250px;">
+                        <i class="fa-solid fa-search"></i>
+                        <input @bind="topProductsSearch" @bind:event="oninput" placeholder="ابحث باسم المنتج أو الباركود..." />
+                    </div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                        إجمالي الأصناف المعروضة: <strong style="color: var(--accent-blue);">@FilteredTopProducts.Count()</strong> صنف
+                    </div>
+                </div>
+
+                <div class="table-container" style="max-height: 480px; overflow-y: auto;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px; text-align: center;">الترتيب</th>
+                                <th>اسم المنتج</th>
+                                <th>الباركود</th>
+                                <th style="text-align: center;">الكمية المباعة</th>
+                                <th>إجمالي الإيراد</th>
+                                <th style="text-align: center; width: 150px;">نسبة المشاركة</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!FilteredTopProducts.Any())
+                            {
+                                <tr>
+                                    <td colspan="6" class="empty-state-td">لا توجد منتجات مطابقة للبحث.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                int rank = 1;
+                                @foreach (var prod in FilteredTopProducts)
+                                {
+                                    var pct = data.TotalSales > 0 ? (prod.TotalRevenue / data.TotalSales) * 100 : 0;
+                                    <tr>
+                                        <td style="text-align: center;">
+                                            @if (rank == 1)
+                                            {
+                                                <span style="background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff; font-weight: 700; border-radius: 50%; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; box-shadow: 0 2px 4px rgba(245, 158, 11, 0.4);">1</span>
+                                            }
+                                            else if (rank == 2)
+                                            {
+                                                <span style="background: linear-gradient(135deg, #94a3b8, #64748b); color: #fff; font-weight: 700; border-radius: 50%; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem;">2</span>
+                                            }
+                                            else if (rank == 3)
+                                            {
+                                                <span style="background: linear-gradient(135deg, #d97706, #b45309); color: #fff; font-weight: 700; border-radius: 50%; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem;">3</span>
+                                            }
+                                            else
+                                            {
+                                                <span style="color: var(--text-muted); font-weight: 600; font-size: 0.85rem;">#@rank</span>
+                                            }
+                                        </td>
+                                        <td style="font-weight: 600; color: var(--text-primary);">@prod.Name</td>
+                                        <td><code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@(string.IsNullOrWhiteSpace(prod.Barcode) ? "-" : prod.Barcode)</code></td>
+                                        <td style="text-align: center;"><span class="badge-neutral" style="font-weight: 700; font-size: 0.9rem;">@prod.TotalQuantitySold.ToString("N0")</span></td>
+                                        <td><span class="text-green font-weight-700" style="font-size: 0.95rem;">@prod.TotalRevenue.ToString("N2") ج.م</span></td>
+                                        <td>
+                                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                <div class="mini-bar-track" style="flex: 1;">
+                                                    <div class="mini-bar-fill" style="width: @Math.Min(pct, 100)%;"></div>
+                                                </div>
+                                                <span class="small font-weight-600" style="min-width: 42px; text-align: left;">@pct.ToString("F1")%</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    rank++;
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseTopProductsModal">إغلاق</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Record Waste Modal (from Expiry Notification) -->
+@if (showWasteModal && wasteNotificationTarget != null)
+{
+    <div class="modal-overlay" @onclick="CloseWasteModal">
+        <div class="modal-card" style="width: 520px; max-width: 95vw;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--accent-red);">
+                    <i class="fa-solid fa-trash-can me-2"></i>
+                    تسجيل هالك من دفعة منتهية
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseWasteModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(wasteError))
+                {
+                    <div class="alert alert-danger" style="margin-bottom: 1rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @wasteError
+                    </div>
+                }
+
+                <div style="background: rgba(239, 68, 68, 0.08); border-radius: 0.5rem; padding: 0.85rem; margin-bottom: 1.25rem;">
+                    <div style="font-weight: 700; color: var(--text-primary); font-size: 1.05rem;">
+                        @wasteNotificationTarget.ProductName
+                    </div>
+                    <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        رقم التشغيلة: <code>@(string.IsNullOrWhiteSpace(wasteNotificationTarget.BatchNumber) ? "افتراضي" : wasteNotificationTarget.BatchNumber)</code> |
+                        المتبقي بالدفعة: <strong style="color: var(--accent-amber);">@wasteNotificationTarget.RemainingQuantity.ToString("N0")</strong> قطعة
+                    </div>
+                    <div style="font-size: 0.82rem; color: var(--accent-red); margin-top: 0.25rem;">
+                        تاريخ الصلاحية: @(wasteNotificationTarget.ExpiryDate?.ToString("yyyy-MM-dd") ?? "-")
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" style="font-weight: 600;">الكمية التالفة المراد إهلاكها (قطعة) <span class="text-red">*</span></label>
+                    <input type="number" step="1" min="1" max="@wasteNotificationTarget.RemainingQuantity"
+                           class="form-control" style="font-size: 1.1rem; font-weight: 700;"
+                           @bind="wasteQuantity" />
+                    <small style="color: var(--text-muted); font-size: 0.78rem;">
+                        الحد الأقصى المتاح للإهلاك من هذه الدفعة: @wasteNotificationTarget.RemainingQuantity قطعة. سيتم خصمها من المخزون وحساب الخسارة بسعر الشراء.
+                    </small>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" style="font-weight: 600;">سبب الهالك</label>
+                    <select class="form-control" @bind="wasteReason">
+                        <option value="انتهاء صلاحية">انتهاء صلاحية (Expired)</option>
+                        <option value="تلف سوء تخزين">تلف سوء تخزين</option>
+                        <option value="كسر أو تلف أثناء النقل">كسر أو تلف أثناء النقل</option>
+                        <option value="تالف تصنيع / عيب منتج">تالف تصنيع / عيب منتج</option>
+                        <option value="أخرى">أخرى</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 600;">ملاحظات وتفاصيل إضافية</label>
+                    <textarea class="form-control" rows="2" placeholder="اكتب أي تفاصيل أخرى تخص عملية الإهلاك..." @bind="wasteNotes"></textarea>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="display: flex; justify-content: space-between;">
+                <button type="button" class="btn btn-secondary" @onclick="CloseWasteModal" disabled="@isSubmittingWaste">
+                    إلغاء
+                </button>
+                <button type="button" class="btn btn-danger" @onclick="ExecuteRecordWaste" disabled="@(isSubmittingWaste || wasteQuantity <= 0 || wasteQuantity > wasteNotificationTarget.RemainingQuantity)">
+                    @if (isSubmittingWaste)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        <span>جاري التسجيل والخصم...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-trash-can me-1"></i>
+                        <span>تأكيد إهلاك (@wasteQuantity قطعة)</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 
 <style>
     .dashboard-container {
@@ -670,77 +1162,166 @@
         font-weight: 800;
     }
 
-    /* KPI Grid */
+    /* KPI Grid - Full Width & Modern Styling */
     .kpi-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 1.1rem;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        width: 100%;
+    }
+
+    @@media (max-width: 1200px) {
+        .kpi-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @@media (max-width: 600px) {
+        .kpi-grid {
+            grid-template-columns: 1fr;
+        }
     }
 
     .kpi-card {
         background: var(--bg-card);
         border: 1px solid var(--border-color);
         border-radius: 14px;
-        padding: 1.1rem;
+        padding: 1.15rem 1.25rem;
         display: flex;
-        align-items: center;
-        gap: 1rem;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 0.65rem;
         box-shadow: var(--shadow-sm);
-        transition: transform 0.2s ease;
+        transition: all 0.25s ease;
+        position: relative;
+        overflow: hidden;
+        min-height: 160px;
     }
 
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        left: 0;
+        height: 3px;
+        background: transparent;
+        transition: background 0.25s ease;
+    }
+
+    .kpi-card-sales::before { background: var(--accent-green, #10b981); }
+    .kpi-card-profit::before { background: var(--accent-blue, #38bdf8); }
+    .kpi-card-cashin::before { background: #059669; }
+    .kpi-card-debts::before { background: var(--accent-red, #ef4444); }
+    .kpi-card-purchases::before { background: var(--accent-amber, #f59e0b); }
+    .kpi-card-expenses::before { background: #f43f5e; }
+    .kpi-card-returns::before { background: var(--accent-purple, #8b5cf6); }
+    .kpi-card-avg::before { background: var(--accent-indigo, #6366f1); }
+
     .kpi-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-md);
+        transform: translateY(-3px);
+        box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.25);
+        border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .kpi-card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
     }
 
     .kpi-icon-wrapper {
-        width: 48px;
-        height: 48px;
+        width: 42px;
+        height: 42px;
         border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.3rem;
+        font-size: 1.25rem;
         flex-shrink: 0;
     }
 
-    .text-green-bg { background: rgba(16, 185, 129, 0.12); color: var(--accent-green); }
-    .text-blue-bg { background: rgba(56, 189, 248, 0.12); color: var(--accent-blue); }
-    .text-amber-bg { background: rgba(245, 158, 11, 0.12); color: var(--accent-amber); }
-    .text-red-bg { background: rgba(239, 68, 68, 0.12); color: var(--accent-red); }
-    .text-purple-bg { background: rgba(139, 92, 246, 0.12); color: var(--accent-purple); }
-    .text-indigo-bg { background: rgba(99, 102, 241, 0.12); color: var(--accent-indigo); }
-
-    .kpi-info {
-        display: flex;
-        flex-direction: column;
-    }
+    .text-green-bg { background: rgba(16, 185, 129, 0.14); color: var(--accent-green, #10b981); }
+    .text-blue-bg { background: rgba(56, 189, 248, 0.14); color: var(--accent-blue, #38bdf8); }
+    .text-emerald-bg { background: rgba(5, 150, 105, 0.14); color: #10b981; }
+    .text-amber-bg { background: rgba(245, 158, 11, 0.14); color: var(--accent-amber, #f59e0b); }
+    .text-red-bg { background: rgba(239, 68, 68, 0.14); color: var(--accent-red, #ef4444); }
+    .text-rose-bg { background: rgba(244, 63, 94, 0.14); color: #f43f5e; }
+    .text-purple-bg { background: rgba(139, 92, 246, 0.14); color: var(--accent-purple, #8b5cf6); }
+    .text-indigo-bg { background: rgba(99, 102, 241, 0.14); color: var(--accent-indigo, #6366f1); }
 
     .kpi-label {
-        font-size: 0.8rem;
+        font-size: 0.82rem;
         color: var(--text-secondary);
-        font-weight: 600;
+        font-weight: 700;
+        line-height: 1.3;
     }
 
     .kpi-value {
-        font-size: 1.25rem;
+        font-size: 1.35rem;
         font-weight: 800;
-        margin: 0.2rem 0;
+        letter-spacing: -0.5px;
+        margin: 0.15rem 0;
+        display: flex;
+        align-items: baseline;
+        gap: 0.35rem;
     }
+
+    .kpi-currency {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--text-muted);
+    }
+
+    .kpi-tags {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+        margin: 0.1rem 0;
+    }
+
+    .kpi-tag {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 0.2rem 0.5rem;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
+    .kpi-tag-cash { background: rgba(16, 185, 129, 0.12); color: #10b981; }
+    .kpi-tag-credit { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+    .kpi-tag-collected { background: rgba(56, 189, 248, 0.12); color: #38bdf8; }
+    .kpi-tag-margin { background: rgba(56, 189, 248, 0.12); color: #38bdf8; }
+    .kpi-tag-debt { background: rgba(239, 68, 68, 0.12); color: #ef4444; }
+    .kpi-tag-purchases { background: rgba(245, 158, 11, 0.12); color: #f59e0b; }
+    .kpi-tag-expenses { background: rgba(244, 63, 94, 0.12); color: #f43f5e; }
+    .kpi-tag-returns { background: rgba(139, 92, 246, 0.12); color: #a855f7; }
+    .kpi-tag-avg { background: rgba(99, 102, 241, 0.12); color: #6366f1; }
 
     .kpi-footer {
         font-size: 0.75rem;
         color: var(--text-muted);
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding-top: 0.45rem;
+        border-top: 1px dashed var(--border-color);
+        margin-top: auto;
     }
 
     /* Colors */
-    .text-green { color: var(--accent-green); }
-    .text-blue { color: var(--accent-blue); }
-    .text-amber { color: var(--accent-amber); }
-    .text-red { color: var(--accent-red); }
-    .text-purple { color: var(--accent-purple); }
-    .text-indigo { color: var(--accent-indigo); }
+    .text-green { color: var(--accent-green, #10b981); }
+    .text-emerald { color: #10b981; }
+    .text-blue { color: var(--accent-blue, #38bdf8); }
+    .text-amber { color: var(--accent-amber, #f59e0b); }
+    .text-red { color: var(--accent-red, #ef4444); }
+    .text-rose { color: #f43f5e; }
+    .text-purple { color: var(--accent-purple, #8b5cf6); }
+    .text-indigo { color: var(--accent-indigo, #6366f1); }
     .text-muted { color: var(--text-muted); }
 
     /* Analytics Row */
@@ -876,6 +1457,38 @@
     private DateTime customFromDate = DateTime.Today;
     private DateTime customToDate = DateTime.Today;
 
+    private bool showTopProductsModal = false;
+    private string topProductsSearch = string.Empty;
+
+    // Expiry Notifications and Waste Modal State
+    private List<ExpiryNotificationDto> activeExpiryNotifications = new();
+    private bool showWasteModal = false;
+    private ExpiryNotificationDto? wasteNotificationTarget;
+    private decimal wasteQuantity = 1;
+    private string wasteReason = "انتهاء صلاحية";
+    private string wasteNotes = string.Empty;
+    private bool isSubmittingWaste = false;
+    private string? wasteError = null;
+
+    private void OpenTopProductsModal()
+    {
+        showTopProductsModal = true;
+        topProductsSearch = string.Empty;
+    }
+
+    private void CloseTopProductsModal()
+    {
+        showTopProductsModal = false;
+        topProductsSearch = string.Empty;
+    }
+
+    private IEnumerable<TopProductDto> FilteredTopProducts =>
+        data?.TopSellingProducts?.Where(p =>
+            string.IsNullOrWhiteSpace(topProductsSearch) ||
+            (p.Name?.Contains(topProductsSearch, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (p.Barcode?.Contains(topProductsSearch, StringComparison.OrdinalIgnoreCase) ?? false))
+        ?? Enumerable.Empty<TopProductDto>();
+
     protected override async Task OnInitializedAsync()
     {
         await SetFilterPreset("today");
@@ -930,9 +1543,124 @@
         isLoading = true;
         StateHasChanged();
         data = await ApiClient.GetDashboardAsync(filterFromDate, filterToDate);
+        await LoadExpiryNotificationsAsync();
         isLoading = false;
         StateHasChanged();
     }
+
+    private async Task LoadExpiryNotificationsAsync()
+    {
+        try
+        {
+            activeExpiryNotifications = await ApiClient.GetExpiryNotificationsAsync(includeSnoozed: false);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading expiry notifications: {ex.Message}");
+            activeExpiryNotifications = new();
+        }
+    }
+
+    private async Task ResolveNotification(ExpiryNotificationDto notification)
+    {
+        try
+        {
+            var (success, _) = await ApiClient.ResolveNotificationAsync(notification.Id);
+            if (success)
+            {
+                activeExpiryNotifications.RemoveAll(n => n.Id == notification.Id);
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error resolving notification: {ex.Message}");
+        }
+    }
+
+    private async Task SnoozeNotification(ExpiryNotificationDto notification)
+    {
+        try
+        {
+            var (success, _) = await ApiClient.SnoozeNotificationAsync(notification.Id, 24);
+            if (success)
+            {
+                activeExpiryNotifications.RemoveAll(n => n.Id == notification.Id);
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error snoozing notification: {ex.Message}");
+        }
+    }
+
+    private void OpenWasteModal(ExpiryNotificationDto notification)
+    {
+        wasteNotificationTarget = notification;
+        wasteQuantity = notification.RemainingQuantity;
+        wasteReason = "انتهاء صلاحية";
+        wasteNotes = $"تم التسجيل من تنبيه الصلاحية للدفعة {notification.BatchNumber}";
+        wasteError = null;
+        showWasteModal = true;
+    }
+
+    private void CloseWasteModal()
+    {
+        showWasteModal = false;
+        wasteNotificationTarget = null;
+        wasteError = null;
+        isSubmittingWaste = false;
+    }
+
+    private async Task ExecuteRecordWaste()
+    {
+        if (wasteNotificationTarget == null || wasteQuantity <= 0 || wasteQuantity > wasteNotificationTarget.RemainingQuantity)
+        {
+            wasteError = "يرجى تحديد كمية صحيحة لا تتجاوز الكمية المتبقية بالدفعة.";
+            return;
+        }
+
+        isSubmittingWaste = true;
+        wasteError = null;
+        StateHasChanged();
+
+        try
+        {
+            var req = new RecordWasteRequest(
+                wasteNotificationTarget.ProductId,
+                wasteNotificationTarget.BatchId,
+                wasteQuantity,
+                "piece",
+                wasteReason,
+                wasteNotes
+            );
+
+            var (success, _, error) = await ApiClient.RecordWasteAsync(req);
+            if (success)
+            {
+                // Auto resolve notification since waste action taken
+                await ApiClient.ResolveNotificationAsync(wasteNotificationTarget.Id);
+                CloseWasteModal();
+                // Refresh dashboard to reflect new waste losses and updated notification list
+                await LoadDashboardDataAsync();
+            }
+            else
+            {
+                wasteError = error ?? "تعذر تسجيل الهالك. يرجى المحاولة مرة أخرى.";
+            }
+        }
+        catch (Exception ex)
+        {
+            wasteError = $"حدث خطأ غير متوقع: {ex.Message}";
+        }
+        finally
+        {
+            isSubmittingWaste = false;
+            StateHasChanged();
+        }
+    }
+
 
     private string GetPeriodTitle()
     {

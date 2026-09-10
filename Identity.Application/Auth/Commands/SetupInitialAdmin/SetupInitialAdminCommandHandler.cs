@@ -1,4 +1,4 @@
-﻿using Identity.Application.Auth;
+using Identity.Application.Auth;
 using Identity.Application.Services;
 using Identity.Domain.Users;
 using Identity.Domain.Users.Entities;
@@ -27,11 +27,11 @@ namespace Identity.Application.Auth.Commands.SetupInitialAdmin
 
         public async Task<Result<AuthResponse>> Handle(SetupInitialAdminCommand request, CancellationToken cancellationToken)
         {
-            // Guard: Initial admin setup can only run once when no users exist
-            var hasUsers = await _userManager.Users.AnyAsync(cancellationToken);
-            if (hasUsers)
+            // Guard: Initial admin setup can only run once when no admin exists
+            var adminUsers = await _userManager.GetUsersInRoleAsync("Admin");
+            if (adminUsers.Any())
             {
-                return Result<AuthResponse>.Failure(new Error("Auth.SetupAlreadyCompleted", "تم تهيئة حساب المدير مسبقاً."));
+                return Result<AuthResponse>.Failure(new Error("Auth.SetupAlreadyCompleted", "تم تهيئة حساب المدير مسبقاً ولا يمكن إنشاء مدير جديد من هذه الصفحة."));
             }
 
             // Ensure Admin role exists

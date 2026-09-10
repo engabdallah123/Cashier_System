@@ -6,6 +6,9 @@ using Purchases.Application.Purchases.Queries.GetPurchases;
 using Purchases.Application.Purchases.Commands.PayPurchaseInvoice;
 using Purchases.Application.Purchases.Queries.GetPurchaseById;
 
+using Purchases.Application.Purchases.Commands.DeletePurchase;
+using Purchases.Application.Purchases.Commands.UpdatePurchase;
+
 namespace POS.WebAPI.Controllers.Purchases
 {
     [ApiController]
@@ -27,6 +30,29 @@ namespace POS.WebAPI.Controllers.Purchases
                 return BadRequest(result.Error);
 
             return Ok(result.Value);
+        }
+
+        [HttpPut("{id:guid}")]
+        public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePurchaseCommand command, CancellationToken ct)
+        {
+            if (id != command.Id)
+                return BadRequest(new { code = "Purchase.IdMismatch", message = "معرف الفاتورة غير متطابق." });
+
+            var result = await _sender.Send(command, ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return NoContent();
+        }
+
+        [HttpDelete("{id:guid}")]
+        public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
+        {
+            var result = await _sender.Send(new DeletePurchaseCommand(id), ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return NoContent();
         }
 
         [HttpPost("{id:guid}/receive")]
@@ -53,6 +79,16 @@ namespace POS.WebAPI.Controllers.Purchases
         public async Task<IActionResult> GetAll([FromQuery] Guid? supplierId, [FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken ct = default)
         {
             var result = await _sender.Send(new GetPurchasesQuery(supplierId, page, pageSize), ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return Ok(result.Value);
+        }
+
+        [HttpGet("expiring")]
+        public async Task<IActionResult> GetExpiring([FromQuery] int? daysThreshold, CancellationToken ct)
+        {
+            var result = await _sender.Send(new global::Purchases.Application.Purchases.Queries.GetExpiringProducts.GetExpiringProductsQuery(daysThreshold), ct);
             if (result.IsFailure)
                 return BadRequest(result.Error);
 

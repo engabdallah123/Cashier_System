@@ -48,22 +48,44 @@ namespace Returns.Application.PurchaseReturns.Commands.CreatePurchaseReturn
 
             await _returnsUnitOfWork.PurchaseReturnRepository.AddAsync(purchaseReturn);
 
+            var purchaseBatches = request.OriginalPurchaseId != Guid.Empty
+                ? await _inventoryUnitOfWork.BatchRepository.GetBatchesByPurchaseIdAsync(request.OriginalPurchaseId, cancellationToken)
+                : null;
+
             // نقصان رصيد المخزون وتسجيل حركة المخزون
             foreach (var item in purchaseReturn.Items)
             {
                 var product = await _inventoryUnitOfWork.ProductRepository.GetByIdAsync(item.ProductId, cancellationToken);
                 if (product is not null)
                 {
-                    product.AdjustStock(-item.Quantity, allowNegativeStock: true);
+                    var factor = product.ConversionFactor > 1 ? product.ConversionFactor : 1;
+                    var deductPieces = item.Quantity * factor;
+
+                    product.AdjustStock(-deductPieces, allowNegativeStock: true);
                     _inventoryUnitOfWork.ProductRepository.Update(product);
+
+                    // خصم من التشغيلة/الدفعة المرتبطة بفاتورة الشراء إن وجدت
+                    if (purchaseBatches is not null)
+                    {
+                        var batch = purchaseBatches.FirstOrDefault(b => b.ProductId == item.ProductId && b.RemainingQuantity > 0);
+                        if (batch is not null)
+                        {
+                            var qtyToDeductFromBatch = Math.Min(deductPieces, batch.RemainingQuantity);
+                            if (qtyToDeductFromBatch > 0)
+                            {
+                                batch.Deduct(qtyToDeductFromBatch);
+                                _inventoryUnitOfWork.BatchRepository.Update(batch);
+                            }
+                        }
+                    }
 
                     var movementResult = StockMovement.Create(
                         item.ProductId,
-                        -item.Quantity,
+                        -deductPieces,
                         StockMovementType.PurchaseReturn,
                         request.CreatedByUserId,
                         reference: purchaseReturn.ReturnNumber,
-                        notes: $"مرتجع شراء - رقم {purchaseReturn.ReturnNumber}");
+                        notes: $"مرتجع شراء - رقم {purchaseReturn.ReturnNumber} (الكمية: {item.Quantity} {(factor > 1 ? product.ParentUnit ?? "كرتونة" : product.BaseUnit)} = {deductPieces} قطعة)");
 
                     if (movementResult.IsSuccess)
                         await _inventoryUnitOfWork.StockMovementRepository.AddAsync(movementResult.Value!);

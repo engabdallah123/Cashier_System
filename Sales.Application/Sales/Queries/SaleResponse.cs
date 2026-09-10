@@ -9,7 +9,10 @@ namespace Sales.Application.Sales.Queries
         decimal UnitPrice,
         decimal Discount,
         decimal Tax,
-        decimal Total);
+        decimal Total,
+        string? UnitName = null,
+        string? PriceType = null,
+        string? PackagingInfo = null);
 
     public sealed class SaleResponse
     {
@@ -50,5 +53,10 @@ namespace Sales.Application.Sales.Queries
         decimal ChangeAmount,
         string PaymentMethod,
         string Currency,
-        string? InvoiceFooterMessage);
+        string? InvoiceFooterMessage,
+        string? LogoUrl = null,
+        byte[]? LogoBytes = null,
+        string? OrderType = null,
+        int OrderNumber = 1);
 }
+

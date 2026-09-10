@@ -22,6 +22,7 @@ public class SalesDbContext : DbContext
     public DbSet<Customer> Customers { get; set; }
     public DbSet<Sale> Sales { get; set; }
     public DbSet<SaleItem> SaleItems { get; set; }
+    public DbSet<SalePayment> SalePayments { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

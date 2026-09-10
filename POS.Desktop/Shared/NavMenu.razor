@@ -1,119 +1,232 @@
 @implements IDisposable
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Routing
 @inject CustomAuthStateProvider AuthState
 @inject StoreStateContainer StoreState
 @inject PosApiClient ApiClient
+@inject NavigationManager Nav
 
 <div class="sidebar">
     <div class="sidebar-header">
-        <div class="sidebar-brand-icon">
-            <i class="fa-solid fa-store"></i>
+        <div class="sidebar-brand-wrapper" @onclick="ToggleCollapse" title="طي / توسيع القائمة">
+            <div class="sidebar-brand-icon">
+                <i class="fa-solid fa-store"></i>
+            </div>
+            <div class="sidebar-brand-text">
+                <h1>@(string.IsNullOrWhiteSpace(StoreState.StoreName) ? "نظام الكاشير" : StoreState.StoreName)</h1>
+                <span>المبيعات والمخزون</span>
+            </div>
         </div>
-        <div>
-            <h1>@(string.IsNullOrWhiteSpace(StoreState.StoreName) ? "نظام الكاشير" : StoreState.StoreName)</h1>
-            <span>المبيعات والمخزون</span>
-        </div>
+        <button type="button" class="sidebar-mini-toggle" @onclick="ToggleCollapse" title="طي / توسيع القائمة">
+            <i class="fa-solid @(IsCollapsed ? "fa-angles-left" : "fa-angles-right")"></i>
+        </button>
     </div>
 
     <ul class="nav-list">
+        <!-- 1. الرئيسية -->
         <li>
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All" title="الرئيسية [Alt + H]">
                 <i class="fa-solid fa-house"></i> <span>الرئيسية</span>
             </NavLink>
         </li>
+
+        <!-- 2. شاشة البيع POS -->
         <li>
-            <NavLink class="nav-link" href="pos">
-                <i class="fa-solid fa-cash-register"></i> <span>شاشة البيع (POS)</span>
+            <NavLink class="nav-link" href="pos" title="شاشة البيع (POS) [Alt + P]">
+                <i class="fa-solid fa-cash-register text-green"></i> <span>شاشة البيع (POS)</span>
             </NavLink>
         </li>
-        <li>
-            <NavLink class="nav-link" href="shifts">
-                <i class="fa-solid fa-clock-rotate-left"></i> <span>الورديات</span>
-            </NavLink>
+
+        <!-- 3. المبيعات والديون Group -->
+        <li class="nav-group">
+            <div class="nav-group-header @(isSalesGroupOpen ? "open" : "")" @onclick="() => isSalesGroupOpen = !isSalesGroupOpen" title="إدارة المبيعات والديون">
+                <div class="nav-group-title">
+                    <i class="fa-solid fa-receipt text-blue"></i>
+                    <span>المبيعات والديون</span>
+                </div>
+                <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
+            </div>
+            @if (isSalesGroupOpen)
+            {
+                <ul class="nav-sub-list">
+                    <li>
+                        <NavLink class="nav-link" href="sales" title="سجل فواتير المبيعات [Alt + L]">
+                            <i class="fa-solid fa-list-check"></i> <span>سجل المبيعات</span>
+                        </NavLink>
+                    </li>
+                    @if (IsAdminOrManager)
+                    {
+                        <li>
+                            <NavLink class="nav-link" href="monthly-report" title="نتيجة المبيعات الشهرية والتقويم [Alt + Y]">
+                                <i class="fa-solid fa-calendar-days text-amber"></i> <span>نتيجة المبيعات الشهرية</span>
+                            </NavLink>
+                        </li>
+                    }
+                    <li>
+                        <NavLink class="nav-link" href="debts" title="فواتير الديون والتحصيل [Alt + D]">
+                            <i class="fa-solid fa-hand-holding-dollar"></i> <span>فواتير الديون</span>
+                        </NavLink>
+                    </li>
+                </ul>
+            }
         </li>
-        <li>
-            <NavLink class="nav-link" href="products">
-                <i class="fa-solid fa-boxes-stacked"></i> <span>المنتجات</span>
-            </NavLink>
+
+        <!-- 4. المشتريات والمخزون Group -->
+        <li class="nav-group">
+            <div class="nav-group-header @(isInventoryGroupOpen ? "open" : "")" @onclick="() => isInventoryGroupOpen = !isInventoryGroupOpen" title="المشتريات والمخزون">
+                <div class="nav-group-title">
+                    <i class="fa-solid fa-boxes-stacked text-amber"></i>
+                    <span>المشتريات والمخزون</span>
+                </div>
+                <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
+            </div>
+            @if (isInventoryGroupOpen)
+            {
+                <ul class="nav-sub-list">
+                    <li>
+                        <NavLink class="nav-link" href="products" title="إدارة المنتجات والمخزون [Alt + M]">
+                            <i class="fa-solid fa-box"></i> <span>المنتجات</span>
+                        </NavLink>
+                    </li>
+                    <li>
+                        <NavLink class="nav-link" href="categories" title="تصنيفات المنتجات">
+                            <i class="fa-solid fa-tags"></i> <span>التصنيفات</span>
+                        </NavLink>
+                    </li>
+                    <li>
+                        <NavLink class="nav-link" href="purchases" title="شاشة المشتريات والواردات [Alt + U]">
+                            <i class="fa-solid fa-truck-ramp-box"></i> <span>المشتريات</span>
+                        </NavLink>
+                    </li>
+                    <li>
+                        <NavLink class="nav-link" href="expiry" title="متابعة صلاحية المنتجات وتنبيهات الانتهاء">
+                            <i class="fa-solid fa-hourglass-half text-danger"></i> <span>صلاحية المنتجات</span>
+                        </NavLink>
+                    </li>
+                </ul>
+            }
         </li>
-        <li>
-            <NavLink class="nav-link" href="categories">
-                <i class="fa-solid fa-tags"></i> <span>التصنيفات</span>
-            </NavLink>
+
+        <!-- 5. إدارة المرتجعات Group (Sales & Purchases Returns) -->
+        <li class="nav-group">
+            <div class="nav-group-header @(isReturnsGroupOpen ? "open" : "")" @onclick="() => isReturnsGroupOpen = !isReturnsGroupOpen" title="إدارة المرتجعات">
+                <div class="nav-group-title">
+                    <i class="fa-solid fa-arrow-right-arrow-left text-purple"></i>
+                    <span>إدارة المرتجعات</span>
+                </div>
+                <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
+            </div>
+            @if (isReturnsGroupOpen)
+            {
+                <ul class="nav-sub-list">
+                    <li>
+                        <NavLink class="nav-link" href="returns/sales" title="مرتجع مبيعات العملاء [Alt + R]">
+                            <i class="fa-solid fa-rotate-left"></i> <span>مرتجع المبيعات</span>
+                        </NavLink>
+                    </li>
+                    <li>
+                        <NavLink class="nav-link" href="returns/purchases" title="مرتجع مشتريات الموردين [Alt + T]">
+                            <i class="fa-solid fa-truck-arrow-right"></i> <span>مرتجع المشتريات</span>
+                        </NavLink>
+                    </li>
+                </ul>
+            }
         </li>
-        <li>
-            <NavLink class="nav-link" href="purchases">
-                <i class="fa-solid fa-truck-ramp-box"></i> <span>المشتريات</span>
-            </NavLink>
-        </li>
-        <li>
-            <NavLink class="nav-link" href="returns/purchases">
-                <i class="fa-solid fa-truck-arrow-right"></i> <span>مرتجع المشتريات</span>
-            </NavLink>
-        </li>
-        <li>
-            <NavLink class="nav-link" href="sales">
-                <i class="fa-solid fa-receipt"></i> <span>سجل المبيعات</span>
-            </NavLink>
-        </li>
-        <li>
-            <NavLink class="nav-link" href="returns/sales">
-                <i class="fa-solid fa-rotate-left"></i> <span>مرتجع المبيعات</span>
-            </NavLink>
-        </li>
-        <li>
-            <NavLink class="nav-link" href="debts">
-                <i class="fa-solid fa-hand-holding-dollar"></i> <span>فواتير الديون</span>
-            </NavLink>
-        </li>
-        <li>
-            <NavLink class="nav-link" href="expenses">
-                <i class="fa-solid fa-wallet"></i> <span>المصروفات</span>
-            </NavLink>
+
+        <!-- 6. المالية والورديات Group -->
+        <li class="nav-group">
+            <div class="nav-group-header @(isFinanceGroupOpen ? "open" : "")" @onclick="() => isFinanceGroupOpen = !isFinanceGroupOpen" title="المالية والورديات">
+                <div class="nav-group-title">
+                    <i class="fa-solid fa-wallet text-indigo"></i>
+                    <span>المالية والورديات</span>
+                </div>
+                <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
+            </div>
+            @if (isFinanceGroupOpen)
+            {
+                <ul class="nav-sub-list">
+                    <li>
+                        <NavLink class="nav-link" href="shifts" title="إدارة الورديات والخزينة [Alt + S]">
+                            <i class="fa-solid fa-clock-rotate-left"></i> <span>الورديات والخزينة</span>
+                        </NavLink>
+                    </li>
+                    <li>
+                        <NavLink class="nav-link" href="expenses" title="المصروفات العامة [Alt + E]">
+                            <i class="fa-solid fa-file-invoice-dollar"></i> <span>المصروفات</span>
+                        </NavLink>
+                    </li>
+                </ul>
+            }
         </li>
 
         @if (IsAdminOrManager)
         {
-            <li style="margin: 1.1rem 0.75rem 0.85rem 0.75rem; border-top: 1px dashed rgba(255, 255, 255, 0.2); position: relative; list-style: none;">
-                <span style="position: absolute; top: -0.65rem; right: 0.5rem; background: var(--bg-secondary, #1e1b4b); padding: 0 0.4rem; font-size: 0.68rem; color: var(--accent-indigo, #818cf8); font-weight: 700; border-radius: 0.25rem;">
+            <!-- High-Contrast Section Divider for Light and Dark Modes -->
+            <li class="sidebar-divider">
+                <span>
                     <i class="fa-solid fa-user-shield me-1"></i> الإدارة والتحكم
                 </span>
             </li>
-            <li>
-                <NavLink class="nav-link" href="dashboard">
-                    <i class="fa-solid fa-chart-line"></i> <span>لوحة التحكم</span>
-                </NavLink>
-            </li>
-            <li>
-                <NavLink class="nav-link" href="backup">
-                    <i class="fa-solid fa-shield-halved"></i> <span>النسخ الاحتياطي (Backup)</span>
-                </NavLink>
-            </li>
-            <li>
-                <NavLink class="nav-link" href="users">
-                    <i class="fa-solid fa-users"></i> <span>المستخدمين والصلاحيات</span>
-                </NavLink>
-            </li>
-            <li>
-                <NavLink class="nav-link" href="settings">
-                    <i class="fa-solid fa-gear"></i> <span>الإعدادات</span>
-                </NavLink>
-            </li>
-            <li>
-                <NavLink class="nav-link" href="audit">
-                    <i class="fa-solid fa-clock-rotate-left"></i> <span>سجل الأحداث (Audit)</span>
-                </NavLink>
-            </li>
-            <li>
-                <NavLink class="nav-link" href="activation">
-                    <i class="fa-solid fa-key"></i> <span>ترخيص البرنامج</span>
-                </NavLink>
+
+            <!-- 7. الإدارة والتحكم Group -->
+            <li class="nav-group">
+                <div class="nav-group-header @(isAdminGroupOpen ? "open" : "")" @onclick="() => isAdminGroupOpen = !isAdminGroupOpen" title="الإدارة والتحكم">
+                    <div class="nav-group-title">
+                        <i class="fa-solid fa-sliders text-blue"></i>
+                        <span>الإدارة والتحكم</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-down nav-group-arrow"></i>
+                </div>
+                @if (isAdminGroupOpen)
+                {
+                    <ul class="nav-sub-list">
+                        <li>
+                            <NavLink class="nav-link" href="dashboard" title="لوحة التحكم والتقارير [Alt + A]">
+                                <i class="fa-solid fa-chart-line"></i> <span>لوحة التحكم</span>
+                            </NavLink>
+                        </li>
+                        <li>
+                            <NavLink class="nav-link" href="users" title="إدارة المستخدمين والصلاحيات">
+                                <i class="fa-solid fa-users"></i> <span>المستخدمين والصلاحيات</span>
+                            </NavLink>
+                        </li>
+                        <li>
+                            <NavLink class="nav-link" href="backup" title="النسخ الاحتياطي واستعادة البيانات">
+                                <i class="fa-solid fa-shield-halved"></i> <span>النسخ الاحتياطي</span>
+                            </NavLink>
+                        </li>
+                        <li>
+                            <NavLink class="nav-link" href="settings" title="إعدادات النظام والطباعة">
+                                <i class="fa-solid fa-gear"></i> <span>الإعدادات</span>
+                            </NavLink>
+                        </li>
+                        <li>
+                            <NavLink class="nav-link" href="audit" title="سجل الأحداث والعمليات">
+                                <i class="fa-solid fa-clock-rotate-left"></i> <span>سجل الأحداث (Audit)</span>
+                            </NavLink>
+                        </li>
+                        <li>
+                            <NavLink class="nav-link" href="activation" title="ترخيص وتفعيل البرنامج">
+                                <i class="fa-solid fa-key"></i> <span>ترخيص البرنامج</span>
+                            </NavLink>
+                        </li>
+                    </ul>
+                }
             </li>
         }
     </ul>
 </div>
 
 @code {
+    [Parameter] public bool IsCollapsed { get; set; }
+    [Parameter] public EventCallback OnToggle { get; set; }
+
+    private bool isSalesGroupOpen;
+    private bool isInventoryGroupOpen;
+    private bool isReturnsGroupOpen;
+    private bool isFinanceGroupOpen;
+    private bool isAdminGroupOpen;
+
     private bool IsAdminOrManager =>
         string.Equals(AuthState.UserRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(AuthState.UserRole, "Manager", StringComparison.OrdinalIgnoreCase) ||
@@ -123,10 +236,52 @@
     {
         AuthState.AuthenticationStateChanged += OnAuthenticationStateChanged;
         StoreState.OnStateChanged += OnStoreStateChanged;
+        Nav.LocationChanged += OnLocationChanged;
+
+        CheckActiveGroup();
 
         if (!StoreState.IsLoaded)
         {
             await StoreState.LoadSettingsAsync(ApiClient);
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        CheckActiveGroup();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void CheckActiveGroup()
+    {
+        var path = Nav.ToBaseRelativePath(Nav.Uri).ToLower();
+        if (path.StartsWith("sales") || path.StartsWith("debts") || path.StartsWith("monthly"))
+        {
+            isSalesGroupOpen = true;
+        }
+        else if (path.StartsWith("product") || path.StartsWith("categor") || path.StartsWith("expiry") || (path.StartsWith("purchase") && !path.Contains("return")))
+        {
+            isInventoryGroupOpen = true;
+        }
+        else if (path.StartsWith("return"))
+        {
+            isReturnsGroupOpen = true;
+        }
+        else if (path.StartsWith("shift") || path.StartsWith("expense"))
+        {
+            isFinanceGroupOpen = true;
+        }
+        else if (path.StartsWith("dashboard") || path.StartsWith("user") || path.StartsWith("backup") || path.StartsWith("setting") || path.StartsWith("audit") || path.StartsWith("activation"))
+        {
+            isAdminGroupOpen = true;
+        }
+    }
+
+    private async Task ToggleCollapse()
+    {
+        if (OnToggle.HasDelegate)
+        {
+            await OnToggle.InvokeAsync();
         }
     }
 
@@ -144,6 +299,7 @@
     {
         AuthState.AuthenticationStateChanged -= OnAuthenticationStateChanged;
         StoreState.OnStateChanged -= OnStoreStateChanged;
+        Nav.LocationChanged -= OnLocationChanged;
     }
 }
 

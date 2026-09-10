@@ -1,4 +1,4 @@
-﻿namespace Purchases.Application.Purchases.Queries.GetPurchaseById
+namespace Purchases.Application.Purchases.Queries.GetPurchaseById
 {
     public sealed record PurchaseDetailItemResponse(
         Guid Id,
@@ -11,7 +11,12 @@
         decimal Tax,
         decimal Total,
         DateTime? ExpiryDate,
-        string? BatchNumber);
+        string? BatchNumber,
+        decimal ReturnedQuantity = 0,
+        decimal RemainingQuantity = 0,
+        string? BaseUnit = "قطعة",
+        string? ParentUnit = "كرتونة",
+        int ConversionFactor = 1);
 
     public sealed record PurchaseDetailResponse(
         Guid Id,

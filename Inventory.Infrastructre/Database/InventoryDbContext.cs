@@ -1,7 +1,10 @@
+using Inventory.Domain.Batches.Entities;
 using Inventory.Domain.Catalog.Categories;
 using Inventory.Domain.Catalog.Products.Entities;
 using Inventory.Domain.Catalog.Units;
+using Inventory.Domain.Notifications.Entities;
 using Inventory.Domain.Stock.StockMovements;
+using Inventory.Domain.Stock.Waste.Entities;
 using MediatR;
 using Unit = Inventory.Domain.Catalog.Units.Unit;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +29,9 @@ public class InventoryDbContext : DbContext
     public DbSet<Category> Categories { get; set; }
     public DbSet<Unit> Units { get; set; }
     public DbSet<StockMovement> StockMovements { get; set; }
+    public DbSet<InventoryBatch> Batches { get; set; }
+    public DbSet<InventoryWaste> Wastes { get; set; }
+    public DbSet<ExpiryNotification> Notifications { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

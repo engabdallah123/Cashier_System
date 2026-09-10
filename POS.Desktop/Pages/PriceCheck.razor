@@ -21,7 +21,8 @@
     <div class="search-scanner-card">
         <div class="input-wrapper">
             <i class="fa-solid fa-barcode search-icon"></i>
-            <input @ref="barcodeInput"
+            <input id="price-check-barcode-input"
+                   @ref="barcodeInput"
                    type="text"
                    class="scanner-input"
                    placeholder="امسح الباركود باستخدام القارئ أو ادخل الكود هنا..."
@@ -64,31 +65,35 @@
                 <div class="image-container">
                     @if (!string.IsNullOrWhiteSpace(product.ImageUrl))
                     {
-                        <img src="@ApiClient.GetImageFullUrl(product.ImageUrl)" alt="@product.NameAr" class="product-img" />
+                        <img src="@ApiClient.GetImageFullUrl(product.ImageUrl)" alt="@product.NameAr" class="product-img" onerror="this.onerror=null; this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+                        <div class="no-image-placeholder" style="display:none;">
+                            <i class="fa-solid fa-box-open fa-3x"></i>
+                            <span>منتج بدون صورة</span>
+                        </div>
                     }
                     else
                     {
                         <div class="no-image-placeholder">
-                            <i class="fa-solid fa-box-open fa-4x"></i>
-                            <span>لا توجد صورة للمنتج</span>
+                            <i class="fa-solid fa-box-open fa-3x"></i>
+                            <span>منتج بدون صورة</span>
                         </div>
                     }
                 </div>
 
-                <div class="stock-status-box">
+                <div class="product-media-stock-text">
                     @if (product.QuantityInStock > 0)
                     {
-                        <div class="stock-badge stock-available">
-                            <i class="fa-solid fa-circle-check"></i>
-                            <span>متوفر بالمخزن (@product.QuantityInStock.ToString("N0") @(product.UnitSymbol ?? "قطعة"))</span>
-                        </div>
+                        <span class="stock-text-available">
+                            <i class="fa-solid fa-boxes-stacked"></i>
+                            <span>متوفر بالمخزن: <strong>@product.QuantityInStock.ToString("N0") @(product.UnitSymbol ?? "قطعة")</strong></span>
+                        </span>
                     }
                     else
                     {
-                        <div class="stock-badge stock-out">
+                        <span class="stock-text-out">
                             <i class="fa-solid fa-circle-xmark"></i>
                             <span>غير متوفر بالمخزن (0)</span>
-                        </div>
+                        </span>
                     }
                 </div>
             </div>
@@ -146,8 +151,30 @@
                     </div>
 
                     <div class="attr-box">
+                        <span class="attr-label">الكمية المتوفرة بالمخزن</span>
+                        <span class="attr-val" style="color: @(product.QuantityInStock > 0 ? "var(--accent-green)" : "var(--accent-red)"); font-weight: 800;">
+                            <i class="fa-solid @(product.QuantityInStock > 0 ? "fa-cubes" : "fa-circle-xmark") me-1"></i>
+                            @product.QuantityInStock.ToString("N0") @(product.UnitSymbol ?? "قطعة")
+                        </span>
+                    </div>
+
+                    <div class="attr-box">
                         <span class="attr-label">التصنيف</span>
                         <span class="attr-val">@(product.CategoryName ?? "غير محدد")</span>
+                    </div>
+
+                    <div class="attr-box">
+                        <span class="attr-label">حالة التوفر</span>
+                        <span class="attr-val">
+                            @if (product.QuantityInStock > 0)
+                            {
+                                <span style="color: var(--accent-green); font-weight: 700;"><i class="fa-solid fa-check-circle me-1"></i>متوفر للبيع</span>
+                            }
+                            else
+                            {
+                                <span style="color: var(--accent-red); font-weight: 700;"><i class="fa-solid fa-circle-xmark me-1"></i>غير متوفر بالمخزن</span>
+                            }
+                        </span>
                     </div>
                 </div>
 
@@ -406,27 +433,48 @@
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
         gap: 0.75rem;
         color: var(--text-muted);
-        font-size: 0.85rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        width: 100%;
+        height: 100%;
     }
 
-    .stock-status-box { width: 100%; }
-
-    .stock-badge {
+    .product-media-stock-text {
         width: 100%;
-        padding: 0.75rem 1rem;
+        text-align: center;
+        padding: 0.65rem 0.85rem;
         border-radius: 12px;
-        font-weight: 700;
-        font-size: 0.9rem;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        font-size: 0.95rem;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 0.5rem;
     }
 
-    .stock-available { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.3); }
-    .stock-out { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.3); }
+    .stock-text-available {
+        color: var(--accent-green);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 600;
+    }
+
+    .stock-text-available strong {
+        font-weight: 800;
+        font-size: 1.05rem;
+    }
+
+    .stock-text-out {
+        color: var(--accent-red);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        font-weight: 700;
+    }
 
     .product-details-column {
         display: flex;
@@ -585,19 +633,19 @@
     {
         if (firstRender)
         {
-            await FocusBarcodeScannerAsync();
+            await FocusBarcodeScannerAsync(50, true);
         }
     }
 
-    private async Task FocusBarcodeScannerAsync()
+    private async Task FocusBarcodeScannerAsync(int delay = 0, bool select = true)
     {
         try
         {
-            await barcodeInput.FocusAsync();
+            await JS.InvokeVoidAsync("focusElementById", "price-check-barcode-input", delay, select);
         }
         catch
         {
-            // Ignore if element not available
+            try { await barcodeInput.FocusAsync(); } catch { }
         }
     }
 
@@ -634,6 +682,7 @@
 
         isLoading = false;
         StateHasChanged();
+        await FocusBarcodeScannerAsync(50, true);
     }
 
     private async Task ClearSearch()
@@ -641,7 +690,7 @@
         barcodeQuery = string.Empty;
         product = null;
         hasSearched = false;
-        await FocusBarcodeScannerAsync();
+        await FocusBarcodeScannerAsync(0, true);
     }
 
     private async Task ClearAndFocus()

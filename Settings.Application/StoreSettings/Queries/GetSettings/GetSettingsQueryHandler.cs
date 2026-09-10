@@ -30,6 +30,8 @@ namespace Settings.Application.StoreSettings.Queries.GetSettings
                     Currency,
                     InvoiceFooterMessage,
                     AllowNegativeStock,
+                    ISNULL(AutoPrintInvoice, 1) AS AutoPrintInvoice,
+                    LogoUrl,
                     UpdatedAt
                 FROM [Settings].[StoreSettings]
                 """;

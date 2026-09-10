@@ -150,6 +150,7 @@ namespace Shifts.Domain.Shifts.Entities
                 return Result.Failure(ShiftErrors.NotOpen);
 
             TotalReturns++;
+            TotalSales = Math.Max(0, TotalSales - returnAmount);
             if (refundMethod.Equals("cash", StringComparison.OrdinalIgnoreCase))
             {
                 TotalCash -= returnAmount;

@@ -10,5 +10,7 @@ namespace Settings.Application.StoreSettings.Commands.UpdateSettings
         bool IsTaxIncluded,
         string Currency,
         string? InvoiceFooterMessage,
-        bool AllowNegativeStock) : ICommand;
+        bool AllowNegativeStock,
+        bool AutoPrintInvoice = true,
+        string? LogoUrl = null) : ICommand;
 }

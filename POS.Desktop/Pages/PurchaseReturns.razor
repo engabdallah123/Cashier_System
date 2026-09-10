@@ -56,13 +56,14 @@
                     <th>الملاحظات</th>
                     <th>المبلغ المسترد</th>
                     <th>الحالة</th>
+                    <th style="text-align: center; white-space: nowrap; width: 175px;">الإجراءات</th>
                 </tr>
             </thead>
             <tbody>
                 @if (isLoading)
                 {
                     <tr>
-                        <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                        <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
                             <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
                             <p style="margin-top: 0.5rem;">جاري تحميل سجل مرتجعات الموردين...</p>
                         </td>
@@ -71,7 +72,7 @@
                 else if (!filteredReturns.Any())
                 {
                     <tr>
-                        <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                        <td colspan="9" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
                             <i class="fa-solid fa-truck-ramp-box" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
                             لا توجد مرتجعات مشتريات مسجلة.
                         </td>
@@ -87,9 +88,28 @@
                             <td><strong>@(string.IsNullOrWhiteSpace(ret.SupplierName) ? "مورد عام" : ret.SupplierName)</strong></td>
                             <td>@(string.IsNullOrWhiteSpace(ret.Reason) ? "-" : ret.Reason)</td>
                             <td>@(string.IsNullOrWhiteSpace(ret.Notes) ? "-" : ret.Notes)</td>
-                            <td style="color: var(--accent-emerald); font-weight: 700;">@ret.TotalAmount.ToString("N2") ج.م</td>
+                            <td style="color: var(--accent-red, #f87171); font-weight: 700; white-space: nowrap;">
+                                <span class="badge badge-red me-1" style="font-size: 0.7rem; padding: 0.15rem 0.35rem;"><i class="fa-solid fa-rotate-left"></i> مرتجع</span>
+                                -@ret.TotalAmount.ToString("N2") ج.م
+                            </td>
                             <td>
                                 <span class="badge badge-green">مكتمل</span>
+                            </td>
+                            <td style="white-space: nowrap; text-align: center;">
+                                <div style="display: flex; gap: 0.4rem; align-items: center; justify-content: center; flex-wrap: nowrap; white-space: nowrap;">
+                                    <button class="btn btn-sm btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap;" @onclick="() => OpenDetailsModal(ret)" title="عرض تفاصيل وأصناف المرتجع">
+                                        <i class="fa-solid fa-eye" style="color: var(--accent-blue);"></i>
+                                        <span>التفاصيل</span>
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap;" @onclick="() => OpenEditModal(ret)" title="تعديل بيانات وأصناف المرتجع">
+                                        <i class="fa-solid fa-pen-to-square" style="color: var(--accent-amber);"></i>
+                                        <span>تعديل</span>
+                                    </button>
+                                    <button class="btn btn-sm btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.8rem; display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap;" @onclick="() => ConfirmDeleteReturn(ret)" title="حذف المرتجع واستعادة بضاعة المورد للمخزن">
+                                        <i class="fa-solid fa-trash"></i>
+                                        <span>حذف</span>
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     }
@@ -110,7 +130,7 @@
                 <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--accent-indigo);">
                     <i class="fa-solid fa-truck-ramp-box me-2"></i> تسجيل مرتجع مشتريات لمورد
                 </h3>
-                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseNewReturnModal">
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
@@ -122,38 +142,110 @@
                 </div>
             }
 
-            <!-- Step 1: Select Original Purchase Invoice -->
-            <div class="form-group">
-                <label style="font-weight: 700; margin-bottom: 0.5rem;">اختيار فاتورة الشراء الأصلية <span style="color: var(--accent-red);">*</span></label>
-                <select class="form-control" value="@selectedPurchaseIdString" @onchange="OnPurchaseSelected">
-                    <option value="">-- اختر فاتورة شراء من القائمة --</option>
-                    @foreach (var p in purchasesList)
-                    {
-                        <option value="@p.Id.ToString()">@p.InvoiceNumber - @p.SupplierName - @p.PurchaseDate.ToString("yyyy-MM-dd") - (@p.TotalAmount.ToString("N2") ج.م)</option>
-                    }
-                </select>
-            </div>
-
-            <!-- Step 2: Show Selected Purchase Items -->
-            @if (selectedPurchaseDetail != null)
+            <!-- Step 1: Search & Select Original Purchase Invoice -->
+            @if (selectedPurchaseDetail == null)
             {
-                <div style="background: var(--bg-primary, #0f172a); padding: 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem; font-size: 0.9rem; flex-wrap: wrap; gap: 0.5rem;">
-                        <div><strong>رقم الفاتورة:</strong> <code>@selectedPurchaseDetail.InvoiceNumber</code></div>
-                        <div><strong>المورد:</strong> @selectedPurchaseDetail.SupplierName</div>
-                        <div><strong>تاريخ الشراء:</strong> @selectedPurchaseDetail.PurchaseDate.ToString("yyyy-MM-dd")</div>
-                        <div><strong>إجمالي الفاتورة:</strong> @selectedPurchaseDetail.TotalAmount.ToString("N2") ج.م</div>
+                <div style="background: var(--bg-primary, #0f172a); padding: 1rem; border-radius: 0.6rem; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 0.75rem;">
+                    <div>
+                        <label style="font-weight: 700; margin-bottom: 0.35rem; display: block; font-size: 0.9rem;">
+                            <i class="fa-solid fa-magnifying-glass text-primary me-1"></i> ابحث عن فاتورة الشراء برقم الفاتورة أو اسم المورد أو التاريخ:
+                        </label>
+                        <div class="search-box" style="width: 100%;">
+                            <i class="fa-solid fa-search"></i>
+                            <input @bind="purchaseInvoiceSearchQuery"
+                                   @bind:event="oninput"
+                                   placeholder="اكتب رقم فاتورة الشراء أو اسم المورد أو التاريخ..."
+                                   style="border-color: var(--accent-blue); font-size: 0.95rem;" />
+                        </div>
                     </div>
 
+                    <div class="table-container" style="max-height: 240px; overflow-y: auto;">
+                        <table class="data-table" style="font-size: 0.88rem;">
+                            <thead>
+                                <tr>
+                                    <th>رقم الفاتورة</th>
+                                    <th>تاريخ الشراء</th>
+                                    <th>المورد</th>
+                                    <th>إجمالي الفاتورة</th>
+                                    <th>الحالة</th>
+                                    <th style="text-align: center; width: 100px;">الإجراء</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!FilteredPurchaseInvoices.Any())
+                                {
+                                    <tr>
+                                        <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                                            لا توجد فواتير مشتريات مطابقة لكلمات البحث.
+                                        </td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    @foreach (var p in FilteredPurchaseInvoices.Take(15))
+                                    {
+                                        <tr>
+                                            <td><code style="font-weight: 700; color: var(--accent-blue);">@p.InvoiceNumber</code></td>
+                                            <td>@p.PurchaseDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                            <td style="font-weight: 600;">@p.SupplierName</td>
+                                            <td style="font-weight: 700; color: var(--accent-amber);">@p.TotalAmount.ToString("N2") ج.م</td>
+                                            <td>
+                                                <span class="badge @(p.Status == "Received" ? "badge-green" : "badge-indigo")">
+                                                    @(p.Status == "Received" ? "مستلمة" : p.Status)
+                                                </span>
+                                            </td>
+                                            <td style="text-align: center;">
+                                                <button type="button" class="btn btn-sm btn-primary" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;" @onclick="() => SelectPurchaseInvoice(p)">
+                                                    <i class="fa-solid fa-check me-1"></i> اختيار
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <!-- Step 2: Show Selected Purchase Items -->
+                <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid var(--accent-indigo); padding: 0.85rem 1.1rem; border-radius: 0.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <div style="display: flex; gap: 1.25rem; align-items: center; flex-wrap: wrap; font-size: 0.9rem;">
+                        <div>
+                            <span style="color: var(--text-secondary); font-size: 0.8rem; display: block;">فاتورة الشراء:</span>
+                            <code style="font-weight: 700; font-size: 0.95rem; color: var(--accent-blue);">@selectedPurchaseDetail.InvoiceNumber</code>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-secondary); font-size: 0.8rem; display: block;">المورد:</span>
+                            <strong style="color: var(--text-primary);">@selectedPurchaseDetail.SupplierName</strong>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-secondary); font-size: 0.8rem; display: block;">تاريخ الشراء:</span>
+                            <span>@selectedPurchaseDetail.PurchaseDate.ToString("yyyy-MM-dd")</span>
+                        </div>
+                        <div>
+                            <span style="color: var(--text-secondary); font-size: 0.8rem; display: block;">إجمالي الفاتورة:</span>
+                            <strong style="color: var(--accent-amber);">@selectedPurchaseDetail.TotalAmount.ToString("N2") ج.م</strong>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-secondary" style="font-size: 0.8rem; padding: 0.3rem 0.65rem;" @onclick="ResetSelectedPurchase">
+                        <i class="fa-solid fa-arrows-rotate me-1"></i> تغيير الفاتورة
+                    </button>
+                </div>
+
+                <div style="background: var(--bg-primary, #0f172a); padding: 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
                     <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--accent-blue);">حدد الأصناف والكميات المراد إرجاعها للمورد:</h4>
                     <table class="data-table" style="font-size: 0.88rem;">
                         <thead>
                             <tr>
                                 <th>المنتج</th>
-                                <th>سعر التكلفة</th>
+                                <th>تكلفة الوحدة</th>
                                 <th>الكمية المشتراة</th>
-                                <th style="width: 140px;">الكمية المرتجعة</th>
-                                <th>الإجمالي</th>
+                                <th>تم إرجاع</th>
+                                <th>المتبقي للإرجاع</th>
+                                <th style="width: 190px; text-align: center;">الكمية المرتجعة</th>
+                                <th style="text-align: left;">الإجمالي المسترد</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -161,17 +253,75 @@
                             {
                                 @foreach (var item in returnItems)
                                 {
-                                    <tr>
-                                        <td><strong>@item.ProductName</strong></td>
-                                        <td>@item.UnitCost.ToString("N2") ج.م</td>
-                                        <td>@item.MaxQuantity</td>
+                                    <tr style="@(item.RemainingQuantity <= 0 ? "opacity: 0.6; background: rgba(255,255,255,0.02);" : "")">
                                         <td>
-                                            <input type="number" min="0" max="@item.MaxQuantity" step="1" 
-                                                   class="form-control" style="padding: 0.25rem 0.5rem; text-align: center;" 
-                                                   @bind="item.ReturnQuantity" @bind:event="oninput" />
+                                            <strong>@item.ProductName</strong>
+                                            @if (!string.IsNullOrWhiteSpace(item.Barcode))
+                                            {
+                                                <div style="font-size: 0.75rem; color: var(--text-secondary);"><i class="fa-solid fa-barcode me-1"></i>@item.Barcode</div>
+                                            }
                                         </td>
-                                        <td style="color: var(--accent-emerald); font-weight: 700;">
-                                            @((item.ReturnQuantity * item.UnitCost).ToString("N2")) ج.م
+                                        <td>
+                                            <span style="font-weight: 700; color: var(--accent-amber);">@item.UnitCost.ToString("N2") ج.م</span>
+                                            <div style="font-size: 0.75rem; color: var(--text-secondary);">لكل @item.UnitLabel</div>
+                                        </td>
+                                        <td>
+                                            <span style="font-weight: 600;">@item.GetPackagingSummary(item.MaxQuantity)</span>
+                                        </td>
+                                        <td>
+                                            @if (item.ReturnedQuantity > 0)
+                                            {
+                                                <span style="color: var(--accent-red); font-weight: 600;">@item.GetPackagingSummary(item.ReturnedQuantity)</span>
+                                            }
+                                            else
+                                            {
+                                                <span style="color: var(--text-secondary);">-</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (item.RemainingQuantity <= 0)
+                                            {
+                                                <span class="badge badge-secondary" style="font-size: 0.75rem;"><i class="fa-solid fa-check-double me-1"></i> مسترجع بالكامل</span>
+                                            }
+                                            else
+                                            {
+                                                <strong style="color: var(--accent-emerald);">@item.GetPackagingSummary(item.RemainingQuantity)</strong>
+                                            }
+                                        </td>
+                                        <td style="text-align: center;">
+                                            @if (item.RemainingQuantity <= 0)
+                                            {
+                                                <div style="color: var(--text-secondary); font-size: 0.8rem;">لا يوجد متبقي للإرجاع</div>
+                                            }
+                                            else
+                                            {
+                                                <div style="display: flex; flex-direction: column; gap: 0.25rem; align-items: center;">
+                                                    <div style="display: flex; align-items: center; gap: 0.4rem; justify-content: center;">
+                                                        <input type="number" min="0" max="@item.RemainingQuantity" step="1" 
+                                                               class="form-control" style="padding: 0.25rem 0.5rem; text-align: center; width: 75px;" 
+                                                               @bind="item.ReturnQuantity" @bind:event="oninput" />
+                                                        <span style="font-size: 0.8rem; color: var(--text-secondary);">@item.UnitLabel</span>
+                                                        <button type="button" class="btn btn-xs btn-outline-primary" style="padding: 0.15rem 0.4rem; font-size: 0.75rem;" @onclick="item.SetFullReturn" title="إرجاع الكل">
+                                                            الكل
+                                                        </button>
+                                                        @if (item.ReturnQuantity > 0)
+                                                        {
+                                                            <button type="button" class="btn btn-xs btn-outline-secondary" style="padding: 0.15rem 0.4rem; font-size: 0.75rem;" @onclick="item.ClearReturn" title="تفريغ">
+                                                                تفريغ
+                                                            </button>
+                                                        }
+                                                    </div>
+                                                    @if (item.HasCartons && item.ReturnQuantity > 0)
+                                                    {
+                                                        <div style="font-size: 0.72rem; color: var(--accent-red);">
+                                                            يخصم (@(item.ReturnQuantity * item.ConversionFactor) @item.BaseUnit) من المخزن
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        </td>
+                                        <td style="color: var(--accent-red); font-weight: 700; text-align: left; white-space: nowrap;">
+                                            @(item.ReturnQuantity > 0 ? $"-{(item.ReturnQuantity * item.UnitCost):N2} ج.م" : "0.00 ج.م")
                                         </td>
                                     </tr>
                                 }
@@ -192,19 +342,26 @@
                     </div>
                 </div>
 
-                <!-- Total Refund Summary -->
-                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); padding: 0.85rem 1.25rem; border-radius: 0.5rem;">
-                    <div style="font-weight: 700; font-size: 1rem; color: var(--text-primary);">
-                        إجمالي المبلغ المسترد من المورد (زيادة في الخزنة):
+                <!-- Total Refund Summary & Impact -->
+                <div style="background: rgba(239, 68, 68, 0.12); border: 2px solid rgba(239, 68, 68, 0.35); padding: 0.9rem 1.25rem; border-radius: 0.6rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="font-weight: 700; font-size: 1rem; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fa-solid fa-rotate-left" style="color: #f87171;"></i>
+                            <span>إجمالي المبلغ المسترد من المورد:</span>
+                        </div>
+                        <div style="font-size: 1.5rem; font-weight: 900; color: #ef4444;">
+                            -@CalculateTotalRefund().ToString("N2") ج.م
+                        </div>
                     </div>
-                    <div style="font-size: 1.3rem; font-weight: 800; color: var(--accent-emerald);">
-                        @CalculateTotalRefund().ToString("N2") ج.م
+                    <div style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 1.2rem; flex-wrap: wrap; border-top: 1px dashed rgba(239, 68, 68, 0.25); padding-top: 0.4rem;">
+                        <span style="color: #f87171;"><i class="fa-solid fa-boxes-stacked me-1"></i> يخصم رصيد المنتجات المرتجعة من المخزن تلقائياً (- مخزون)</span>
+                        <span style="color: #34d399;"><i class="fa-solid fa-hand-holding-dollar me-1"></i> يسترد المبلغ كاش أو يخفض من رصيد مديونية المورد (+ رصيد/نقدية)</span>
                     </div>
                 </div>
             }
 
             <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
-                <button class="btn btn-secondary" @onclick="CloseNewReturnModal" disabled="@isSubmitting">إلغاء</button>
+                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSubmitting">إلغاء</button>
                 <button class="btn btn-primary" @onclick="SubmitReturn" disabled="@(isSubmitting || selectedPurchaseDetail == null || CalculateTotalRefund() <= 0)">
                     @if (isSubmitting)
                     {
@@ -220,11 +377,296 @@
     </div>
 }
 
+<!-- Modal: Purchase Return Details -->
+@if (showDetailsModal && selectedReturnDetail != null)
+{
+    <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1.5rem;">
+        <div class="card" style="width: 100%; max-width: 800px; max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column; gap: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--accent-blue);">
+                    <i class="fa-solid fa-file-invoice me-2"></i> تفاصيل مرتجع المشتريات (@selectedReturnDetail.ReturnNumber)
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Metadata Cards Grid -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; background: rgba(255,255,255,0.03); padding: 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
+                <div>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary); display: block;">رقم فاتورة الشراء الأصلية</span>
+                    <strong>@(string.IsNullOrWhiteSpace(selectedReturnDetail.OriginalInvoiceNumber) ? "-" : selectedReturnDetail.OriginalInvoiceNumber)</strong>
+                </div>
+                <div>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary); display: block;">تاريخ المرتجع</span>
+                    <strong>@selectedReturnDetail.ReturnDate.ToString("yyyy-MM-dd HH:mm")</strong>
+                </div>
+                <div>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary); display: block;">المورد</span>
+                    <strong>@(string.IsNullOrWhiteSpace(selectedReturnDetail.SupplierName) ? "مورد عام" : selectedReturnDetail.SupplierName)</strong>
+                </div>
+                <div>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary); display: block;">المستخدم المسؤول</span>
+                    <strong>@(string.IsNullOrWhiteSpace(selectedReturnDetail.CreatedByUserName) ? "المسؤول" : selectedReturnDetail.CreatedByUserName)</strong>
+                </div>
+                <div>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary); display: block;">سبب الإرجاع</span>
+                    <strong>@(string.IsNullOrWhiteSpace(selectedReturnDetail.Reason) ? "-" : selectedReturnDetail.Reason)</strong>
+                </div>
+                <div>
+                    <span style="font-size: 0.8rem; color: var(--text-secondary); display: block;">الحالة</span>
+                    <span class="badge badge-green">مكتمل</span>
+                </div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(selectedReturnDetail.Notes))
+            {
+                <div style="background: rgba(255,255,255,0.02); border-left: 3px solid var(--accent-indigo); padding: 0.6rem 0.85rem; border-radius: 0.4rem; font-size: 0.88rem;">
+                    <strong>ملاحظات:</strong> @selectedReturnDetail.Notes
+                </div>
+            }
+
+            <!-- Items Table -->
+            <div>
+                <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-primary);">الأصناف المرتجعة للمورد:</h4>
+                <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+                    <table class="data-table" style="font-size: 0.88rem;">
+                        <thead>
+                            <tr>
+                                <th>اسم المنتج</th>
+                                <th>الباركود</th>
+                                <th style="text-align: center;">الكمية المرتجعة</th>
+                                <th style="text-align: left;">سعر التكلفة</th>
+                                <th style="text-align: left;">الإجمالي</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (selectedReturnDetail.Items != null && selectedReturnDetail.Items.Any())
+                            {
+                                @foreach (var it in selectedReturnDetail.Items)
+                                {
+                                    <tr>
+                                        <td style="font-weight: 600;">@it.ProductName</td>
+                                        <td><code>@(string.IsNullOrWhiteSpace(it.Barcode) ? "-" : it.Barcode)</code></td>
+                                        <td style="text-align: center; font-weight: 700; color: var(--accent-red);">-@it.Quantity</td>
+                                        <td style="text-align: left;">@it.UnitCost.ToString("N2") ج.م</td>
+                                        <td style="text-align: left; font-weight: 700; color: var(--accent-red);">-@it.Total.ToString("N2") ج.م</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1rem;">لا توجد أصناف مدرجة.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Total Amount Bar -->
+            <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.85rem 1.25rem; border-radius: 0.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 700; font-size: 1rem;">إجمالي المبلغ المسترد من المورد:</span>
+                <span style="font-size: 1.4rem; font-weight: 800; color: #f87171;">-@selectedReturnDetail.TotalAmount.ToString("N2") ج.م</span>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                <button class="btn btn-secondary" @onclick="CloseModals">إغلاق</button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal: Edit Purchase Return -->
+@if (showEditReturnModal && editReturnModel != null)
+{
+    <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1.5rem;">
+        <div class="card" style="width: 100%; max-width: 850px; max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column; gap: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--accent-amber);">
+                    <i class="fa-solid fa-pen-to-square me-2"></i> تعديل مرتجع المشتريات (@editReturnModel.ReturnNumber)
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(modalError))
+            {
+                <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.9rem;">
+                    <i class="fa-solid fa-circle-exclamation me-1"></i> @modalError
+                </div>
+            }
+
+            <!-- Items Table in Edit -->
+            <div>
+                <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--accent-blue);">تعديل كميات الأصناف المرتجعة للمورد:</h4>
+                <div class="table-container" style="max-height: 250px; overflow-y: auto; margin-bottom: 1rem;">
+                    <table class="data-table" style="font-size: 0.88rem;">
+                        <thead>
+                            <tr>
+                                <th>اسم المنتج</th>
+                                <th style="width: 120px; text-align: center;">الكمية</th>
+                                <th style="width: 130px; text-align: left;">سعر التكلفة</th>
+                                <th style="width: 130px; text-align: left;">الإجمالي</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!editReturnItems.Any())
+                            {
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                                        لا توجد أصناف في المرتجع.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var it in editReturnItems)
+                                {
+                                    <tr>
+                                        <td style="font-weight: 600;">@it.ProductName</td>
+                                        <td style="text-align: center;">
+                                            <input type="number" min="0.01" step="1" class="form-control" style="width: 85px; padding: 0.25rem 0.4rem; text-align: center; margin: auto;" @bind="it.ReturnQuantity" @bind:event="oninput" />
+                                        </td>
+                                        <td style="text-align: left;">@it.UnitCost.ToString("N2") ج.م</td>
+                                        <td style="text-align: left; font-weight: 700; color: var(--accent-red);">
+                                            @(it.ReturnQuantity > 0 ? $"-{(it.ReturnQuantity * it.UnitCost):N2} ج.م" : "0.00 ج.م")
+                                        </td>
+                                        <td style="text-align: center;">
+                                            <button class="btn btn-sm btn-danger" style="padding: 0.2rem 0.45rem;" @onclick="() => editReturnItems.Remove(it)" title="إزالة هذا الصنف">
+                                                <i class="fa-solid fa-times"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Form fields -->
+            <div class="grid-2">
+                <div class="form-group">
+                    <label>سبب الإرجاع</label>
+                    <input class="form-control" placeholder="سبب الإرجاع..." @bind="editReason" />
+                </div>
+
+                <div class="form-group">
+                    <label>ملاحظات إضافية</label>
+                    <input class="form-control" placeholder="ملاحظات..." @bind="editNotes" />
+                </div>
+            </div>
+
+            <!-- Total Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.85rem 1.25rem; border-radius: 0.5rem;">
+                <span style="font-weight: 700; font-size: 1rem;">إجمالي المبلغ المسترد الجديد:</span>
+                <span style="font-size: 1.4rem; font-weight: 800; color: #f87171;">
+                    -@editReturnItems.Sum(i => i.ReturnQuantity * i.UnitCost).ToString("N2") ج.م
+                </span>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSubmitting">إلغاء</button>
+                <button class="btn btn-primary" @onclick="SaveEditReturn" disabled="@(isSubmitting || !editReturnItems.Any(i => i.ReturnQuantity > 0))">
+                    @if (isSubmitting)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحفظ...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-floppy-disk me-1"></i> <span>حفظ التعديلات</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal: Delete Confirmation -->
+@if (showDeleteReturnModal && returnToDelete != null)
+{
+    <div class="modal-overlay" @onclick="CloseModals">
+        <div class="modal-card" style="width: 520px; max-width: 95vw;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--accent-red); display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span>تأكيد حذف مرتجع المشتريات</span>
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals" disabled="@isSubmitting">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.15rem; padding: 1.5rem;">
+                @if (!string.IsNullOrEmpty(modalError))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.9rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @modalError
+                    </div>
+                }
+
+                <p style="font-size: 0.95rem; line-height: 1.6; color: var(--text-primary); margin: 0;">
+                    هل أنت متأكد من رغبتك في حذف مرتجع المشتريات نهائياً من سجلات النظام؟
+                </p>
+
+                <!-- Information Card -->
+                <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.65rem; padding: 1.1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; font-size: 0.9rem;">
+                    <div>
+                        <span style="color: var(--text-secondary); display: block; font-size: 0.8rem; margin-bottom: 0.2rem;">رقم المرتجع:</span>
+                        <code style="font-size: 0.95rem; font-weight: 700; color: var(--accent-blue);">@returnToDelete.ReturnNumber</code>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary); display: block; font-size: 0.8rem; margin-bottom: 0.2rem;">المورد:</span>
+                        <strong style="color: var(--text-primary);">@returnToDelete.SupplierName</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary); display: block; font-size: 0.8rem; margin-bottom: 0.2rem;">المبلغ المسترد:</span>
+                        <strong style="color: var(--accent-red); font-size: 1.05rem;">-@returnToDelete.TotalAmount.ToString("N2") ج.م</strong>
+                    </div>
+                    <div>
+                        <span style="color: var(--text-secondary); display: block; font-size: 0.8rem; margin-bottom: 0.2rem;">تاريخ الإرجاع:</span>
+                        <strong style="color: var(--text-primary);">@returnToDelete.ReturnDate.ToString("yyyy-MM-dd HH:mm")</strong>
+                    </div>
+                </div>
+
+                <!-- Warning Impact Box -->
+                <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.9rem 1.1rem; border-radius: 0.65rem; font-size: 0.88rem; line-height: 1.6;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem; font-weight: 700; font-size: 0.95rem;">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <span>تحذير الأثر المخزني:</span>
+                    </div>
+                    <div>
+                        سيتم حذف عملية مرتجع الشراء نهائياً، وإعادة زيادة رصيد الكميات المرجعة إلى رصيد المخزن الفعلي بالمحل وتسجيل حركة مخزون تصحيحية (Adjustment).
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSubmitting" style="padding: 0.55rem 1.25rem;">إلغاء</button>
+                <button class="btn btn-danger" @onclick="DeleteReturnConfirmed" disabled="@isSubmitting" style="padding: 0.55rem 1.25rem; font-weight: 700;">
+                    @if (isSubmitting)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحذف...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-trash me-1"></i> <span>نعم، احذف المرتجع</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<PurchaseReturnDto> returns = new();
     private List<PurchaseReturnDto> filteredReturns = new();
     private List<PurchaseDto> purchasesList = new();
-    private PurchaseDto? selectedPurchaseDetail;
+    private PurchaseDetailDto? selectedPurchaseDetail;
 
     private string searchQuery = string.Empty;
     private bool isLoading = true;
@@ -233,10 +675,24 @@
     private string? successMessage;
     private string? modalError;
 
+    // Modals
     private bool showNewReturnModal = false;
+    private bool showDetailsModal = false;
+    private bool showEditReturnModal = false;
+    private bool showDeleteReturnModal = false;
+
+    private PurchaseReturnDetailDto? selectedReturnDetail;
+    private PurchaseReturnDto? returnToDelete;
+    private PurchaseReturnDetailDto? editReturnModel;
+
+    // New Return fields
     private string selectedPurchaseIdString = string.Empty;
     private string? reason;
     private string? notes;
+
+    // Edit Return fields
+    private string? editReason;
+    private string? editNotes;
 
     private int currentPage = 1;
     private int pageSize = 10;
@@ -246,12 +702,42 @@
     {
         public Guid ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
+        public string? Barcode { get; set; }
         public decimal UnitCost { get; set; }
         public decimal MaxQuantity { get; set; }
+        public decimal ReturnedQuantity { get; set; }
+        public decimal RemainingQuantity { get; set; }
         public decimal ReturnQuantity { get; set; }
+
+        public string BaseUnit { get; set; } = "قطعة";
+        public string ParentUnit { get; set; } = "كرتونة";
+        public int ConversionFactor { get; set; } = 1;
+        public bool HasCartons => ConversionFactor > 1;
+        public string UnitLabel => HasCartons ? ParentUnit : BaseUnit;
+
+        public void SetFullReturn()
+        {
+            ReturnQuantity = RemainingQuantity;
+        }
+
+        public void ClearReturn()
+        {
+            ReturnQuantity = 0;
+        }
+
+        public string GetPackagingSummary(decimal qty)
+        {
+            if (HasCartons)
+            {
+                var pieces = qty * ConversionFactor;
+                return $"{qty:G29} {ParentUnit} ({pieces:G29} {BaseUnit})";
+            }
+            return $"{qty:G29} {BaseUnit}";
+        }
     }
 
     private List<PurchaseReturnItemViewModel> returnItems = new();
+    private List<PurchaseReturnItemViewModel> editReturnItems = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -300,10 +786,29 @@
         if (currentPage > maxPage) currentPage = maxPage;
     }
 
+    private void CloseModals()
+    {
+        showNewReturnModal = false;
+        showDetailsModal = false;
+        showEditReturnModal = false;
+        showDeleteReturnModal = false;
+        modalError = null;
+    }
+
+    private string purchaseInvoiceSearchQuery = string.Empty;
+
+    private IEnumerable<PurchaseDto> FilteredPurchaseInvoices =>
+        purchasesList.Where(p =>
+            string.IsNullOrWhiteSpace(purchaseInvoiceSearchQuery) ||
+            p.InvoiceNumber.Contains(purchaseInvoiceSearchQuery, StringComparison.OrdinalIgnoreCase) ||
+            (p.SupplierName != null && p.SupplierName.Contains(purchaseInvoiceSearchQuery, StringComparison.OrdinalIgnoreCase)) ||
+            p.PurchaseDate.ToString("yyyy-MM-dd").Contains(purchaseInvoiceSearchQuery));
+
     private void OpenNewReturnModal()
     {
         selectedPurchaseIdString = string.Empty;
         selectedPurchaseDetail = null;
+        purchaseInvoiceSearchQuery = string.Empty;
         returnItems.Clear();
         modalError = null;
         reason = null;
@@ -311,9 +816,48 @@
         showNewReturnModal = true;
     }
 
-    private void CloseNewReturnModal()
+    private async Task SelectPurchaseInvoice(PurchaseDto purchase)
     {
-        showNewReturnModal = false;
+        modalError = null;
+        selectedPurchaseIdString = purchase.Id.ToString();
+        selectedPurchaseDetail = await ApiClient.GetPurchaseDetailsAsync(purchase.Id);
+        if (selectedPurchaseDetail != null && selectedPurchaseDetail.Items != null)
+        {
+            returnItems = selectedPurchaseDetail.Items.Select(i =>
+            {
+                var factor = i.ConversionFactor > 0 ? i.ConversionFactor : 1;
+                var remaining = i.RemainingQuantity > 0 
+                    ? i.RemainingQuantity 
+                    : (i.ReturnedQuantity > 0 ? Math.Max(0, i.Quantity - i.ReturnedQuantity) : i.Quantity);
+
+                return new PurchaseReturnItemViewModel
+                {
+                    ProductId = i.ProductId,
+                    ProductName = i.ProductName ?? "منتج",
+                    Barcode = i.Barcode,
+                    UnitCost = i.UnitCostPrice,
+                    MaxQuantity = i.Quantity,
+                    ReturnedQuantity = i.ReturnedQuantity,
+                    RemainingQuantity = remaining,
+                    ReturnQuantity = 0,
+                    BaseUnit = !string.IsNullOrWhiteSpace(i.BaseUnit) ? i.BaseUnit : "قطعة",
+                    ParentUnit = !string.IsNullOrWhiteSpace(i.ParentUnit) ? i.ParentUnit : "كرتونة",
+                    ConversionFactor = factor
+                };
+            }).ToList();
+        }
+        else
+        {
+            returnItems.Clear();
+        }
+    }
+
+    private void ResetSelectedPurchase()
+    {
+        selectedPurchaseDetail = null;
+        selectedPurchaseIdString = string.Empty;
+        returnItems.Clear();
+        purchaseInvoiceSearchQuery = string.Empty;
     }
 
     private async Task OnPurchaseSelected(ChangeEventArgs e)
@@ -322,16 +866,30 @@
         selectedPurchaseIdString = e.Value?.ToString() ?? string.Empty;
         if (Guid.TryParse(selectedPurchaseIdString, out var purchaseId))
         {
-            selectedPurchaseDetail = await ApiClient.GetPurchaseByIdAsync(purchaseId);
+            selectedPurchaseDetail = await ApiClient.GetPurchaseDetailsAsync(purchaseId);
             if (selectedPurchaseDetail != null && selectedPurchaseDetail.Items != null)
             {
-                returnItems = selectedPurchaseDetail.Items.Select(i => new PurchaseReturnItemViewModel
+                returnItems = selectedPurchaseDetail.Items.Select(i =>
                 {
-                    ProductId = i.ProductId,
-                    ProductName = i.ProductName ?? "منتج",
-                    UnitCost = i.UnitCostPrice,
-                    MaxQuantity = i.Quantity,
-                    ReturnQuantity = 0
+                    var factor = i.ConversionFactor > 0 ? i.ConversionFactor : 1;
+                    var remaining = i.RemainingQuantity > 0 
+                        ? i.RemainingQuantity 
+                        : (i.ReturnedQuantity > 0 ? Math.Max(0, i.Quantity - i.ReturnedQuantity) : i.Quantity);
+
+                    return new PurchaseReturnItemViewModel
+                    {
+                        ProductId = i.ProductId,
+                        ProductName = i.ProductName ?? "منتج",
+                        Barcode = i.Barcode,
+                        UnitCost = i.UnitCostPrice,
+                        MaxQuantity = i.Quantity,
+                        ReturnedQuantity = i.ReturnedQuantity,
+                        RemainingQuantity = remaining,
+                        ReturnQuantity = 0,
+                        BaseUnit = !string.IsNullOrWhiteSpace(i.BaseUnit) ? i.BaseUnit : "قطعة",
+                        ParentUnit = !string.IsNullOrWhiteSpace(i.ParentUnit) ? i.ParentUnit : "كرتونة",
+                        ConversionFactor = factor
+                    };
                 }).ToList();
             }
         }
@@ -360,9 +918,9 @@
 
         foreach (var it in itemsToReturn)
         {
-            if (it.ReturnQuantity > it.MaxQuantity)
+            if (it.ReturnQuantity > it.RemainingQuantity)
             {
-                modalError = $"الكمية المرتجعة للمنتج ({it.ProductName}) أكبر من الكمية المشتراة أصلاً ({it.MaxQuantity}).";
+                modalError = $"الكمية المرتجعة للمنتج ({it.ProductName}) أكبر من الكمية المتبقية المتاحة للإرجاع ({it.RemainingQuantity} {it.UnitLabel}).";
                 return;
             }
         }
@@ -398,10 +956,132 @@
             successMessage = "تم تسجيل مرتجع المشتريات للمورد بنجاح، وتم خصم الكمية من المخزون.";
             showNewReturnModal = false;
             await LoadData();
+            try
+            {
+                purchasesList = await ApiClient.GetPurchasesListAsync();
+            }
+            catch { }
+            selectedPurchaseDetail = null;
+            returnItems.Clear();
         }
         else
         {
             modalError = err ?? "فشل تسجيل المرتجع للمورد.";
+        }
+    }
+
+    private async Task OpenDetailsModal(PurchaseReturnDto ret)
+    {
+        modalError = null;
+        isLoading = true;
+        selectedReturnDetail = await ApiClient.GetPurchaseReturnByIdAsync(ret.Id);
+        isLoading = false;
+
+        if (selectedReturnDetail != null)
+        {
+            showDetailsModal = true;
+        }
+        else
+        {
+            errorMessage = "تعذر تحميل تفاصيل مرتجع المشتريات.";
+        }
+    }
+
+    private async Task OpenEditModal(PurchaseReturnDto ret)
+    {
+        modalError = null;
+        isLoading = true;
+        editReturnModel = await ApiClient.GetPurchaseReturnByIdAsync(ret.Id);
+        isLoading = false;
+
+        if (editReturnModel != null)
+        {
+            editReason = editReturnModel.Reason;
+            editNotes = editReturnModel.Notes;
+
+            editReturnItems = (editReturnModel.Items ?? new()).Select(i => new PurchaseReturnItemViewModel
+            {
+                ProductId = i.ProductId,
+                ProductName = i.ProductName ?? "منتج",
+                Barcode = i.Barcode,
+                UnitCost = i.UnitCost,
+                MaxQuantity = 999999,
+                ReturnQuantity = i.Quantity
+            }).ToList();
+
+            showEditReturnModal = true;
+        }
+        else
+        {
+            errorMessage = "تعذر تحميل بيانات المرتجع للتعديل.";
+        }
+    }
+
+    private async Task SaveEditReturn()
+    {
+        if (editReturnModel == null) return;
+        modalError = null;
+
+        var itemsToSave = editReturnItems.Where(i => i.ReturnQuantity > 0).ToList();
+        if (!itemsToSave.Any())
+        {
+            modalError = "يجب أن يحتوي المرتجع على صنف واحد على الأقل بكمية أكبر من صفر.";
+            return;
+        }
+
+        var req = new UpdatePurchaseReturnRequest(
+            Id: editReturnModel.Id,
+            Reason: editReason,
+            Notes: editNotes,
+            Items: itemsToSave.Select(i => new PurchaseReturnItemRequest(
+                ProductId: i.ProductId,
+                Quantity: i.ReturnQuantity,
+                UnitCost: i.UnitCost,
+                Tax: 0
+            )).ToList(),
+            UserId: AuthState.UserId != Guid.Empty ? AuthState.UserId : editReturnModel.CreatedByUserId
+        );
+
+        isSubmitting = true;
+        var (success, err) = await ApiClient.UpdatePurchaseReturnAsync(editReturnModel.Id, req);
+        isSubmitting = false;
+
+        if (success)
+        {
+            successMessage = "تم حفظ تعديلات مرتجع المشتريات وضبط المخزون بنجاح.";
+            showEditReturnModal = false;
+            await LoadData();
+        }
+        else
+        {
+            modalError = err ?? "فشل حفظ التعديلات.";
+        }
+    }
+
+    private void ConfirmDeleteReturn(PurchaseReturnDto ret)
+    {
+        modalError = null;
+        returnToDelete = ret;
+        showDeleteReturnModal = true;
+    }
+
+    private async Task DeleteReturnConfirmed()
+    {
+        if (returnToDelete == null) return;
+
+        isSubmitting = true;
+        var (success, err) = await ApiClient.DeletePurchaseReturnAsync(returnToDelete.Id, AuthState.UserId);
+        isSubmitting = false;
+
+        if (success)
+        {
+            successMessage = $"تم حذف مرتجع المشتريات رقم {returnToDelete.ReturnNumber} وإعادة زيادة رصيد المخزن بنجاح.";
+            showDeleteReturnModal = false;
+            await LoadData();
+        }
+        else
+        {
+            modalError = err ?? "فشل حذف المرتجع.";
         }
     }
 }
