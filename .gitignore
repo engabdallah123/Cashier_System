@@ -3,6 +3,8 @@
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+publish/
+installer/
 .vs/
 .idea/
 .vscode/
