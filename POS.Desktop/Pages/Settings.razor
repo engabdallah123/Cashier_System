@@ -186,6 +186,66 @@
                     }
                 </button>
             </div>
+
+            <!-- 3A Tech Developer & Support Card -->
+            <div class="card" style="border: 1px solid rgba(56, 189, 248, 0.35); background: linear-gradient(135deg, var(--bg-card), rgba(56, 189, 248, 0.05));">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem; margin-bottom: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <img src="images/3a-tech-logo.png" alt="3A Tech" style="height: 52px; width: auto; object-fit: contain; filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.4));" />
+                        <div>
+                            <h3 style="font-size: 1.15rem; font-weight: 800; color: var(--text-primary); margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                                <span>3A Tech For Software Developments</span>
+                                <span class="badge badge-indigo">الشركة المطورة</span>
+                            </h3>
+                            <p style="font-size: 0.82rem; color: var(--accent-blue); font-weight: 600; margin: 0.25rem 0 0 0;">
+                                التطوير البرمجي والدعم الفني المعتمد لنظام الكاشير وإدارة المبيعات
+                            </p>
+                        </div>
+                    </div>
+                    <span class="badge badge-blue" style="font-size: 0.78rem; padding: 0.4rem 0.8rem;">
+                        <i class="fa-solid fa-code me-1"></i> إصدار 3A Tech Enterprise v2.5
+                    </span>
+                </div>
+
+                <p style="font-size: 0.86rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 1.25rem;">
+                    تم بناء وتطوير هذا النظام بأحدث التقنيات البرمجية بواسطة شركة <strong>3A Tech</strong>. لأي طلبات ترقية أو استفسارات أو دعم فني مباشر، تواصلوا معنا مباشرة عبر قنوات الاتصال والواتساب التالية:
+                </p>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.85rem;">
+                    <!-- Number 1 -->
+                    <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 0.85rem; display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">الدعم الفني والخدمات</div>
+                            <div style="font-size: 1.05rem; font-weight: 800; color: var(--text-primary);" dir="ltr">01062592321</div>
+                        </div>
+                        <button type="button" class="btn-whatsapp" @onclick='() => OpenWhatsApp("01062592321")' title="محادثة واتساب">
+                            <i class="fa-brands fa-whatsapp"></i> <span>واتساب</span>
+                        </button>
+                    </div>
+
+                    <!-- Number 2 -->
+                    <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 0.85rem; display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">خدمة العملاء والمبيعات</div>
+                            <div style="font-size: 1.05rem; font-weight: 800; color: var(--text-primary);" dir="ltr">01063301965</div>
+                        </div>
+                        <button type="button" class="btn-whatsapp" @onclick='() => OpenWhatsApp("01063301965")' title="محادثة واتساب">
+                            <i class="fa-brands fa-whatsapp"></i> <span>واتساب</span>
+                        </button>
+                    </div>
+
+                    <!-- Number 3 -->
+                    <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 0.85rem; display: flex; align-items: center; justify-content: space-between;">
+                        <div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); font-weight: 600;">المتابعة الفنية والصيانة</div>
+                            <div style="font-size: 1.05rem; font-weight: 800; color: var(--text-primary);" dir="ltr">01095997875</div>
+                        </div>
+                        <button type="button" class="btn-whatsapp" @onclick='() => OpenWhatsApp("01095997875")' title="محادثة واتساب">
+                            <i class="fa-brands fa-whatsapp"></i> <span>واتساب</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     }
 </div>
@@ -329,5 +389,25 @@
         {
             saveErrorMessage = !string.IsNullOrEmpty(error) ? error : "فشل حفظ الإعدادات.";
         }
+    }
+
+    private void OpenWhatsApp(string phone)
+    {
+        try
+        {
+            var cleanPhone = phone.Trim().Replace(" ", "").Replace("-", "");
+            if (cleanPhone.StartsWith("0"))
+            {
+                cleanPhone = "2" + cleanPhone;
+            }
+            var msg = Uri.EscapeDataString("السلام عليكم، أحتاج استفسار/دعم فني بخصوص نظام الكاشير 3A Tech.");
+            var url = $"https://wa.me/{cleanPhone}?text={msg}";
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch { }
     }
 }

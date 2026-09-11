@@ -213,6 +213,26 @@
             </div>
         }
     </div>
+
+    <!-- 3A Tech Login Screen Footer -->
+    <footer class="pos-auth-screen-footer">
+        <div class="auth-footer-brand">
+            <img src="images/3a-tech-logo.png" alt="3A Tech" class="auth-footer-logo" />
+            <span>نظام الكاشير والمبيعات — تطوير وتشغيل <strong>3A Tech للحلول البرمجية</strong></span>
+        </div>
+        <div class="auth-footer-support">
+            <span style="font-size: 0.78rem; color: var(--text-secondary);"><i class="fa-solid fa-headset me-1"></i> الدعم الفني:</span>
+            <button type="button" class="auth-support-link" @onclick='() => OpenWhatsApp("01062592321")' title="تواصل عبر واتساب">
+                <i class="fa-brands fa-whatsapp"></i> 01062592321
+            </button>
+            <button type="button" class="auth-support-link" @onclick='() => OpenWhatsApp("01063301965")' title="تواصل عبر واتساب">
+                <i class="fa-brands fa-whatsapp"></i> 01063301965
+            </button>
+            <button type="button" class="auth-support-link" @onclick='() => OpenWhatsApp("01095997875")' title="تواصل عبر واتساب">
+                <i class="fa-brands fa-whatsapp"></i> 01095997875
+            </button>
+        </div>
+    </footer>
 </div>
 
 <style>
@@ -756,5 +776,25 @@
         {
             isLoading = false;
         }
+    }
+
+    private void OpenWhatsApp(string phone)
+    {
+        try
+        {
+            var cleanPhone = phone.Trim().Replace(" ", "").Replace("-", "");
+            if (cleanPhone.StartsWith("0"))
+            {
+                cleanPhone = "2" + cleanPhone;
+            }
+            var msg = Uri.EscapeDataString("السلام عليكم، أحتاج دعم فني بخصوص نظام الكاشير 3A Tech.");
+            var url = $"https://wa.me/{cleanPhone}?text={msg}";
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch { }
     }
 }

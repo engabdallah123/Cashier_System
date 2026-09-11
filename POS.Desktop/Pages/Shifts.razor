@@ -7,12 +7,13 @@
 @inject PosApiClient ApiClient
 @inject ShiftStateContainer ShiftState
 @inject CustomAuthStateProvider AuthState
+@inject IJSRuntime JS
 
 <div style="max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.75rem;">
     <div>
         <h2 style="font-weight: 700;">إدارة وسجل الورديات (الشيفتات)</h2>
         <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
-            فتح وإغلاق الورديات واستعراض سجل الورديات السابقة وتصفيتها حسب التاريخ
+            فتح وإغلاق الورديات واستعراض سجل الورديات السابقة وتصفيتها حسب التاريخ ومطابقة رصيد الخزينة
         </p>
     </div>
 
@@ -20,6 +21,13 @@
     {
         <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem;">
             <i class="fa-solid fa-circle-exclamation me-1"></i> @shiftError
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(shiftSuccess))
+    {
+        <div style="background-color: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; font-weight: 600;">
+            <i class="fa-solid fa-circle-check me-1"></i> @shiftSuccess
         </div>
     }
 
@@ -32,12 +40,12 @@
             </h3>
 
             <div class="form-group" style="margin-bottom: 1.25rem;">
-                <label>المبلغ الافتتاحي في درج النقدية (جنيه)</label>
-                <input type="number" @bind="startingCash" class="form-control" style="max-width: 400px;" />
+                <label style="font-weight: 600;">المبلغ الافتتاحي في درج النقدية (جنيه)</label>
+                <input id="starting-cash-input" type="number" step="0.01" min="0" @bind="startingCash" @onkeydown="HandleStartingCashKeyDown" class="form-control" style="max-width: 400px; font-weight: 700; font-size: 1.05rem;" />
             </div>
 
-            <button class="btn btn-success" style="padding: 0.75rem 1.5rem;" @onclick="OpenShift">
-                <i class="fa-solid fa-cash-register me-1"></i> فتح الوردية
+            <button class="btn btn-success" style="padding: 0.75rem 1.5rem; font-weight: 700;" @onclick="OpenShift">
+                <i class="fa-solid fa-cash-register me-1"></i> فتح الوردية [Enter]
             </button>
         </div>
     }
@@ -62,21 +70,25 @@
                 </div>
             </div>
 
-            <h4 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 1rem;">إغلاق الوردية وجرد النقدية</h4>
+            <h4 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 0.5rem;">إغلاق الوردية وجرد النقدية</h4>
+            <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                أدخل المبلغ الفعلي الموجود في الدرج واضغط <strong style="color: var(--accent-indigo);">[Enter]</strong> لمراجعة مطابقة الحسابات والخزينة قبل الإغلاق.
+            </p>
             
             <div class="grid-2" style="margin-bottom: 1.25rem;">
-                <div class="form-group">
-                    <label>المبلغ الفعلي المتوفر بالدرج (جنيه)</label>
-                    <input type="number" @bind="actualCashInDrawer" class="form-control" />
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label style="font-weight: 700;">المبلغ الفعلي المتوفر بالدرج (جنيه) <span style="color: var(--accent-red);">*</span></label>
+                    <input id="actual-cash-input" type="number" step="0.01" min="0" @bind="actualCashInDrawer" @onkeydown="HandleClosingCashKeyDown" class="form-control" placeholder="0.00" style="font-size: 1.15rem; font-weight: 700; color: var(--accent-emerald);" />
                 </div>
-                <div class="form-group">
-                    <label>ملاحظات إغلاق الوردية</label>
-                    <input type="text" @bind="closingNotes" class="form-control" placeholder="أدخل أي ملاحظات إن وجدت..." />
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>ملاحظات إغلاق الوردية (اختياري)</label>
+                    <input id="closing-notes-input" type="text" @bind="closingNotes" @onkeydown="HandleClosingNotesKeyDown" class="form-control" placeholder="أدخل أي ملاحظات إن وجدت... [Enter]" />
                 </div>
             </div>
 
-            <button class="btn btn-danger" style="width: 100%; padding: 0.85rem;" @onclick="CloseShift">
-                <i class="fa-solid fa-lock me-1"></i> إغلاق الوردية
+            <button class="btn btn-danger" style="width: 100%; padding: 0.85rem; font-size: 1rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 0.5rem; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35); margin-top: 1.25rem;" @onclick="PromptCloseShift">
+                <i class="fa-solid fa-lock"></i>
+                <span>مراجعة ومطابقة رصيد الوردية وإغلاقها [Enter]</span>
             </button>
         </div>
     }
@@ -299,11 +311,135 @@
     </div>
 }
 
+<!-- Close Shift Security & Cash Verification Modal -->
+@if (showCloseShiftConfirmModal)
+{
+    <div class="modal-overlay" @onclick="CloseConfirmModal" @onkeydown="HandleModalKeyDown" tabindex="-1">
+        <div class="modal-card" style="width: 620px; max-width: 95vw; border: 1.5px solid var(--accent-amber); box-shadow: 0 10px 30px rgba(0,0,0,0.6);" @onclick:stopPropagation="true">
+            <div class="modal-header" style="background: rgba(245, 158, 11, 0.1); border-bottom: 1px solid rgba(245, 158, 11, 0.25);">
+                <h3 class="modal-title" style="color: #fbbf24; display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem;">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                    <span>تنبيه أمني: مطابقة وجرد نقدية الدرج قبل الإغلاق</span>
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseConfirmModal" disabled="@isClosing">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <!-- Security Caution Banner -->
+                <div style="background: rgba(239, 68, 68, 0.12); border: 1.5px solid rgba(239, 68, 68, 0.35); border-radius: 0.6rem; padding: 0.85rem 1rem; margin-bottom: 1.25rem;">
+                    <div style="display: flex; align-items: flex-start; gap: 0.65rem;">
+                        <div style="color: #f87171; font-size: 1.4rem; line-height: 1;">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 800; color: #fca5a5; font-size: 0.95rem; margin-bottom: 0.25rem;">
+                                إقرار ومسؤولية الكاشير بمطابقة الخزينة (منع التلاعب والعجز):
+                            </div>
+                            <div style="font-size: 0.85rem; color: #cbd5e1; line-height: 1.5;">
+                                يرجى التأكد التام من <strong>مطابقة الرصيد المدخل للمبلغ الفعلي الموجود في درج النقدية</strong> بعد العد الفعلي. إغلاق الوردية إجراء نهائي لا يمكن الرجوع عنه، وسيتم تسجيل أي عجز أو زيادة في النقدية فورياً في تقارير الرقابة والتدقيق ومحاسبة الكاشير.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Financial Verification Breakdown -->
+                <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 0.6rem; padding: 1rem; margin-bottom: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; padding-bottom: 0.6rem; border-bottom: 1px dashed var(--border-color);">
+                        <span style="color: var(--text-secondary); font-size: 0.9rem;">المبلغ الفعلي المدخل بالدرج:</span>
+                        <strong style="color: var(--accent-emerald); font-size: 1.35rem;">@actualCashInDrawer.ToString("N2") ج.م</strong>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.85rem;">
+                        <span style="color: var(--text-secondary);">النقدية الافتتاحية المسجلة:</span>
+                        <strong>@((activeShiftDto?.OpeningCash ?? ShiftState.InitialCash).ToString("N2")) ج.م</strong>
+                    </div>
+
+                    @if (activeShiftDto != null)
+                    {
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; font-size: 0.85rem;">
+                            <span style="color: var(--text-secondary);">مبيعات الكاش النقدية بالوردية:</span>
+                            <strong style="color: var(--accent-blue);">+@activeShiftDto.TotalCash.ToString("N2") ج.م</strong>
+                        </div>
+
+                        var opening = activeShiftDto.OpeningCash > 0 ? activeShiftDto.OpeningCash : ShiftState.InitialCash;
+                        var expected = opening + activeShiftDto.TotalCash;
+                        var diff = actualCashInDrawer - expected;
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; padding-bottom: 0.6rem; border-bottom: 1px dashed var(--border-color); font-size: 0.85rem;">
+                            <span style="color: var(--text-secondary);">الرصيد الدفتري المتوقع بالدرج:</span>
+                            <strong style="color: #fbbf24;">@expected.ToString("N2") ج.م</strong>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.55rem 0.85rem; border-radius: 0.4rem; background: @(diff < 0 ? "rgba(239, 68, 68, 0.15)" : (diff > 0 ? "rgba(245, 158, 11, 0.15)" : "rgba(16, 185, 129, 0.15)"));">
+                            <span style="font-weight: 700; font-size: 0.88rem;">حالة مطابقة الخزينة:</span>
+                            @if (diff < 0)
+                            {
+                                <strong style="color: #f87171; font-size: 0.95rem;">
+                                    <i class="fa-solid fa-circle-xmark me-1"></i> عجز بالدرج: -@Math.Abs(diff).ToString("N2") ج.م (سيُقيد عجزاً)
+                                </strong>
+                            }
+                            else if (diff > 0)
+                            {
+                                <strong style="color: #fbbf24; font-size: 0.95rem;">
+                                    <i class="fa-solid fa-circle-plus me-1"></i> زيادة بالدرج: +@diff.ToString("N2") ج.م
+                                </strong>
+                            }
+                            else
+                            {
+                                <strong style="color: #34d399; font-size: 0.95rem;">
+                                    <i class="fa-solid fa-circle-check me-1"></i> الرصيد مطابق تماماً بدون عجز (0.00 ج.م)
+                                </strong>
+                            }
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(closingNotes))
+                    {
+                        <div style="margin-top: 0.6rem; font-size: 0.82rem; color: var(--text-secondary);">
+                            <span>ملاحظات الإغلاق: </span>
+                            <em style="color: var(--text-primary);">@closingNotes</em>
+                        </div>
+                    }
+                </div>
+
+                <p style="font-size: 0.92rem; color: #f8fafc; text-align: center; margin-bottom: 0; font-weight: 700;">
+                    هل أنت متأكد من مطابقة النقدية وترغب في إغلاق الوردية الآن؟
+                </p>
+            </div>
+
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+                <button type="button" class="btn btn-secondary" @onclick="CloseConfirmModal" disabled="@isClosing" style="padding: 0.6rem 1.25rem;">
+                    <i class="fa-solid fa-xmark me-1"></i> تراجع وتعديل المبلغ [Esc]
+                </button>
+                <button id="btn-confirm-close-shift" type="button" class="btn btn-danger" @onclick="ConfirmAndCloseShift" disabled="@isClosing" style="padding: 0.6rem 1.5rem; font-weight: 800; display: inline-flex; align-items: center; gap: 0.5rem; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);">
+                    @if (isClosing)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <span>جاري إغلاق الوردية...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-lock"></i>
+                        <span>تأكيد ومطابقة الإغلاق الآن [Enter]</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private decimal startingCash = 500;
     private decimal actualCashInDrawer = 0;
     private string closingNotes = string.Empty;
     private string? shiftError;
+    private string? shiftSuccess;
+
+    private ShiftDto? activeShiftDto;
+    private bool showCloseShiftConfirmModal = false;
+    private bool isClosing = false;
 
     private DateTime? filterFromDate;
     private DateTime? filterToDate;
@@ -322,6 +458,15 @@
     {
         await LoadActiveShiftAsync();
         await LoadShiftsHistoryAsync();
+
+        if (ShiftState.IsShiftOpen)
+        {
+            _ = FocusElementAsync("actual-cash-input", 150);
+        }
+        else
+        {
+            _ = FocusElementAsync("starting-cash-input", 150);
+        }
     }
 
     private async Task LoadActiveShiftAsync()
@@ -330,10 +475,10 @@
 
         if (AuthState.UserId != Guid.Empty)
         {
-            var activeShift = await ApiClient.GetCurrentShiftAsync(AuthState.UserId);
-            if (activeShift != null && activeShift.Status == "Open")
+            activeShiftDto = await ApiClient.GetCurrentShiftAsync(AuthState.UserId);
+            if (activeShiftDto != null && activeShiftDto.Status == "Open")
             {
-                ShiftState.SetActiveShift(activeShift.Id, activeShift.OpenedAt, activeShift.OpeningCash);
+                ShiftState.SetActiveShift(activeShiftDto.Id, activeShiftDto.OpenedAt, activeShiftDto.OpeningCash);
             }
         }
     }
@@ -383,9 +528,16 @@
     private async Task OpenShift()
     {
         shiftError = null;
+        shiftSuccess = null;
         if (AuthState.UserId == Guid.Empty)
         {
             shiftError = "جلسة الكاشير غير صالحة. الرجاء تسجيل الخروج والدخول مجدداً.";
+            return;
+        }
+
+        if (startingCash < 0)
+        {
+            shiftError = "الرجاء إدخال مبلغ افتتاحي صحيح في الدرج.";
             return;
         }
 
@@ -394,7 +546,12 @@
         if (id.HasValue)
         {
             ShiftState.SetActiveShift(id.Value, DateTime.Now, startingCash);
+            shiftSuccess = "تم فتح الوردية بنجاح، وجاهزة الآن لاستقبال المبيعات.";
+            actualCashInDrawer = 0;
+            closingNotes = string.Empty;
+            await LoadActiveShiftAsync();
             await LoadShiftsHistoryAsync();
+            _ = FocusElementAsync("actual-cash-input", 150);
         }
         else
         {
@@ -402,19 +559,113 @@
         }
     }
 
-    private async Task CloseShift()
+    private async Task PromptCloseShift()
     {
         shiftError = null;
-        var cmd = new CloseShiftCommand(ShiftState.ShiftId, actualCashInDrawer, closingNotes);
-        var success = await ApiClient.CloseShiftAsync(cmd);
-        if (success)
+        shiftSuccess = null;
+
+        if (actualCashInDrawer < 0)
         {
-            ShiftState.ClearShift();
-            await LoadShiftsHistoryAsync();
+            shiftError = "الرجاء إدخال مبلغ نقدي صحيح وموجب في الدرج.";
+            return;
         }
-        else
+
+        // Fetch fresh data for the active shift to compare expected cash
+        if (AuthState.UserId != Guid.Empty)
         {
-            shiftError = "فشل إغلاق الوردية. الرجاء مراجعة سجلات النظام.";
+            activeShiftDto = await ApiClient.GetCurrentShiftAsync(AuthState.UserId);
         }
+
+        showCloseShiftConfirmModal = true;
+        _ = FocusElementAsync("btn-confirm-close-shift", 100);
+    }
+
+    private async Task ConfirmAndCloseShift()
+    {
+        if (isClosing) return;
+        isClosing = true;
+        shiftError = null;
+
+        try
+        {
+            var cmd = new CloseShiftCommand(ShiftState.ShiftId, actualCashInDrawer, closingNotes);
+            var success = await ApiClient.CloseShiftAsync(cmd);
+            if (success)
+            {
+                showCloseShiftConfirmModal = false;
+                ShiftState.ClearShift();
+                activeShiftDto = null;
+                actualCashInDrawer = 0;
+                closingNotes = string.Empty;
+                shiftSuccess = "تم إغلاق الوردية وجرد النقدية بنجاح واعتماد مطابقة الحسابات.";
+                await LoadShiftsHistoryAsync();
+                _ = FocusElementAsync("starting-cash-input", 150);
+            }
+            else
+            {
+                shiftError = "فشل إغلاق الوردية. الرجاء مراجعة سجلات النظام أو التأكد من اتصال السيرفر.";
+                showCloseShiftConfirmModal = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            shiftError = $"حدث خطأ أثناء إغلاق الوردية: {ex.Message}";
+            showCloseShiftConfirmModal = false;
+        }
+        finally
+        {
+            isClosing = false;
+        }
+    }
+
+    private void CloseConfirmModal()
+    {
+        showCloseShiftConfirmModal = false;
+        _ = FocusElementAsync("actual-cash-input", 100);
+    }
+
+    private async Task HandleStartingCashKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await OpenShift();
+        }
+    }
+
+    private async Task HandleClosingCashKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await PromptCloseShift();
+        }
+    }
+
+    private async Task HandleClosingNotesKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await PromptCloseShift();
+        }
+    }
+
+    private async Task HandleModalKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !isClosing)
+        {
+            await ConfirmAndCloseShift();
+        }
+        else if (e.Key == "Escape" && !isClosing)
+        {
+            CloseConfirmModal();
+        }
+    }
+
+    private async Task FocusElementAsync(string elementId, int delay = 50, bool select = true)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("focusElementById", elementId, delay, select);
+        }
+        catch { }
     }
 }

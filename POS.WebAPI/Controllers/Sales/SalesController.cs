@@ -57,6 +57,16 @@ namespace POS.WebAPI.Controllers.Sales
             return Ok(result.Value);
         }
 
+        [HttpGet("by-invoice/{invoiceNumber}")]
+        public async Task<IActionResult> GetByInvoiceNumber(string invoiceNumber, CancellationToken ct)
+        {
+            var result = await _sender.Send(new global::Sales.Application.Sales.Queries.GetSaleByInvoiceNumber.GetSaleByInvoiceNumberQuery(invoiceNumber), ct);
+            if (result.IsFailure)
+                return NotFound(result.Error);
+
+            return Ok(result.Value);
+        }
+
         [HttpPost("{id:guid}/pay")]
         public async Task<IActionResult> Pay(Guid id, [FromBody] decimal amount, CancellationToken ct)
         {

@@ -11,8 +11,185 @@
 @inject StoreStateContainer StoreState
 @inject CalculatorStateContainer CalcState
 @inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<style>
+    /* 3A Tech Watermark & Transparent Glassmorphism for Shortcuts Matrix */
+    .home-watermark-overlay {
+        position: absolute;
+        top: 46%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: min(680px, 85vw);
+        max-height: 75vh;
+        pointer-events: none;
+        z-index: 0;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .home-watermark-overlay img {
+        width: 100%;
+        height: auto;
+        object-fit: contain;
+    }
+
+    [data-theme="dark"] .home-watermark-overlay img {
+        opacity: 0.28;
+        filter: drop-shadow(0 0 55px rgba(56, 189, 248, 0.5));
+    }
+
+    [data-theme="light"] .home-watermark-overlay img {
+        opacity: 0.65;
+        filter: brightness(0.85) contrast(1.4) drop-shadow(0 4px 20px rgba(2, 132, 199, 0.45)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+    }
+
+    /* Transparent Glassmorphism for Shift Status Widget & Hero */
+    .shift-status-widget {
+        background: rgba(15, 23, 42, 0.12) !important;
+        backdrop-filter: blur(2px) !important;
+        -webkit-backdrop-filter: blur(2px) !important;
+        border: 1px solid rgba(99, 102, 241, 0.25) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    [data-theme="light"] .shift-status-widget {
+        background: rgba(255, 255, 255, 0.18) !important;
+        backdrop-filter: blur(2px) !important;
+        -webkit-backdrop-filter: blur(2px) !important;
+        border: 1px solid rgba(99, 102, 241, 0.2) !important;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
+    }
+
+    .shortcuts-card {
+        background: rgba(15, 23, 42, 0.15) !important;
+        backdrop-filter: blur(2px) !important;
+        -webkit-backdrop-filter: blur(2px) !important;
+        border: 1px solid rgba(99, 102, 241, 0.25) !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+    }
+
+    [data-theme="light"] .shortcuts-card {
+        background: rgba(255, 255, 255, 0.2) !important;
+        backdrop-filter: blur(2px) !important;
+        -webkit-backdrop-filter: blur(2px) !important;
+        border: 1px solid rgba(99, 102, 241, 0.18) !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04) !important;
+    }
+
+    .shortcuts-card-header {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    }
+
+    [data-theme="light"] .shortcuts-card-header {
+        border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+    }
+
+    .shortcut-item {
+        background: rgba(17, 24, 39, 0.18) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        backdrop-filter: blur(1px) !important;
+        transition: all 0.2s ease !important;
+    }
+
+    [data-theme="light"] .shortcut-item {
+        background: rgba(255, 255, 255, 0.3) !important;
+        border: 1px solid rgba(0, 0, 0, 0.06) !important;
+        backdrop-filter: blur(1px) !important;
+    }
+
+    .shortcut-item:hover {
+        background: rgba(99, 102, 241, 0.25) !important;
+        border-color: rgba(99, 102, 241, 0.5) !important;
+        transform: translateY(-1px) !important;
+    }
+
+    [data-theme="light"] .shortcut-item:hover {
+        background: rgba(99, 102, 241, 0.15) !important;
+        border-color: rgba(99, 102, 241, 0.4) !important;
+    }
+
+    .home-support-card {
+        background: rgba(15, 23, 42, 0.15) !important;
+        backdrop-filter: blur(2px) !important;
+        -webkit-backdrop-filter: blur(2px) !important;
+        border: 1px solid rgba(99, 102, 241, 0.2) !important;
+        border-radius: 1rem !important;
+        padding: 0.85rem 1.25rem !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+        overflow: hidden !important;
+    }
+
+    [data-theme="light"] .home-support-card {
+        background: rgba(255, 255, 255, 0.2) !important;
+        backdrop-filter: blur(2px) !important;
+        -webkit-backdrop-filter: blur(2px) !important;
+        border: 1px solid rgba(99, 102, 241, 0.18) !important;
+    }
+
+    .home-support-grid {
+        display: grid !important;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+        gap: 0.75rem !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .support-contact-item {
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+        gap: 0.55rem !important;
+        padding: 0.6rem 0.8rem !important;
+    }
+
+    .contact-details {
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
+        overflow: hidden !important;
+    }
+
+    .contact-label {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        font-size: 0.74rem !important;
+    }
+
+    .contact-number {
+        white-space: nowrap !important;
+        font-size: 1rem !important;
+    }
+
+    .contact-actions {
+        flex-shrink: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 0.35rem !important;
+    }
+
+    .btn-whatsapp {
+        padding: 0.35rem 0.65rem !important;
+        font-size: 0.76rem !important;
+        white-space: nowrap !important;
+    }
+
+    .btn-copy {
+        padding: 0.35rem 0.5rem !important;
+        font-size: 0.8rem !important;
+        flex-shrink: 0 !important;
+    }
+</style>
 
 <div class="home-container">
+    <!-- 3A Tech Transparent Background Watermark (Dark/Light Responsive) -->
+    <div class="home-watermark-overlay" aria-hidden="true">
+        <img src="images/3a-tech-logo.png" alt="3A Tech" />
+    </div>
+
     <!-- Top Hero Welcome Banner & Digital Clock -->
     <div class="home-hero-card">
         <div class="home-user-greeting">
@@ -203,11 +380,96 @@
             </div>
         </div>
     </div>
+
+    <!-- 3A Tech Support & Customer Care Section -->
+    <div class="home-support-card">
+        <div class="home-support-header">
+            <div class="home-support-brand">
+                <img src="images/3a-tech-logo.png" alt="3A Tech" class="support-brand-logo" />
+                <div>
+                    <div class="support-brand-title">
+                        <span>أرقام الدعم الفني وخدمة العملاء</span>
+                        <span class="badge badge-indigo">3A Tech For Software Developments</span>
+                    </div>
+                    <p class="support-brand-subtitle">
+                        تطوير وتشغيل شركة <strong>3A Tech</strong> للحلول البرمجية — متاحون لمساعدتكم والتواصل الفوري عبر الواتساب
+                    </p>
+                </div>
+            </div>
+            <div class="support-status-pill">
+                <span class="pulse-dot"></span>
+                <span>دعم فني متاح 24/7</span>
+            </div>
+        </div>
+
+        <div class="home-support-grid">
+            <!-- Support 1: 01062592321 -->
+            <div class="support-contact-item">
+                <div class="contact-icon-box">
+                    <i class="fa-solid fa-headset"></i>
+                </div>
+                <div class="contact-details">
+                    <span class="contact-label" title="الدعم الفني والخدمات (1)">الدعم الفني والخدمات (1)</span>
+                    <span class="contact-number" dir="ltr">01062592321</span>
+                </div>
+                <div class="contact-actions">
+                    <button type="button" class="btn-whatsapp" @onclick='() => OpenWhatsApp("01062592321")' title="محادثة واتساب فورية">
+                        <i class="fa-brands fa-whatsapp"></i>
+                        <span>واتساب</span>
+                    </button>
+                    <button type="button" class="btn-copy @(copiedNumber == "01062592321" ? "copied" : "")" @onclick='() => CopyToClipboard("01062592321")' title="@(copiedNumber == "01062592321" ? "تم النسخ!" : "نسخ الرقم")">
+                        <i class="fa-solid @(copiedNumber == "01062592321" ? "fa-check text-green" : "fa-copy")"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Support 2: 01063301965 -->
+            <div class="support-contact-item">
+                <div class="contact-icon-box">
+                    <i class="fa-solid fa-phone-volume"></i>
+                </div>
+                <div class="contact-details">
+                    <span class="contact-label" title="خدمة العملاء والمبيعات (2)">خدمة العملاء والمبيعات (2)</span>
+                    <span class="contact-number" dir="ltr">01063301965</span>
+                </div>
+                <div class="contact-actions">
+                    <button type="button" class="btn-whatsapp" @onclick='() => OpenWhatsApp("01063301965")' title="محادثة واتساب فورية">
+                        <i class="fa-brands fa-whatsapp"></i>
+                        <span>واتساب</span>
+                    </button>
+                    <button type="button" class="btn-copy @(copiedNumber == "01063301965" ? "copied" : "")" @onclick='() => CopyToClipboard("01063301965")' title="@(copiedNumber == "01063301965" ? "تم النسخ!" : "نسخ الرقم")">
+                        <i class="fa-solid @(copiedNumber == "01063301965" ? "fa-check text-green" : "fa-copy")"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Support 3: 01095997875 -->
+            <div class="support-contact-item">
+                <div class="contact-icon-box">
+                    <i class="fa-solid fa-laptop-code"></i>
+                </div>
+                <div class="contact-details">
+                    <span class="contact-label" title="المتابعة الفنية والتطوير (3)">المتابعة الفنية والتطوير (3)</span>
+                    <span class="contact-number" dir="ltr">01095997875</span>
+                </div>
+                <div class="contact-actions">
+                    <button type="button" class="btn-whatsapp" @onclick='() => OpenWhatsApp("01095997875")' title="محادثة واتساب فورية">
+                        <i class="fa-brands fa-whatsapp"></i>
+                        <span>واتساب</span>
+                    </button>
+                    <button type="button" class="btn-copy @(copiedNumber == "01095997875" ? "copied" : "")" @onclick='() => CopyToClipboard("01095997875")' title="@(copiedNumber == "01095997875" ? "تم النسخ!" : "نسخ الرقم")">
+                        <i class="fa-solid @(copiedNumber == "01095997875" ? "fa-check text-green" : "fa-copy")"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @code {
     private System.Threading.Timer? _clockTimer;
     private DateTime _now = DateTime.Now;
+    private string? copiedNumber;
 
     private static readonly CultureInfo ArabicCulture = new("ar-EG");
 
@@ -252,6 +514,53 @@
     private async void OnShiftChanged()
     {
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void OpenWhatsApp(string phone)
+    {
+        try
+        {
+            var cleanPhone = phone.Trim().Replace(" ", "").Replace("-", "");
+            if (cleanPhone.StartsWith("0"))
+            {
+                cleanPhone = "2" + cleanPhone; // Egypt country code +20
+            }
+            var msg = Uri.EscapeDataString("السلام عليكم، أحتاج دعم فني بخصوص نظام الكاشير 3A Tech.");
+            var url = $"https://wa.me/{cleanPhone}?text={msg}";
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = url,
+                UseShellExecute = true
+            });
+        }
+        catch { }
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        }
+        catch
+        {
+            try
+            {
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    System.Windows.Clipboard.SetText(text);
+                });
+            }
+            catch { }
+        }
+        copiedNumber = text;
+        StateHasChanged();
+        await Task.Delay(2000);
+        if (copiedNumber == text)
+        {
+            copiedNumber = null;
+            StateHasChanged();
+        }
     }
 
     public void Dispose()

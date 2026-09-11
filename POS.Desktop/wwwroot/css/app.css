@@ -1281,16 +1281,59 @@ body {
    Home Page & Live Clock & Keyboard Shortcuts Matrix Styling
    ========================================================================== */
 .home-container {
-    padding: 1rem 1.5rem;
+    padding: 0.75rem 1.25rem;
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
+    gap: 0.75rem;
     max-width: 1600px;
     margin: 0 auto;
-    height: calc(100vh - 65px);
-    overflow: hidden;
+    min-height: 100%;
+    overflow-x: hidden;
     box-sizing: border-box;
     justify-content: space-between;
+    position: relative;
+}
+
+/* Home Watermark Background with 3A Tech Logo */
+.home-watermark-overlay {
+    position: absolute;
+    top: 46%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(660px, 85vw);
+    max-height: 75vh;
+    pointer-events: none;
+    z-index: 0;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.home-watermark-overlay img {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    transition: opacity 0.3s ease, filter 0.3s ease;
+}
+
+[data-theme="dark"] .home-watermark-overlay img {
+    opacity: 0.28;
+    filter: drop-shadow(0 0 55px rgba(56, 189, 248, 0.5));
+}
+
+[data-theme="light"] .home-watermark-overlay img {
+    opacity: 0.65;
+    filter: brightness(0.85) contrast(1.4) drop-shadow(0 4px 20px rgba(2, 132, 199, 0.45)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+}
+
+.home-hero-card,
+.shift-status-widget,
+.home-section-header,
+.shortcuts-wrapper,
+.home-support-card {
+    position: relative;
+    z-index: 1;
 }
 
 .home-hero-card {
@@ -1475,20 +1518,34 @@ body {
 }
 
 .shortcuts-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
+    background: rgba(15, 23, 42, 0.15);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    border: 1px solid rgba(99, 102, 241, 0.25);
     border-radius: 1rem;
     padding: 1.5rem;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="light"] .shortcuts-card {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    border: 1px solid rgba(99, 102, 241, 0.18);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
 }
 
 .shortcuts-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid var(--border-color-light);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     padding-bottom: 0.85rem;
     margin-bottom: 1.15rem;
+}
+
+[data-theme="light"] .shortcuts-card-header {
+    border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
 .shortcuts-card-title {
@@ -1512,14 +1569,29 @@ body {
     justify-content: space-between;
     padding: 0.6rem 0.85rem;
     border-radius: 0.6rem;
-    background: var(--bg-secondary);
-    border: 1px solid var(--border-color);
-    transition: background 0.2s ease;
+    background: rgba(17, 24, 39, 0.18);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
+    transition: all 0.2s ease;
+}
+
+[data-theme="light"] .shortcut-item {
+    background: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    backdrop-filter: blur(1px);
+    -webkit-backdrop-filter: blur(1px);
 }
 
 .shortcut-item:hover {
-    background: var(--bg-card-hover);
-    border-color: rgba(99, 102, 241, 0.3);
+    background: rgba(99, 102, 241, 0.25);
+    border-color: rgba(99, 102, 241, 0.5);
+    transform: translateY(-1px);
+}
+
+[data-theme="light"] .shortcut-item:hover {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.4);
 }
 
 .shortcut-desc {
@@ -1578,14 +1650,24 @@ kbd {
 
 /* Status Banner Widget */
 .shift-status-widget {
-    background: var(--bg-card);
-    border: 1px solid var(--border-color);
+    background: rgba(15, 23, 42, 0.12);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    border: 1px solid rgba(99, 102, 241, 0.25);
     border-radius: 1rem;
     padding: 1.25rem 1.5rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="light"] .shift-status-widget {
+    background: rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
 }
 
 .shift-status-info {
@@ -2551,6 +2633,368 @@ kbd {
     background: var(--accent-amber) !important;
     color: #000 !important;
 }
+
+/* ==========================================================================
+   3A Tech Branding & Customer Support Components
+   ========================================================================== */
+
+.home-support-card {
+    background: rgba(15, 23, 42, 0.15);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 1rem;
+    padding: 0.85rem 1.25rem;
+    box-shadow: var(--shadow-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    position: relative;
+    z-index: 1;
+}
+
+[data-theme="light"] .home-support-card {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    border: 1px solid rgba(99, 102, 241, 0.18);
+}
+
+.home-support-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.home-support-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.support-brand-logo {
+    height: 38px;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.35));
+}
+
+.support-brand-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.support-brand-subtitle {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-top: 0.15rem;
+}
+
+.support-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 9999px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: var(--accent-emerald);
+    font-size: 0.76rem;
+    font-weight: 700;
+}
+
+.support-status-pill .pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-emerald);
+    box-shadow: 0 0 8px var(--accent-emerald);
+    animation: pulseGlow 1.8s infinite;
+}
+
+@keyframes pulseGlow {
+    0% { transform: scale(0.9); opacity: 0.7; }
+    50% { transform: scale(1.3); opacity: 1; }
+    100% { transform: scale(0.9); opacity: 0.7; }
+}
+
+.home-support-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 0.75rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+@media (max-width: 1150px) {
+    .home-support-grid {
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+}
+
+@media (max-width: 850px) {
+    .home-support-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.support-contact-item {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    padding: 0.6rem 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+    transition: all 0.2s ease;
+    min-width: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.support-contact-item:hover {
+    border-color: rgba(56, 189, 248, 0.4);
+    box-shadow: 0 4px 14px rgba(56, 189, 248, 0.12);
+    transform: translateY(-1.5px);
+}
+
+.contact-icon-box {
+    width: 36px;
+    height: 36px;
+    border-radius: 0.5rem;
+    background: rgba(56, 189, 248, 0.12);
+    color: var(--accent-blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    flex-shrink: 0;
+}
+
+.contact-details {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.contact-label {
+    font-size: 0.74rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.contact-number {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: 0.5px;
+    font-family: 'Inter', system-ui, sans-serif;
+    white-space: nowrap;
+}
+
+.contact-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-shrink: 0;
+}
+
+.btn-whatsapp {
+    background: linear-gradient(135deg, #25D366, #128C7E);
+    color: #ffffff !important;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.35rem 0.65rem;
+    font-size: 0.76rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
+    transition: all 0.2s ease;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.btn-whatsapp:hover {
+    background: linear-gradient(135deg, #1ebe5d, #0d7065);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(37, 211, 102, 0.45);
+    color: #ffffff !important;
+}
+
+.btn-copy {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    border-radius: 0.5rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.btn-copy:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+    border-color: var(--border-color-light);
+}
+
+.btn-copy.copied {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent-emerald);
+    border-color: var(--accent-emerald);
+}
+
+/* Sidebar 3A Tech Footer */
+.sidebar-footer {
+    padding: 0.75rem;
+    border-top: 1px solid var(--border-color);
+    margin-top: auto;
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.sidebar-brand-bottom {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    text-decoration: none;
+    cursor: pointer;
+    padding: 0.4rem;
+    border-radius: 0.5rem;
+    transition: background 0.2s ease;
+}
+
+.sidebar-brand-bottom:hover {
+    background: var(--bg-card-hover);
+}
+
+.sidebar-tech-logo {
+    height: 28px;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.4));
+    flex-shrink: 0;
+}
+
+.sidebar-tech-text {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.sidebar-tech-text .tech-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1.1;
+}
+
+.sidebar-tech-text .tech-desc {
+    font-size: 0.68rem;
+    color: var(--accent-blue);
+    font-weight: 600;
+}
+
+/* Topbar 3A Tech Support Button */
+.topbar-btn-support {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(99, 102, 241, 0.15));
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    color: var(--text-primary);
+    padding: 0.4rem 0.85rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.topbar-btn-support:hover {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(99, 102, 241, 0.25));
+    border-color: var(--accent-blue);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
+}
+
+.topbar-logo-mini {
+    height: 18px;
+    width: auto;
+    object-fit: contain;
+}
+
+/* Login Screen Footer */
+.pos-auth-screen-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 2rem;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-color);
+    font-size: 0.82rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    z-index: 10;
+}
+
+.auth-footer-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: var(--text-secondary);
+}
+
+.auth-footer-logo {
+    height: 24px;
+    width: auto;
+    object-fit: contain;
+}
+
+.auth-footer-support {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.auth-support-link {
+    color: var(--accent-emerald);
+    font-weight: 700;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.35rem;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    transition: all 0.2s ease;
+}
+
+.auth-support-link:hover {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    border-color: rgba(16, 185, 129, 0.4);
+}
+
 
 
 

@@ -1,4 +1,4 @@
-﻿using POS.Licensing.Cryptography;
+using POS.Licensing.Cryptography;
 using POS.Licensing.Interfaces;
 using POS.Licensing.Models;
 
@@ -66,6 +66,14 @@ public class LicenseStateContainer
         _licenseStorage.DeleteLicense();
         CurrentResult = _licenseValidator.Validate();
         NotifyStateChanged();
+    }
+
+    public LicenseValidationResult ResetClockAndRevalidate()
+    {
+        _licenseStorage.ResetWatermark();
+        CurrentResult = _licenseValidator.Validate();
+        NotifyStateChanged();
+        return CurrentResult;
     }
 
     private void NotifyStateChanged() => OnLicenseStateChanged?.Invoke();

@@ -287,6 +287,7 @@ public sealed class InMemoryLicenseStorage : ILicenseStorage
     public SignedLicenseFile? LoadLicense() => _license;
     public bool SaveLicense(SignedLicenseFile license) => true;
     public bool DeleteLicense() => true;
+    public bool ResetWatermark() => true;
     public DateTime? GetLastSeenTimestampUtc() => _lastSeen;
     public void UpdateLastSeenTimestampUtc(DateTime timestampUtc) => _lastSeen = timestampUtc;
     public bool CheckClockRollback(DateTime currentUtc, TimeSpan tolerance)

@@ -1,4 +1,4 @@
-﻿using POS.Licensing.Cryptography;
+using POS.Licensing.Cryptography;
 using POS.Licensing.Interfaces;
 using POS.Licensing.Models;
 
@@ -86,10 +86,20 @@ public sealed class LicenseValidator : ILicenseValidator
         // 6. Clock Rollback / Tamper Detection
         if (_licenseStorage.CheckClockRollback(nowUtc, TimeSpan.FromMinutes(10)))
         {
-            return new LicenseValidationResult(
-                LicenseValidationStatus.ClockRollbackDetected,
-                "تم اكتشاف تراجع في ساعة النظام (Clock Rollback). يرجى ضبط تاريخ ووقت الويندوز بدقة.",
-                payload);
+            // If this is an active import/activation of a license whose cryptographic signature
+            // and machine ID have already passed verification (steps 3-5):
+            // Auto-reset the watermark so that a previously corrupted watermark does not block an authorized new license.
+            if (license is not null)
+            {
+                _licenseStorage.UpdateLastSeenTimestampUtc(nowUtc);
+            }
+            else
+            {
+                return new LicenseValidationResult(
+                    LicenseValidationStatus.ClockRollbackDetected,
+                    "تم اكتشاف تراجع في ساعة النظام (Clock Rollback). يرجى ضبط تاريخ ووقت الويندوز بدقة.",
+                    payload);
+            }
         }
 
         // 7. Check Issued Date (not in future beyond 10 min tolerance)

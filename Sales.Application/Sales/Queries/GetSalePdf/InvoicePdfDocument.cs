@@ -229,6 +229,28 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                     {
                         column.Item().AlignCenter().Text(FormatRtl("شكراً لزيارتكم!")).FontSize(8).SemiBold();
                     }
+
+                    // 14. QR Code & Barcode for Fast Scanner Lookup
+                    if (!string.IsNullOrWhiteSpace(_receipt.InvoiceNumber))
+                    {
+                        column.Item().PaddingTop(4).AlignCenter().Column(barcodeCol =>
+                        {
+                            var qrBytes = BarcodeAndQrHelper.GenerateQrCodePng(_receipt.InvoiceNumber, 8);
+                            if (qrBytes != null && qrBytes.Length > 0)
+                            {
+                                barcodeCol.Item().AlignCenter().Width(62).Height(62).Image(qrBytes).FitArea();
+                            }
+
+                            var barcodeSvg = BarcodeAndQrHelper.GenerateCode128Svg(_receipt.InvoiceNumber, height: 26, moduleWidth: 1);
+                            if (!string.IsNullOrWhiteSpace(barcodeSvg))
+                            {
+                                barcodeCol.Item().PaddingTop(3).AlignCenter().Width(140).Height(26).Svg(barcodeSvg);
+                            }
+
+                            barcodeCol.Item().PaddingTop(1).AlignCenter().Text(FormatRtl(_receipt.InvoiceNumber)).FontSize(7.5f).Bold();
+                            barcodeCol.Item().AlignCenter().Text(FormatRtl("امسح الرمز لاسترجاع الفاتورة")).FontSize(6.8f).FontColor(Colors.Grey.Darken2);
+                        });
+                    }
                 });
             });
         }
@@ -286,11 +308,20 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                         column.Item().Text($"Tel: {_receipt.Phone}").FontSize(9).FontColor(Colors.Grey.Medium);
                 });
 
-                row.ConstantItem(200).Column(column =>
+                row.ConstantItem(240).Row(headerRight =>
                 {
-                    column.Item().AlignRight().Text("SALES INVOICE").FontSize(16).Bold().FontColor(Colors.Blue.Darken2);
-                    column.Item().AlignRight().Text($"Invoice #: {_receipt.InvoiceNumber}").FontSize(10).SemiBold();
-                    column.Item().AlignRight().Text($"Date: {_receipt.SaleDate:yyyy-MM-dd HH:mm}").FontSize(9).FontColor(Colors.Grey.Darken1);
+                    var qrBytes = BarcodeAndQrHelper.GenerateQrCodePng(_receipt.InvoiceNumber, 6);
+                    if (qrBytes != null && qrBytes.Length > 0)
+                    {
+                        headerRight.ConstantItem(52).Height(52).Image(qrBytes).FitArea();
+                    }
+
+                    headerRight.RelativeItem().PaddingLeft(6).Column(column =>
+                    {
+                        column.Item().AlignRight().Text("SALES INVOICE").FontSize(14).Bold().FontColor(Colors.Blue.Darken2);
+                        column.Item().AlignRight().Text($"Invoice #: {_receipt.InvoiceNumber}").FontSize(9).SemiBold();
+                        column.Item().AlignRight().Text($"Date: {_receipt.SaleDate:yyyy-MM-dd HH:mm}").FontSize(8.5f).FontColor(Colors.Grey.Darken1);
+                    });
                 });
             });
         }
@@ -442,6 +473,19 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
         {
             container.Column(column =>
             {
+                if (!string.IsNullOrWhiteSpace(_receipt.InvoiceNumber))
+                {
+                    var barcodeSvg = BarcodeAndQrHelper.GenerateCode128Svg(_receipt.InvoiceNumber, height: 24, moduleWidth: 1);
+                    if (!string.IsNullOrWhiteSpace(barcodeSvg))
+                    {
+                        column.Item().PaddingBottom(4).AlignCenter().Column(bc =>
+                        {
+                            bc.Item().AlignCenter().Width(160).Height(24).Svg(barcodeSvg);
+                            bc.Item().AlignCenter().Text($"Invoice Barcode: {_receipt.InvoiceNumber}").FontSize(7.5f).FontColor(Colors.Grey.Darken2);
+                        });
+                    }
+                }
+
                 column.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
                 column.Item().PaddingTop(5).Row(row =>
                 {

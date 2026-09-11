@@ -1,4 +1,4 @@
-﻿using POS.Licensing.Models;
+using POS.Licensing.Models;
 
 namespace POS.Licensing.Interfaces;
 
@@ -8,6 +8,7 @@ public interface ILicenseStorage
     SignedLicenseFile? LoadLicense();
     bool SaveLicense(SignedLicenseFile license);
     bool DeleteLicense();
+    bool ResetWatermark();
     bool HasLicense();
     
     DateTime? GetLastSeenTimestampUtc();

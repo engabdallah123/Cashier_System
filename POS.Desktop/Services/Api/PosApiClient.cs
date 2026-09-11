@@ -1055,6 +1055,20 @@ namespace POS.Desktop.Services.Api
             }
         }
 
+        public async Task<SaleDto?> GetSaleByInvoiceNumberAsync(string invoiceNumber)
+        {
+            if (string.IsNullOrWhiteSpace(invoiceNumber)) return null;
+            try
+            {
+                var encoded = Uri.EscapeDataString(invoiceNumber.Trim());
+                return await _http.GetFromJsonAsync<SaleDto>($"api/sales/by-invoice/{encoded}");
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         public async Task<PurchaseDto?> GetPurchaseByIdAsync(Guid id)
         {
             try

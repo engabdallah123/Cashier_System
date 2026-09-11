@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using POS.Licensing.Cryptography;
@@ -85,6 +85,28 @@ public sealed class LicenseStorage : ILicenseStorage
             {
                 if (File.Exists(_licenseFilePath))
                     File.Delete(_licenseFilePath);
+
+                if (File.Exists(_watermarkFilePath))
+                    File.Delete(_watermarkFilePath);
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+    }
+
+    public bool ResetWatermark()
+    {
+        lock (_fileLock)
+        {
+            try
+            {
+                if (File.Exists(_watermarkFilePath))
+                    File.Delete(_watermarkFilePath);
+
                 return true;
             }
             catch

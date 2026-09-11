@@ -74,6 +74,7 @@ namespace POS.Desktop
 
             serviceCollection.AddSingleton<ShiftStateContainer>();
             serviceCollection.AddSingleton<CartStateContainer>();
+            serviceCollection.AddSingleton<PurchaseDraftStateContainer>();
             serviceCollection.AddSingleton<StoreStateContainer>();
             serviceCollection.AddSingleton<CalculatorStateContainer>();
 

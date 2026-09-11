@@ -439,20 +439,62 @@
 
                 @if (newProduct.TrackExpiry)
                 {
-                    <div style="background: rgba(245, 158, 11, 0.07); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 0.6rem; padding: 0.75rem 1rem; margin-top: 0.8rem;">
-                        <div style="font-weight: 700; font-size: 0.82rem; color: var(--accent-amber); margin-bottom: 0.5rem;">
-                            <i class="fa-solid fa-calendar-check me-1"></i> إعدادات الصلاحية التلقائية لهذا المنتج
+                    <div style="background: rgba(245, 158, 11, 0.07); border: 1.5px solid rgba(245, 158, 11, 0.3); border-radius: 0.75rem; padding: 1rem; margin-top: 0.9rem;">
+                        <div style="font-weight: 700; font-size: 0.88rem; color: var(--accent-amber); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.4rem;">
+                            <i class="fa-solid fa-calendar-check"></i>
+                            <span>إعدادات مدة وتاريخ صلاحية المنتج</span>
                         </div>
-                        <div class="grid-2">
+
+                        <!-- Shelf Life Duration: Unit Selector + Count (العدد كم) -->
+                        <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 0.75rem; margin-bottom: 0.65rem; align-items: flex-end;">
                             <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.8rem;">مدة الصلاحية التقديرية (بالأيام بعد الشراء)</label>
-                                <input type="number" min="0" class="form-control" @bind="newProduct.ShelfLifeDays" placeholder="مثال: 30" />
-                                <small style="color: var(--text-secondary); font-size: 0.72rem;">يُستخدم لاقتراح تاريخ الانتهاء تلقائياً عند تسجيل فواتير الشراء</small>
+                                <label style="font-size: 0.82rem; font-weight: 700; color: #fef08a;">
+                                    وحدة مدة الصلاحية <span style="color: var(--accent-red);">*</span>
+                                </label>
+                                <select class="form-select" value="@shelfLifeUnit" @onchange="OnShelfLifeUnitChanged" style="font-weight: 600;">
+                                    <option value="day">يوم (Days)</option>
+                                    <option value="month">شهر (Months)</option>
+                                    <option value="year">سنة (Years)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.82rem; font-weight: 700; color: #fef08a;">
+                                    العدد كم؟ (@(shelfLifeUnit == "year" ? "عدد السنوات" : (shelfLifeUnit == "month" ? "عدد الشهور" : "عدد الأيام"))) <span style="color: var(--accent-red);">*</span>
+                                </label>
+                                <input type="number" min="1" class="form-control" value="@shelfLifeCount" @onchange="OnShelfLifeCountChanged" @oninput="OnShelfLifeCountInput" placeholder="@(shelfLifeUnit == "year" ? "مثال: 2 سنة" : (shelfLifeUnit == "month" ? "مثال: 6 شهور" : "مثال: 30 يوم"))" style="font-weight: 700; font-size: 1rem; color: var(--accent-emerald);" />
+                            </div>
+                        </div>
+
+                        <!-- Live Calculation Summary Badge -->
+                        <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 0.45rem; padding: 0.5rem 0.85rem; margin-bottom: 0.75rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; flex-wrap: wrap; gap: 0.4rem;">
+                            <div style="color: #34d399;">
+                                <i class="fa-solid fa-clock-rotate-left me-1"></i>
+                                <span>مدة الصلاحية المحددة: <strong style="color: #fbbf24; font-size: 0.95rem;">@shelfLifeCount @(shelfLifeUnit == "year" ? "سنة" : (shelfLifeUnit == "month" ? "شهر" : "يوم"))</strong></span>
+                                @if (shelfLifeUnit != "day")
+                                {
+                                    <span style="color: #a7f3d0;"> (محسوبة بالنظام: <strong>@newProduct.ShelfLifeDays يوم</strong>)</span>
+                                }
+                            </div>
+                            <small style="color: var(--text-secondary); font-size: 0.75rem;">تُستخدم لاقتراح تاريخ الانتهاء تلقائياً عند توريد البضاعة</small>
+                        </div>
+
+                        <!-- Expiry Alert Settings: Unit + Count -->
+                        <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 0.75rem; align-items: flex-end; border-top: 1px dashed rgba(245, 158, 11, 0.25); padding-top: 0.75rem;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary);">
+                                    وحدة تنبيه قرب انتهاء الصلاحية
+                                </label>
+                                <select class="form-select" value="@expiryAlertUnit" @onchange="OnExpiryAlertUnitChanged">
+                                    <option value="day">أيام قبل الانتهاء</option>
+                                    <option value="month">شهور قبل الانتهاء</option>
+                                </select>
                             </div>
                             <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.8rem;">التنبيه قبل انتهاء الصلاحية بـ (أيام)</label>
-                                <input type="number" min="1" class="form-control" @bind="newProduct.ExpiryAlertDays" placeholder="3" />
-                                <small style="color: var(--text-secondary); font-size: 0.72rem;">إظهار تنبيه في لوحة التحكم قبل انتهاء الدفعة بهذه المدة</small>
+                                <label style="font-size: 0.8rem; color: var(--text-secondary);">
+                                    العدد كم؟ (تنبيه مسبق قبل @(expiryAlertUnit == "month" ? "كم شهر؟" : "كم يوم؟"))
+                                </label>
+                                <input type="number" min="1" class="form-control" value="@expiryAlertCount" @onchange="OnExpiryAlertCountChanged" @oninput="OnExpiryAlertCountInput" placeholder="3" />
                             </div>
                         </div>
                     </div>
@@ -977,6 +1019,81 @@
         SyncCartonPricesFromPiecePrices();
     }
 
+    // Shelf Life & Expiry Unit / Count State
+    private string shelfLifeUnit = "month";
+    private int shelfLifeCount = 1;
+    private string expiryAlertUnit = "day";
+    private int expiryAlertCount = 3;
+
+    private void OnShelfLifeUnitChanged(ChangeEventArgs e)
+    {
+        shelfLifeUnit = e.Value?.ToString() ?? "month";
+        RecalculateShelfLifeDays();
+    }
+
+    private void OnShelfLifeCountChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var val))
+        {
+            shelfLifeCount = Math.Max(1, val);
+        }
+        RecalculateShelfLifeDays();
+    }
+
+    private void OnShelfLifeCountInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var val))
+        {
+            shelfLifeCount = Math.Max(1, val);
+            RecalculateShelfLifeDays();
+        }
+    }
+
+    private void RecalculateShelfLifeDays()
+    {
+        int count = Math.Max(1, shelfLifeCount);
+        newProduct.ShelfLifeDays = shelfLifeUnit switch
+        {
+            "year" => count * 365,
+            "month" => count * 30,
+            _ => count
+        };
+    }
+
+    private void OnExpiryAlertUnitChanged(ChangeEventArgs e)
+    {
+        expiryAlertUnit = e.Value?.ToString() ?? "day";
+        RecalculateExpiryAlertDays();
+    }
+
+    private void OnExpiryAlertCountChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var val))
+        {
+            expiryAlertCount = Math.Max(1, val);
+        }
+        RecalculateExpiryAlertDays();
+    }
+
+    private void OnExpiryAlertCountInput(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var val))
+        {
+            expiryAlertCount = Math.Max(1, val);
+            RecalculateExpiryAlertDays();
+        }
+    }
+
+    private void RecalculateExpiryAlertDays()
+    {
+        int count = Math.Max(1, expiryAlertCount);
+        newProduct.ExpiryAlertDays = expiryAlertUnit switch
+        {
+            "month" => count * 30,
+            _ => count
+        };
+    }
+
     private void OpenAddModal()
     {
         editingProductId = Guid.Empty;
@@ -992,6 +1109,13 @@
         categoryIdString = categories.FirstOrDefault()?.Id.ToString() ?? string.Empty;
         unitIdString = units.FirstOrDefault()?.Id.ToString() ?? string.Empty;
         supplierIdString = string.Empty;
+
+        shelfLifeUnit = "month";
+        shelfLifeCount = 1;
+        expiryAlertUnit = "day";
+        expiryAlertCount = 3;
+        RecalculateShelfLifeDays();
+        RecalculateExpiryAlertDays();
 
         selectedImageBytes = null;
         selectedFileName = null;
@@ -1041,6 +1165,51 @@
             TrackExpiry = prod.TrackExpiry,
             TaxRate = prod.TaxRate
         };
+
+        if (prod.ShelfLifeDays > 0)
+        {
+            if (prod.ShelfLifeDays % 365 == 0)
+            {
+                shelfLifeUnit = "year";
+                shelfLifeCount = prod.ShelfLifeDays / 365;
+            }
+            else if (prod.ShelfLifeDays % 30 == 0)
+            {
+                shelfLifeUnit = "month";
+                shelfLifeCount = prod.ShelfLifeDays / 30;
+            }
+            else
+            {
+                shelfLifeUnit = "day";
+                shelfLifeCount = prod.ShelfLifeDays;
+            }
+        }
+        else
+        {
+            shelfLifeUnit = "month";
+            shelfLifeCount = 1;
+        }
+
+        if (prod.ExpiryAlertDays > 0)
+        {
+            if (prod.ExpiryAlertDays % 30 == 0 && prod.ExpiryAlertDays >= 30)
+            {
+                expiryAlertUnit = "month";
+                expiryAlertCount = prod.ExpiryAlertDays / 30;
+            }
+            else
+            {
+                expiryAlertUnit = "day";
+                expiryAlertCount = prod.ExpiryAlertDays;
+            }
+        }
+        else
+        {
+            expiryAlertUnit = "day";
+            expiryAlertCount = 3;
+        }
+        RecalculateShelfLifeDays();
+        RecalculateExpiryAlertDays();
 
         categoryIdString = prod.CategoryId.ToString();
         unitIdString = prod.UnitId.ToString();
@@ -1209,6 +1378,12 @@
         newProduct.SupplierId = Guid.TryParse(supplierIdString, out var supplierId) ? supplierId : null;
 
         newProduct.Description = PackagingUnitHelper.CleanDescription(newProduct.Description);
+
+        if (newProduct.TrackExpiry)
+        {
+            RecalculateShelfLifeDays();
+            RecalculateExpiryAlertDays();
+        }
 
         isSaving = true;
         errorMessage = string.Empty;

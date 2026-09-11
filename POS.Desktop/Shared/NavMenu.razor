@@ -215,6 +215,20 @@
             </li>
         }
     </ul>
+
+    <!-- 3A Tech Company Footer -->
+    <div class="sidebar-footer">
+        <div class="sidebar-brand-bottom" @onclick='() => Nav.NavigateTo("home")' title="تطوير وتشغيل: شركة 3A Tech للحلول البرمجية - انقر للرئيسية والدعم">
+            <img src="images/3a-tech-logo.png" alt="3A Tech" class="sidebar-tech-logo" />
+            @if (!IsCollapsed)
+            {
+                <div class="sidebar-tech-text">
+                    <span class="tech-title">3A Tech</span>
+                    <span class="tech-desc">Software Developments</span>
+                </div>
+            }
+        </div>
+    </div>
 </div>
 
 @code {
