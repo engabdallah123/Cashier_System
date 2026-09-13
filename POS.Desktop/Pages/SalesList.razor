@@ -150,7 +150,7 @@
                     {
                         <tr>
                             <td><code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@sale.InvoiceNumber</code></td>
-                            <td>@sale.SaleDate.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt", ArabicCulture)</td>
+                            <td>@sale.SaleDate.ToLocalTime().ToString("dd/MM/yyyy hh:mm tt", ArabicCulture)</td>
                             <td>@(string.IsNullOrWhiteSpace(sale.CashierName) ? "مستخدم كاشير" : sale.CashierName)</td>
                             <td>
                                 <span class="badge @(sale.PaymentMethod == "Cash" ? "badge-green" : "badge-indigo")">
@@ -228,7 +228,7 @@
                 <!-- Meta Details Ribbon -->
                 <div style="flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; background: var(--bg-primary); padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.88rem; border: 1px solid var(--border-color-light);">
                     <div><span style="color: var(--text-secondary);">رقم الفاتورة:</span> <strong style="color: #38bdf8;">@detailedSaleInvoice.InvoiceNumber</strong></div>
-                    <div><span style="color: var(--text-secondary);">تاريخ البيع:</span> <strong>@detailedSaleInvoice.SaleDate.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt", ArabicCulture)</strong></div>
+                    <div><span style="color: var(--text-secondary);">تاريخ البيع:</span> <strong>@detailedSaleInvoice.SaleDate.ToLocalTime().ToString("dd/MM/yyyy hh:mm tt", ArabicCulture)</strong></div>
                     <div><span style="color: var(--text-secondary);">الكاشير:</span> <strong style="color: var(--text-primary);">@(detailedSaleInvoice.CashierName ?? "مستخدم كاشير")</strong></div>
                     <div><span style="color: var(--text-secondary);">العميل:</span> <strong style="color: var(--accent-blue);">@(detailedSaleInvoice.CustomerName ?? "عميل نقدي عام")</strong></div>
                     <div>

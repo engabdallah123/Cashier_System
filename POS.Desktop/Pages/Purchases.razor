@@ -150,7 +150,7 @@
                         {
                             <tr>
                                 <td><code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@pur.InvoiceNumber</code></td>
-                                <td>@pur.PurchaseDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td>@pur.PurchaseDate.ToString("dd/MM/yyyy HH:mm")</td>
                                 <td style="font-weight: 600;">@pur.SupplierName</td>
                                 <td style="color: var(--accent-amber); font-weight: 700;">@pur.TotalAmount.ToString("N2") ج.م</td>
                                 <td style="color: var(--accent-emerald);">@pur.PaidAmount.ToString("N2") ج.م</td>
@@ -454,8 +454,28 @@
                     </div>
 
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label style="font-weight: 600;">تاريخ الفاتورة <span style="color: var(--accent-red);">*</span></label>
-                        <input type="date" class="form-control" value="@purchaseInvoiceDate.ToString("yyyy-MM-dd")" @onchange="OnPurchaseInvoiceDateChanged" />
+                        <label style="font-weight: 600; display: flex; align-items: center; justify-content: space-between;">
+                            <span>تاريخ الفاتورة <span style="color: var(--accent-red);">*</span></span>
+                            <span style="font-size: 0.72rem; color: var(--text-secondary); font-weight: normal;">(dd/mm/yyyy)</span>
+                        </label>
+                        <div style="display: flex; align-items: stretch; direction: ltr; position: relative;">
+                            <input type="text"
+                                   class="form-control"
+                                   style="direction: ltr; text-align: center; font-weight: 600; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+                                   placeholder="dd/MM/yyyy"
+                                   value="@purchaseInvoiceDateStr"
+                                   @onchange="OnPurchaseInvoiceDateStrChanged" />
+                            <label class="btn btn-secondary"
+                                   style="border-top-left-radius: 0; border-bottom-left-radius: 0; margin: 0; padding: 0 0.75rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); border-left: none;"
+                                   title="اختر التاريخ من التقويم">
+                                <i class="fa-solid fa-calendar-days" style="color: var(--accent-indigo); pointer-events: none;"></i>
+                                <input type="date"
+                                       tabindex="-1"
+                                       style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"
+                                       value="@purchaseInvoiceDate.ToString("yyyy-MM-dd")"
+                                       @onchange="OnPurchaseInvoicePickerChanged" />
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -513,8 +533,8 @@
                         }
                     </div>
 
-                    <!-- Row 2: Quantity, Unit Purchase Cost, Production Date, Batch # -->
-                    <div style="display: grid; grid-template-columns: 1fr 1.3fr 1.3fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-end;">
+                    <!-- Row 2: Quantity, Unit Purchase Cost, Production Date (if TrackExpiry) -->
+                    <div style="display: grid; grid-template-columns: @(SelectedProduct != null && SelectedProduct.TrackExpiry ? "1fr 1.3fr 1.3fr" : "1fr 1.3fr"); gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-end;">
                         <div class="form-group" style="margin-bottom: 0;">
                             <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">@(selectedUnitType == "carton" ? "عدد الكراتين" : "الكمية (بالقطعة)")</label>
                             <input type="number" class="form-control" @bind="addItemQty" placeholder="الكمية" min="1" />
@@ -523,16 +543,33 @@
                             <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">سعر الشراء / @(selectedUnitType == "carton" ? (SelectedProduct?.ParentUnit ?? "الكرتونة") : (SelectedProduct?.BaseUnit ?? "القطعة"))</label>
                             <input type="number" step="0.01" class="form-control" @bind="addItemCost" @bind:after="OnAddItemCostChanged" placeholder="سعر الشراء" min="0" title="سعر شراء @(selectedUnitType == "carton" ? (SelectedProduct?.ParentUnit ?? "الكرتونة") : (SelectedProduct?.BaseUnit ?? "القطعة"))" />
                         </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">
-                                <i class="fa-solid fa-calendar-day me-1"></i> تاريخ الإنتاج
-                            </label>
-                            <input type="date" class="form-control" style="font-size: 0.85rem;" value="@(addItemProductionDate?.ToString("yyyy-MM-dd"))" @onchange="OnProductionDateInputChanged" />
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">رقم التشغيلة</label>
-                            <input type="text" class="form-control" style="font-size: 0.85rem;" @bind="addItemBatchNumber" placeholder="Batch #" />
-                        </div>
+                        @if (SelectedProduct != null && SelectedProduct.TrackExpiry)
+                        {
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: flex; align-items: center; justify-content: space-between;">
+                                    <span><i class="fa-solid fa-calendar-day me-1"></i> تاريخ الإنتاج</span>
+                                    <span style="font-size: 0.7rem; color: var(--accent-indigo);">(dd/mm/yyyy)</span>
+                                </label>
+                                <div style="display: flex; align-items: stretch; direction: ltr; position: relative;">
+                                    <input type="text"
+                                           class="form-control"
+                                           style="font-size: 0.85rem; direction: ltr; text-align: center; font-weight: 600; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+                                           placeholder="dd/MM/yyyy"
+                                           value="@addItemProductionDateStr"
+                                           @onchange="OnProductionDateStrChanged" />
+                                    <label class="btn btn-secondary"
+                                           style="border-top-left-radius: 0; border-bottom-left-radius: 0; margin: 0; padding: 0 0.65rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); border-left: none;"
+                                           title="اختر التاريخ من التقويم">
+                                        <i class="fa-solid fa-calendar-days" style="color: var(--accent-indigo); font-size: 0.85rem; pointer-events: none;"></i>
+                                        <input type="date"
+                                               tabindex="-1"
+                                               style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"
+                                               value="@(addItemProductionDate?.ToString("yyyy-MM-dd"))"
+                                               @onchange="OnProductionDatePickerChanged" />
+                                    </label>
+                                </div>
+                            </div>
+                        }
                     </div>
 
                     @if (selectedUnitType == "carton")
@@ -550,7 +587,7 @@
                         </div>
                     }
 
-                    @if (addItemExpiryDate.HasValue)
+                    @if (SelectedProduct != null && SelectedProduct.TrackExpiry && addItemExpiryDate.HasValue)
                     {
                         var today = DateTime.Today;
                         var expDate = addItemExpiryDate.Value.Date;
@@ -567,7 +604,7 @@
                             <div style="margin-top: 0.6rem; font-size: 0.82rem; color: #34d399; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 0.4rem; padding: 0.4rem 0.75rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
                                 <div>
                                     <i class="fa-solid fa-calendar-check me-1"></i>
-                                    <span>تاريخ الانتهاء المحسوب: <strong>@expDate.ToString("yyyy-MM-dd")</strong></span>
+                                    <span>تاريخ الانتهاء المحسوب: <strong>@expDate.ToString("dd/MM/yyyy")</strong></span>
                                 </div>
                                 <div>
                                     <span style="color: #a7f3d0;">باقي على الصلاحية: </span>
@@ -637,7 +674,7 @@
                                             }
                                         </td>
                                         <td style="color: @(item.ExpiryDate.HasValue && item.ExpiryDate.Value <= DateTime.Today ? "var(--accent-red)" : "inherit"); font-weight: 600;">
-                                            @(item.ExpiryDate?.ToString("yyyy-MM-dd") ?? "-")
+                                            @(item.ExpiryDate?.ToString("dd/MM/yyyy") ?? "-")
                                         </td>
                                         <td>@(string.IsNullOrWhiteSpace(item.BatchNumber) ? "-" : item.BatchNumber)</td>
                                         <td>
@@ -839,7 +876,7 @@
                     <div style="flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; background: rgba(255,255,255,0.03); padding: 0.65rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); font-size: 0.86rem;">
                         <div><span style="color: var(--text-secondary);">رقم الفاتورة:</span> <strong style="color: var(--accent-blue);">@selectedPurchaseDetail.InvoiceNumber</strong></div>
                         <div><span style="color: var(--text-secondary);">المورد:</span> <strong>@selectedPurchaseDetail.SupplierName</strong></div>
-                        <div><span style="color: var(--text-secondary);">التاريخ:</span> <strong>@selectedPurchaseDetail.PurchaseDate.ToString("yyyy-MM-dd HH:mm")</strong></div>
+                        <div><span style="color: var(--text-secondary);">التاريخ:</span> <strong>@selectedPurchaseDetail.PurchaseDate.ToString("dd/MM/yyyy HH:mm")</strong></div>
                         <div><span style="color: var(--text-secondary);">الحالة:</span> <span class="badge @(selectedPurchaseDetail.Status == "Received" ? "badge-green" : "badge-amber")">@(selectedPurchaseDetail.Status == "Received" ? "تم الاستلام" : selectedPurchaseDetail.Status)</span></div>
                         <div style="border-right: 1px solid var(--border-color); padding-right: 0.75rem;"><span style="color: var(--text-secondary);">الإجمالي:</span> <strong style="color: var(--accent-amber); font-size: 0.95rem;">@selectedPurchaseDetail.TotalAmount.ToString("N2") ج.م</strong></div>
                         <div><span style="color: var(--text-secondary);">المدفوع:</span> <strong style="color: var(--accent-emerald); font-size: 0.95rem;">@selectedPurchaseDetail.PaidAmount.ToString("N2") ج.م</strong></div>
@@ -892,7 +929,7 @@
                                             }
                                         </td>
                                         <td style="color: @(item.ExpiryDate.HasValue && item.ExpiryDate.Value <= DateTime.Today ? "var(--accent-red)" : "inherit"); font-weight: 600; padding: 0.5rem 0.75rem;">
-                                            @(item.ExpiryDate?.ToString("yyyy-MM-dd") ?? "-")
+                                            @(item.ExpiryDate?.ToString("dd/MM/yyyy") ?? "-")
                                         </td>
                                         <td style="padding: 0.5rem 0.75rem;">@(string.IsNullOrWhiteSpace(item.BatchNumber) ? "-" : item.BatchNumber)</td>
                                         <td style="text-align: left; padding: 0.5rem 0.75rem;">@item.UnitCost.ToString("N2") ج.م</td>
@@ -951,8 +988,28 @@
                         </select>
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label style="font-weight: 600;">تاريخ الفاتورة <span style="color: var(--accent-red);">*</span></label>
-                        <input type="date" class="form-control" value="@editPurchaseDate.ToString("yyyy-MM-dd")" @onchange="OnEditPurchaseDateChanged" />
+                        <label style="font-weight: 600; display: flex; align-items: center; justify-content: space-between;">
+                            <span>تاريخ الفاتورة <span style="color: var(--accent-red);">*</span></span>
+                            <span style="font-size: 0.72rem; color: var(--text-secondary); font-weight: normal;">(dd/mm/yyyy)</span>
+                        </label>
+                        <div style="display: flex; align-items: stretch; direction: ltr; position: relative;">
+                            <input type="text"
+                                   class="form-control"
+                                   style="direction: ltr; text-align: center; font-weight: 600; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+                                   placeholder="dd/MM/yyyy"
+                                   value="@editPurchaseDateStr"
+                                   @onchange="OnEditPurchaseDateStrChanged" />
+                            <label class="btn btn-secondary"
+                                   style="border-top-left-radius: 0; border-bottom-left-radius: 0; margin: 0; padding: 0 0.75rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); border-left: none;"
+                                   title="اختر التاريخ من التقويم">
+                                <i class="fa-solid fa-calendar-days" style="color: var(--accent-indigo); pointer-events: none;"></i>
+                                <input type="date"
+                                       tabindex="-1"
+                                       style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"
+                                       value="@editPurchaseDate.ToString("yyyy-MM-dd")"
+                                       @onchange="OnEditPurchasePickerChanged" />
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -999,8 +1056,8 @@
                         }
                     </div>
 
-                    <!-- Row 2: Quantity, Unit Purchase Cost, Production Date, Batch # -->
-                    <div style="display: grid; grid-template-columns: 1fr 1.3fr 1.3fr 1fr; gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-end;">
+                    <!-- Row 2: Quantity, Unit Purchase Cost, Production Date (if TrackExpiry) -->
+                    <div style="display: grid; grid-template-columns: @(EditSelectedProduct != null && EditSelectedProduct.TrackExpiry ? "1fr 1.3fr 1.3fr" : "1fr 1.3fr"); gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-end;">
                         <div class="form-group" style="margin-bottom: 0;">
                             <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">@(editSelectedUnitType == "carton" ? "عدد الكراتين" : "الكمية (بالقطعة)")</label>
                             <input type="number" step="1" class="form-control" @bind="editAddItemQty" placeholder="الكمية" min="1" />
@@ -1009,16 +1066,33 @@
                             <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">سعر الشراء / @(editSelectedUnitType == "carton" ? (EditSelectedProduct?.ParentUnit ?? "الكرتونة") : (EditSelectedProduct?.BaseUnit ?? "القطعة"))</label>
                             <input type="number" step="0.01" class="form-control" @bind="editAddItemCost" @bind:after="OnEditAddItemCostChanged" placeholder="سعر الشراء" min="0" title="سعر شراء @(editSelectedUnitType == "carton" ? (EditSelectedProduct?.ParentUnit ?? "الكرتونة") : (EditSelectedProduct?.BaseUnit ?? "القطعة"))" />
                         </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">
-                                <i class="fa-solid fa-calendar-day me-1"></i> تاريخ الإنتاج
-                            </label>
-                            <input type="date" class="form-control" style="font-size: 0.85rem;" value="@(editAddItemProductionDate?.ToString("yyyy-MM-dd"))" @onchange="OnEditProductionDateInputChanged" />
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">رقم التشغيلة</label>
-                            <input type="text" class="form-control" style="font-size: 0.85rem;" @bind="editAddItemBatchNumber" placeholder="Batch #" />
-                        </div>
+                        @if (EditSelectedProduct != null && EditSelectedProduct.TrackExpiry)
+                        {
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: flex; align-items: center; justify-content: space-between;">
+                                    <span><i class="fa-solid fa-calendar-day me-1"></i> تاريخ الإنتاج</span>
+                                    <span style="font-size: 0.7rem; color: var(--accent-indigo);">(dd/mm/yyyy)</span>
+                                </label>
+                                <div style="display: flex; align-items: stretch; direction: ltr; position: relative;">
+                                    <input type="text"
+                                           class="form-control"
+                                           style="font-size: 0.85rem; direction: ltr; text-align: center; font-weight: 600; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+                                           placeholder="dd/MM/yyyy"
+                                           value="@editAddItemProductionDateStr"
+                                           @onchange="OnEditProductionDateStrChanged" />
+                                    <label class="btn btn-secondary"
+                                           style="border-top-left-radius: 0; border-bottom-left-radius: 0; margin: 0; padding: 0 0.65rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); border-left: none;"
+                                           title="اختر التاريخ من التقويم">
+                                        <i class="fa-solid fa-calendar-days" style="color: var(--accent-indigo); font-size: 0.85rem; pointer-events: none;"></i>
+                                        <input type="date"
+                                               tabindex="-1"
+                                               style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"
+                                               value="@(editAddItemProductionDate?.ToString("yyyy-MM-dd"))"
+                                               @onchange="OnEditProductionDatePickerChanged" />
+                                    </label>
+                                </div>
+                            </div>
+                        }
                     </div>
 
                     @if (editSelectedUnitType == "carton")
@@ -1036,7 +1110,7 @@
                         </div>
                     }
 
-                    @if (editAddItemExpiryDate.HasValue)
+                    @if (EditSelectedProduct != null && EditSelectedProduct.TrackExpiry && editAddItemExpiryDate.HasValue)
                     {
                         var today = DateTime.Today;
                         var expDate = editAddItemExpiryDate.Value.Date;
@@ -1053,7 +1127,7 @@
                             <div style="margin-top: 0.6rem; font-size: 0.82rem; color: #34d399; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 0.4rem; padding: 0.4rem 0.75rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
                                 <div>
                                     <i class="fa-solid fa-calendar-check me-1"></i>
-                                    <span>تاريخ الانتهاء المحسوب: <strong>@expDate.ToString("yyyy-MM-dd")</strong></span>
+                                    <span>تاريخ الانتهاء المحسوب: <strong>@expDate.ToString("dd/MM/yyyy")</strong></span>
                                 </div>
                                 <div>
                                     <span style="color: #a7f3d0;">باقي على الصلاحية: </span>
@@ -1124,7 +1198,7 @@
                                             }
                                         </td>
                                         <td style="font-size: 0.82rem; color: @(item.ExpiryDate.HasValue && item.ExpiryDate.Value <= DateTime.Today ? "var(--accent-red)" : "inherit");">
-                                            @(item.ExpiryDate?.ToString("yyyy-MM-dd") ?? "-")
+                                            @(item.ExpiryDate?.ToString("dd/MM/yyyy") ?? "-")
                                         </td>
                                         <td style="font-size: 0.82rem;">@(string.IsNullOrWhiteSpace(item.BatchNumber) ? "-" : item.BatchNumber)</td>
                                         <td style="text-align: left;">
@@ -1249,7 +1323,7 @@
                     </div>
                     <div>
                         <span style="color: var(--text-secondary); display: block; font-size: 0.8rem;">تاريخ الشراء:</span>
-                        <strong>@purchaseToDelete.PurchaseDate.ToString("yyyy-MM-dd")</strong>
+                        <strong>@purchaseToDelete.PurchaseDate.ToString("dd/MM/yyyy")</strong>
                     </div>
                 </div>
 
@@ -1490,7 +1564,7 @@
             var daysAgo = Math.Abs(expiredBatch.DaysRemaining);
             TriggerExpiryAlert(
                 "⚠️ تحذير: الصنف به كميات منتهية الصلاحية بالمخزن!",
-                $"المنتج: <strong style='color:#fff;'>{prod.NameAr}</strong><br/>توجد دفعة منتهية بالمخزن منذ {daysAgo} يوم ({expiredBatch.ExpiryDate:yyyy-MM-dd})، المتبقي منها: <strong style='color:#fecaca;'>{expiredBatch.QuantityInStock:N0} قطعة</strong>.",
+                $"المنتج: <strong style='color:#fff;'>{prod.NameAr}</strong><br/>توجد دفعة منتهية بالمخزن منذ {daysAgo} يوم ({expiredBatch.ExpiryDate:dd/MM/yyyy})، المتبقي منها: <strong style='color:#fecaca;'>{expiredBatch.QuantityInStock:N0} قطعة</strong>.",
                 isExpired: true);
             return;
         }
@@ -1500,44 +1574,116 @@
         {
             TriggerExpiryAlert(
                 "⚠️ تنبيه: الصنف يقترب من انتهاء الصلاحية بالمخزن!",
-                $"المنتج: <strong style='color:#fff;'>{prod.NameAr}</strong><br/>توجد دفعة بالمخزن تنتهي بعد {soonBatch.DaysRemaining} يوم ({soonBatch.ExpiryDate:yyyy-MM-dd})، المتبقي منها: <strong style='color:#fef08a;'>{soonBatch.QuantityInStock:N0} قطعة</strong>.",
+                $"المنتج: <strong style='color:#fff;'>{prod.NameAr}</strong><br/>توجد دفعة بالمخزن تنتهي بعد {soonBatch.DaysRemaining} يوم ({soonBatch.ExpiryDate:dd/MM/yyyy})، المتبقي منها: <strong style='color:#fef08a;'>{soonBatch.QuantityInStock:N0} قطعة</strong>.",
                 isExpired: false);
         }
     }
 
-    private void OnProductionDateInputChanged(ChangeEventArgs e)
+    private static bool TryParseDdMmYyyy(string? input, out DateTime result)
     {
-        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+        result = default;
+        if (string.IsNullOrWhiteSpace(input)) return false;
+        var trimmed = input.Trim();
+        string[] formats = new[]
+        {
+            "dd/MM/yyyy", "d/M/yyyy", "dd/M/yyyy", "d/MM/yyyy",
+            "dd-MM-yyyy", "d-M-yyyy", "dd-M-yyyy", "d-MM-yyyy",
+            "yyyy-MM-dd", "yyyy/MM/dd"
+        };
+        if (DateTime.TryParseExact(trimmed, formats, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out result))
+        {
+            return true;
+        }
+        return DateTime.TryParse(trimmed, out result);
+    }
+
+    private void OnProductionDateStrChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? string.Empty;
+        addItemProductionDateStr = val;
+        if (TryParseDdMmYyyy(val, out var dt))
         {
             addItemProductionDate = dt.Date;
-            if (SelectedProduct != null && (SelectedProduct.TrackExpiry || SelectedProduct.ShelfLifeDays > 0))
+            addItemProductionDateStr = dt.ToString("dd/MM/yyyy");
+            if (SelectedProduct != null && SelectedProduct.TrackExpiry)
             {
                 int days = SelectedProduct.ShelfLifeDays > 0 ? SelectedProduct.ShelfLifeDays : 365;
                 addItemExpiryDate = dt.Date.AddDays(days);
                 CheckEnteredExpiryDate(addItemExpiryDate.Value);
             }
+            else
+            {
+                addItemExpiryDate = null;
+            }
         }
-        else
+        else if (string.IsNullOrWhiteSpace(val))
         {
             addItemProductionDate = null;
+            addItemExpiryDate = null;
         }
     }
 
-    private void OnEditProductionDateInputChanged(ChangeEventArgs e)
+    private void OnProductionDatePickerChanged(ChangeEventArgs e)
     {
         if (DateTime.TryParse(e.Value?.ToString(), out var dt))
         {
+            addItemProductionDate = dt.Date;
+            addItemProductionDateStr = dt.ToString("dd/MM/yyyy");
+            if (SelectedProduct != null && SelectedProduct.TrackExpiry)
+            {
+                int days = SelectedProduct.ShelfLifeDays > 0 ? SelectedProduct.ShelfLifeDays : 365;
+                addItemExpiryDate = dt.Date.AddDays(days);
+                CheckEnteredExpiryDate(addItemExpiryDate.Value);
+            }
+            else
+            {
+                addItemExpiryDate = null;
+            }
+        }
+    }
+
+    private void OnEditProductionDateStrChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? string.Empty;
+        editAddItemProductionDateStr = val;
+        if (TryParseDdMmYyyy(val, out var dt))
+        {
             editAddItemProductionDate = dt.Date;
-            if (EditSelectedProduct != null && (EditSelectedProduct.TrackExpiry || EditSelectedProduct.ShelfLifeDays > 0))
+            editAddItemProductionDateStr = dt.ToString("dd/MM/yyyy");
+            if (EditSelectedProduct != null && EditSelectedProduct.TrackExpiry)
             {
                 int days = EditSelectedProduct.ShelfLifeDays > 0 ? EditSelectedProduct.ShelfLifeDays : 365;
                 editAddItemExpiryDate = dt.Date.AddDays(days);
                 CheckEnteredExpiryDate(editAddItemExpiryDate.Value);
             }
+            else
+            {
+                editAddItemExpiryDate = null;
+            }
         }
-        else
+        else if (string.IsNullOrWhiteSpace(val))
         {
             editAddItemProductionDate = null;
+            editAddItemExpiryDate = null;
+        }
+    }
+
+    private void OnEditProductionDatePickerChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+        {
+            editAddItemProductionDate = dt.Date;
+            editAddItemProductionDateStr = dt.ToString("dd/MM/yyyy");
+            if (EditSelectedProduct != null && EditSelectedProduct.TrackExpiry)
+            {
+                int days = EditSelectedProduct.ShelfLifeDays > 0 ? EditSelectedProduct.ShelfLifeDays : 365;
+                editAddItemExpiryDate = dt.Date.AddDays(days);
+                CheckEnteredExpiryDate(editAddItemExpiryDate.Value);
+            }
+            else
+            {
+                editAddItemExpiryDate = null;
+            }
         }
     }
 
@@ -1575,7 +1721,7 @@
             var daysPast = (today - dt.Date).Days;
             TriggerExpiryAlert(
                 "⚠️ تحذير: تاريخ الصلاحية المدخل منتهي بالفعل!",
-                $"تاريخ الصلاحية الذي أدخلته (<strong style='color:#fff;'>{dt:yyyy-MM-dd}</strong>) مضى عليه {daysPast} يوم! يرجى مراجعة صلاحية البضاعة.",
+                $"تاريخ الصلاحية الذي أدخلته (<strong style='color:#fff;'>{dt:dd/MM/yyyy}</strong>) مضى عليه {daysPast} يوم! يرجى مراجعة صلاحية البضاعة.",
                 isExpired: true);
         }
         else if (dt.Date <= today.AddDays(30))
@@ -1583,7 +1729,7 @@
             var daysLeft = (dt.Date - today).Days;
             TriggerExpiryAlert(
                 "⚠️ تنبيه: تاريخ الصلاحية المدخل يقترب من الانتهاء!",
-                $"البضاعة الجديدة تنتهي بعد <strong style='color:#fff;'>{daysLeft} يوم فقط</strong> ({dt:yyyy-MM-dd})! انتبه لفترة تصريفها بالمخزن.",
+                $"البضاعة الجديدة تنتهي بعد <strong style='color:#fff;'>{daysLeft} يوم فقط</strong> ({dt:dd/MM/yyyy})! انتبه لفترة تصريفها بالمخزن.",
                 isExpired: false);
         }
     }
@@ -1722,6 +1868,7 @@
     private string selectedSupplierIdString = string.Empty;
     private string purchaseInvoiceNumber = string.Empty;
     private DateTime purchaseInvoiceDate = DateTime.Today;
+    private string purchaseInvoiceDateStr = DateTime.Today.ToString("dd/MM/yyyy");
     private string selectedProductIdString = string.Empty;
     private string scannedPurchaseBarcode = string.Empty;
     private string searchProductByName = string.Empty;
@@ -1730,6 +1877,7 @@
     private decimal addItemQty = 1;
     private decimal addItemCost = 0;
     private DateTime? addItemProductionDate = null;
+    private string addItemProductionDateStr = string.Empty;
     private DateTime? addItemExpiryDate = null;
     private string? addItemBatchNumber = null;
     private PackagingConfig currentProductPackaging = new(1, 1);
@@ -1795,6 +1943,7 @@
             : (suppliers.FirstOrDefault()?.Id.ToString() ?? string.Empty);
 
         purchaseInvoiceDate = DraftState.Draft.InvoiceDate;
+        purchaseInvoiceDateStr = purchaseInvoiceDate.ToString("dd/MM/yyyy");
         purchasePaidAmount = DraftState.Draft.PaidAmount;
         isFullPayment = DraftState.Draft.IsFullPayment;
 
@@ -1808,6 +1957,7 @@
         addItemQty = 1;
         addItemCost = 0;
         addItemProductionDate = null;
+        addItemProductionDateStr = string.Empty;
         addItemExpiryDate = null;
         addItemBatchNumber = null;
         currentProductPackaging = new(1, 1);
@@ -1829,6 +1979,8 @@
     {
         DiscardDraftInvoice();
         purchaseInvoiceDate = DateTime.Today;
+        purchaseInvoiceDateStr = purchaseInvoiceDate.ToString("dd/MM/yyyy");
+        addItemProductionDateStr = string.Empty;
         purchaseInvoiceNumber = $"PUR-{DateTime.Now:yyyyMMdd}-{Random.Shared.Next(100, 999)}";
         selectedSupplierIdString = suppliers.FirstOrDefault()?.Id.ToString() ?? string.Empty;
     }
@@ -2072,6 +2224,7 @@
         }
 
         purchaseInvoiceDate = DateTime.Today;
+        purchaseInvoiceDateStr = purchaseInvoiceDate.ToString("dd/MM/yyyy");
         purchaseInvoiceNumber = $"PUR-{DateTime.Now:yyyyMMdd}-{Random.Shared.Next(100, 999)}";
         selectedSupplierIdString = suppliers.FirstOrDefault()?.Id.ToString() ?? string.Empty;
         selectedProductIdString = string.Empty;
@@ -2082,6 +2235,7 @@
         addItemQty = 1;
         addItemCost = 0;
         addItemProductionDate = null;
+        addItemProductionDateStr = string.Empty;
         addItemExpiryDate = null;
         addItemBatchNumber = null;
         currentProductPackaging = new(1, 1);
@@ -2093,14 +2247,18 @@
         _ = FocusPurchaseBarcodeAsync(100);
     }
 
-    private void OnPurchaseInvoiceDateChanged(ChangeEventArgs e)
+    private void OnPurchaseInvoiceDateStrChanged(ChangeEventArgs e)
     {
-        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+        var val = e.Value?.ToString() ?? string.Empty;
+        purchaseInvoiceDateStr = val;
+        if (TryParseDdMmYyyy(val, out var dt))
         {
-            purchaseInvoiceDate = dt;
-            if (SelectedProduct != null && (SelectedProduct.TrackExpiry || SelectedProduct.ShelfLifeDays > 0))
+            purchaseInvoiceDate = dt.Date;
+            purchaseInvoiceDateStr = dt.ToString("dd/MM/yyyy");
+            if (SelectedProduct != null && SelectedProduct.TrackExpiry)
             {
                 addItemProductionDate ??= purchaseInvoiceDate.Date;
+                addItemProductionDateStr = addItemProductionDate.Value.ToString("dd/MM/yyyy");
                 int days = SelectedProduct.ShelfLifeDays > 0 ? SelectedProduct.ShelfLifeDays : 365;
                 addItemExpiryDate = addItemProductionDate.Value.Date.AddDays(days);
             }
@@ -2108,14 +2266,51 @@
         }
     }
 
-    private void OnEditPurchaseDateChanged(ChangeEventArgs e)
+    private void OnPurchaseInvoicePickerChanged(ChangeEventArgs e)
     {
         if (DateTime.TryParse(e.Value?.ToString(), out var dt))
         {
-            editPurchaseDate = dt;
-            if (EditSelectedProduct != null && (EditSelectedProduct.TrackExpiry || EditSelectedProduct.ShelfLifeDays > 0))
+            purchaseInvoiceDate = dt.Date;
+            purchaseInvoiceDateStr = dt.ToString("dd/MM/yyyy");
+            if (SelectedProduct != null && SelectedProduct.TrackExpiry)
+            {
+                addItemProductionDate ??= purchaseInvoiceDate.Date;
+                addItemProductionDateStr = addItemProductionDate.Value.ToString("dd/MM/yyyy");
+                int days = SelectedProduct.ShelfLifeDays > 0 ? SelectedProduct.ShelfLifeDays : 365;
+                addItemExpiryDate = addItemProductionDate.Value.Date.AddDays(days);
+            }
+            SyncDraftState();
+        }
+    }
+
+    private void OnEditPurchaseDateStrChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? string.Empty;
+        editPurchaseDateStr = val;
+        if (TryParseDdMmYyyy(val, out var dt))
+        {
+            editPurchaseDate = dt.Date;
+            editPurchaseDateStr = dt.ToString("dd/MM/yyyy");
+            if (EditSelectedProduct != null && EditSelectedProduct.TrackExpiry)
             {
                 editAddItemProductionDate ??= editPurchaseDate.Date;
+                editAddItemProductionDateStr = editAddItemProductionDate.Value.ToString("dd/MM/yyyy");
+                int days = EditSelectedProduct.ShelfLifeDays > 0 ? EditSelectedProduct.ShelfLifeDays : 365;
+                editAddItemExpiryDate = editAddItemProductionDate.Value.Date.AddDays(days);
+            }
+        }
+    }
+
+    private void OnEditPurchasePickerChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+        {
+            editPurchaseDate = dt.Date;
+            editPurchaseDateStr = dt.ToString("dd/MM/yyyy");
+            if (EditSelectedProduct != null && EditSelectedProduct.TrackExpiry)
+            {
+                editAddItemProductionDate ??= editPurchaseDate.Date;
+                editAddItemProductionDateStr = editAddItemProductionDate.Value.ToString("dd/MM/yyyy");
                 int days = EditSelectedProduct.ShelfLifeDays > 0 ? EditSelectedProduct.ShelfLifeDays : 365;
                 editAddItemExpiryDate = editAddItemProductionDate.Value.Date.AddDays(days);
             }
@@ -2160,6 +2355,7 @@
     private string editSupplierIdString = string.Empty;
     private string editPurchaseInvoiceNumber = string.Empty;
     private DateTime editPurchaseDate = DateTime.Today;
+    private string editPurchaseDateStr = DateTime.Today.ToString("dd/MM/yyyy");
     private decimal editPurchasePaidAmount = 0;
     private string? editPurchaseNotes = null;
     private List<CreatePurchaseItemRequest> editPurchaseItems = new();
@@ -2171,6 +2367,7 @@
     private decimal editAddItemQty = 1;
     private decimal editAddItemCost = 0;
     private DateTime? editAddItemProductionDate = null;
+    private string editAddItemProductionDateStr = string.Empty;
     private DateTime? editAddItemExpiryDate = null;
     private string? editAddItemBatchNumber = null;
     private PackagingConfig editCurrentProductPackaging = new(1, 1);
@@ -2181,6 +2378,7 @@
         editingPurchaseId = pur.Id;
         editPurchaseInvoiceNumber = pur.InvoiceNumber;
         editPurchaseDate = pur.PurchaseDate;
+        editPurchaseDateStr = editPurchaseDate.ToString("dd/MM/yyyy");
         editSupplierIdString = pur.SupplierId.ToString();
         editPurchasePaidAmount = pur.PaidAmount;
         editPurchaseNotes = pur.Notes;
@@ -2192,6 +2390,7 @@
         editAddItemQty = 1;
         editAddItemCost = 0;
         editAddItemProductionDate = null;
+        editAddItemProductionDateStr = string.Empty;
         editAddItemExpiryDate = null;
         editAddItemBatchNumber = null;
         editCurrentProductPackaging = new(1, 1);
@@ -2229,15 +2428,17 @@
                 editAddItemCartonFactor = ResolveProductCartonFactor(prod);
                 editBaseProductPieceCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
                 editAddItemCost = editBaseProductPieceCost;
-                if (prod.TrackExpiry || prod.ShelfLifeDays > 0)
+                if (prod.TrackExpiry)
                 {
                     editAddItemProductionDate ??= editPurchaseDate.Date;
+                    editAddItemProductionDateStr = editAddItemProductionDate.Value.ToString("dd/MM/yyyy");
                     int days = prod.ShelfLifeDays > 0 ? prod.ShelfLifeDays : 365;
                     editAddItemExpiryDate = editAddItemProductionDate.Value.Date.AddDays(days);
                 }
                 else
                 {
                     editAddItemProductionDate = null;
+                    editAddItemProductionDateStr = string.Empty;
                     editAddItemExpiryDate = null;
                 }
                 CheckProductStockExpiry(prod);
@@ -2250,6 +2451,7 @@
             editBaseProductPieceCost = 0;
             editAddItemCost = 0;
             editAddItemProductionDate = null;
+            editAddItemProductionDateStr = string.Empty;
             editAddItemExpiryDate = null;
         }
     }
@@ -2275,15 +2477,17 @@
                 editSelectedUnitType = "piece";
                 editBaseProductPieceCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
                 editAddItemCost = editBaseProductPieceCost;
-                if (prod.TrackExpiry || prod.ShelfLifeDays > 0)
+                if (prod.TrackExpiry)
                 {
                     editAddItemProductionDate ??= editPurchaseDate.Date;
+                    editAddItemProductionDateStr = editAddItemProductionDate.Value.ToString("dd/MM/yyyy");
                     int days = prod.ShelfLifeDays > 0 ? prod.ShelfLifeDays : 365;
                     editAddItemExpiryDate = editAddItemProductionDate.Value.Date.AddDays(days);
                 }
                 else
                 {
                     editAddItemProductionDate = null;
+                    editAddItemProductionDateStr = string.Empty;
                     editAddItemExpiryDate = null;
                 }
                 errorMessage = string.Empty;
@@ -2317,14 +2521,15 @@
             pId,
             editAddItemQty,
             editAddItemCost,
-            ExpiryDate: editAddItemExpiryDate,
-            BatchNumber: editAddItemBatchNumber,
+            ExpiryDate: (prod != null && prod.TrackExpiry) ? editAddItemExpiryDate : null,
+            BatchNumber: null,
             Unit: unitName));
 
         editAddItemQty = 1;
         editAddItemCost = 0;
         editBaseProductPieceCost = 0;
         editAddItemProductionDate = null;
+        editAddItemProductionDateStr = string.Empty;
         editAddItemExpiryDate = null;
         editAddItemBatchNumber = null;
         editSelectedUnitType = "piece";
@@ -2497,15 +2702,17 @@
                 addItemCartonFactor = ResolveProductCartonFactor(prod);
                 baseProductPieceCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
                 addItemCost = baseProductPieceCost;
-                if (prod.TrackExpiry || prod.ShelfLifeDays > 0)
+                if (prod.TrackExpiry)
                 {
                     addItemProductionDate ??= purchaseInvoiceDate.Date;
+                    addItemProductionDateStr = addItemProductionDate.Value.ToString("dd/MM/yyyy");
                     int days = prod.ShelfLifeDays > 0 ? prod.ShelfLifeDays : 365;
                     addItemExpiryDate = addItemProductionDate.Value.Date.AddDays(days);
                 }
                 else
                 {
                     addItemProductionDate = null;
+                    addItemProductionDateStr = string.Empty;
                     addItemExpiryDate = null;
                 }
                 CheckProductStockExpiry(prod);
@@ -2518,6 +2725,7 @@
             baseProductPieceCost = 0;
             addItemCost = 0;
             addItemProductionDate = null;
+            addItemProductionDateStr = string.Empty;
             addItemExpiryDate = null;
         }
     }
@@ -2543,15 +2751,17 @@
                 selectedUnitType = "piece";
                 baseProductPieceCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
                 addItemCost = baseProductPieceCost;
-                if (prod.TrackExpiry || prod.ShelfLifeDays > 0)
+                if (prod.TrackExpiry)
                 {
                     addItemProductionDate ??= purchaseInvoiceDate.Date;
+                    addItemProductionDateStr = addItemProductionDate.Value.ToString("dd/MM/yyyy");
                     int days = prod.ShelfLifeDays > 0 ? prod.ShelfLifeDays : 365;
                     addItemExpiryDate = addItemProductionDate.Value.Date.AddDays(days);
                 }
                 else
                 {
                     addItemProductionDate = null;
+                    addItemProductionDateStr = string.Empty;
                     addItemExpiryDate = null;
                 }
                 errorMessage = string.Empty;
@@ -2578,15 +2788,17 @@
                 selectedUnitType = "piece";
                 baseProductPieceCost = matched.PurchasePrice > 0 ? matched.PurchasePrice : matched.SellingPrice;
                 addItemCost = baseProductPieceCost;
-                if (matched.TrackExpiry || matched.ShelfLifeDays > 0)
+                if (matched.TrackExpiry)
                 {
                     addItemProductionDate ??= purchaseInvoiceDate.Date;
+                    addItemProductionDateStr = addItemProductionDate.Value.ToString("dd/MM/yyyy");
                     int days = matched.ShelfLifeDays > 0 ? matched.ShelfLifeDays : 365;
                     addItemExpiryDate = addItemProductionDate.Value.Date.AddDays(days);
                 }
                 else
                 {
                     addItemProductionDate = null;
+                    addItemProductionDateStr = string.Empty;
                     addItemExpiryDate = null;
                 }
                 errorMessage = string.Empty;
@@ -2608,15 +2820,17 @@
                 editSelectedUnitType = "piece";
                 editBaseProductPieceCost = matched.PurchasePrice > 0 ? matched.PurchasePrice : matched.SellingPrice;
                 editAddItemCost = editBaseProductPieceCost;
-                if (matched.TrackExpiry || matched.ShelfLifeDays > 0)
+                if (matched.TrackExpiry)
                 {
                     editAddItemProductionDate ??= editPurchaseDate.Date;
+                    editAddItemProductionDateStr = editAddItemProductionDate.Value.ToString("dd/MM/yyyy");
                     int days = matched.ShelfLifeDays > 0 ? matched.ShelfLifeDays : 365;
                     editAddItemExpiryDate = editAddItemProductionDate.Value.Date.AddDays(days);
                 }
                 else
                 {
                     editAddItemProductionDate = null;
+                    editAddItemProductionDateStr = string.Empty;
                     editAddItemExpiryDate = null;
                 }
                 errorMessage = string.Empty;
@@ -2646,8 +2860,8 @@
             pId,
             addItemQty,
             addItemCost,
-            ExpiryDate: addItemExpiryDate,
-            BatchNumber: addItemBatchNumber,
+            ExpiryDate: (prod != null && prod.TrackExpiry) ? addItemExpiryDate : null,
+            BatchNumber: null,
             Unit: unitName));
 
         if (isFullPayment)
@@ -2660,6 +2874,7 @@
         addItemCost = 0;
         baseProductPieceCost = 0;
         addItemProductionDate = null;
+        addItemProductionDateStr = string.Empty;
         addItemExpiryDate = null;
         addItemBatchNumber = null;
         selectedUnitType = "piece";

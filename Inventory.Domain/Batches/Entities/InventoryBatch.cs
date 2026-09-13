@@ -136,6 +136,17 @@ namespace Inventory.Domain.Batches.Entities
             return Result.Success();
         }
 
+        public Result Replenish(decimal remainingQuantity)
+        {
+            if (remainingQuantity <= 0)
+                return Result.Failure(new Error("Batch.InvalidQuantity", "الكمية المتبقية للتجديد يجب أن تكون أكبر من الصفر."));
+
+            RemainingQuantity = remainingQuantity;
+            Status = BatchStatus.Active;
+            UpdatedAt = DateTime.UtcNow;
+            return Result.Success();
+        }
+
         public Result UpdateDetails(
             decimal originalQuantity,
             string originalUnit,

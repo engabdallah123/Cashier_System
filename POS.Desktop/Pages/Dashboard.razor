@@ -104,7 +104,7 @@
                                     <td><code>@(string.IsNullOrWhiteSpace(n.BatchNumber) ? "افتراضي" : n.BatchNumber)</code></td>
                                     <td><strong style="color: var(--accent-amber);">@n.RemainingQuantity.ToString("N0")</strong> قطعة</td>
                                     <td style="color: @(n.IsExpired ? "var(--accent-red)" : "var(--accent-amber)"); font-weight: 600;">
-                                        @(n.ExpiryDate?.ToString("yyyy-MM-dd") ?? "-")
+                                        @(n.ExpiryDate?.ToString("dd/MM/yyyy") ?? "-")
                                     </td>
                                     <td>
                                         @if (n.IsExpired)
@@ -141,7 +141,7 @@
             <div class="period-card card-today">
                 <div class="period-header">
                     <div class="period-title"><i class="fa-solid fa-sun text-amber"></i> اليوم</div>
-                    <span class="badge badge-amber">@DateTime.Today.ToString("yyyy/MM/dd")</span>
+                    <span class="badge badge-amber">@DateTime.Today.ToString("dd/MM/yyyy")</span>
                 </div>
                 <div class="period-body">
                     <div class="period-stat">
@@ -492,7 +492,7 @@
                                             <span class="text-red font-weight-700" style="font-size: 1.05rem;">@debt.TotalDebtAmount.ToString("N2") ج.م</span>
                                         </td>
                                         <td>
-                                            <span class="small text-muted">@debt.LastSaleDate.ToString("yyyy/MM/dd HH:mm")</span>
+                                            <span class="small text-muted">@debt.LastSaleDate.ToString("dd/MM/yyyy HH:mm")</span>
                                         </td>
                                         <td style="text-align: center;">
                                             <NavLink href="debts" class="btn btn-refresh" style="padding: 0.3rem 0.75rem; font-size: 0.8rem; text-decoration: none; color: var(--accent-emerald);">
@@ -850,7 +850,7 @@
                         المتبقي بالدفعة: <strong style="color: var(--accent-amber);">@wasteNotificationTarget.RemainingQuantity.ToString("N0")</strong> قطعة
                     </div>
                     <div style="font-size: 0.82rem; color: var(--accent-red); margin-top: 0.25rem;">
-                        تاريخ الصلاحية: @(wasteNotificationTarget.ExpiryDate?.ToString("yyyy-MM-dd") ?? "-")
+                        تاريخ الصلاحية: @(wasteNotificationTarget.ExpiryDate?.ToString("dd/MM/yyyy") ?? "-")
                     </div>
                 </div>
 

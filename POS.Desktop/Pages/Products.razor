@@ -1384,6 +1384,11 @@
             RecalculateShelfLifeDays();
             RecalculateExpiryAlertDays();
         }
+        else
+        {
+            newProduct.ShelfLifeDays = 0;
+            newProduct.ExpiryAlertDays = 0;
+        }
 
         isSaving = true;
         errorMessage = string.Empty;

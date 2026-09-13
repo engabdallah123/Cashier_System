@@ -53,6 +53,8 @@ namespace Purchases.Application.Purchases.Commands.CreatePurchase
 
             await _purchasesUnitOfWork.PurchaseRepository.AddAsync(purchase);
 
+            int todayBatchSeq = await _inventoryUnitOfWork.BatchRepository.GetMaxTodayBatchSequenceAsync(purchase.PurchaseDate, cancellationToken);
+
             // زيادة رصيد المخزون وتسجيل حركة المخزون وإنشاء دفعات المخزون (InventoryBatches)
             for (int i = 0; i < purchase.Items.Count; i++)
             {
@@ -78,32 +80,40 @@ namespace Purchases.Application.Purchases.Commands.CreatePurchase
                     product.ApplyPrices(unitCostPerPiece, product.SellingPrice, product.WholesalePrice);
                     _inventoryUnitOfWork.ProductRepository.Update(product);
 
-                    // حساب تاريخ الصلاحية المقترح إذا لم يُدخل
-                    var expiryDate = item.ExpiryDate;
-                    if (!expiryDate.HasValue && product.ShelfLifeDays > 0)
+                    // تتبع الصلاحية والدفعات يتم فقط في حال تفعيل تتبع الصلاحية للمنتج
+                    if (product.TrackExpiry)
                     {
-                        expiryDate = purchase.PurchaseDate.AddDays(product.ShelfLifeDays);
+                        todayBatchSeq++;
+                        var batchNumber = $"BATCH-{purchase.PurchaseDate:yyyyMMdd}-{todayBatchSeq}";
+                        item.UpdateBatchNumber(batchNumber);
+
+                        // حساب تاريخ الصلاحية المقترح إذا لم يُدخل
+                        var expiryDate = item.ExpiryDate;
+                        if (!expiryDate.HasValue && product.ShelfLifeDays > 0)
+                        {
+                            expiryDate = purchase.PurchaseDate.AddDays(product.ShelfLifeDays);
+                        }
+
+                        var batchResult = Inventory.Domain.Batches.Entities.InventoryBatch.Create(
+                            productId: product.Id,
+                            purchaseInvoiceId: purchase.Id,
+                            purchaseInvoiceItemId: item.Id,
+                            batchNumber: batchNumber,
+                            originalQuantity: item.Quantity,
+                            originalUnit: !string.IsNullOrWhiteSpace(itemReq.Unit) ? itemReq.Unit : (factor > 1 ? (product.ParentUnit ?? "كرتونة") : product.BaseUnit),
+                            baseQuantity: baseQuantity,
+                            unitCost: unitCostPerPiece,
+                            purchaseDate: purchase.PurchaseDate,
+                            expiryDate: expiryDate);
+
+                        if (batchResult.IsSuccess)
+                        {
+                            await _inventoryUnitOfWork.BatchRepository.AddAsync(batchResult.Value!, cancellationToken);
+                        }
                     }
-
-                    var batchNumber = !string.IsNullOrWhiteSpace(item.BatchNumber)
-                        ? item.BatchNumber
-                        : $"BATCH-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..4]}";
-
-                    var batchResult = Inventory.Domain.Batches.Entities.InventoryBatch.Create(
-                        productId: product.Id,
-                        purchaseInvoiceId: purchase.Id,
-                        purchaseInvoiceItemId: item.Id,
-                        batchNumber: batchNumber,
-                        originalQuantity: item.Quantity,
-                        originalUnit: !string.IsNullOrWhiteSpace(itemReq.Unit) ? itemReq.Unit : (factor > 1 ? (product.ParentUnit ?? "كرتونة") : product.BaseUnit),
-                        baseQuantity: baseQuantity,
-                        unitCost: unitCostPerPiece,
-                        purchaseDate: purchase.PurchaseDate,
-                        expiryDate: expiryDate);
-
-                    if (batchResult.IsSuccess)
+                    else
                     {
-                        await _inventoryUnitOfWork.BatchRepository.AddAsync(batchResult.Value!, cancellationToken);
+                        item.UpdateBatchNumber(null);
                     }
 
                     var movementResult = StockMovement.Create(

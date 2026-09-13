@@ -62,7 +62,7 @@
             <div class="grid-2" style="margin-bottom: 1.5rem;">
                 <div style="background: var(--bg-primary); padding: 1.25rem; border-radius: 0.6rem; border: 1px solid var(--border-color);">
                     <div style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600;">وقت فتح الوردية</div>
-                    <div style="font-size: 1.05rem; font-weight: 600; margin-top: 0.3rem;">@ShiftState.StartTime.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</div>
+                    <div style="font-size: 1.05rem; font-weight: 600; margin-top: 0.3rem;">@ShiftState.StartTime.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div>
                 </div>
                 <div style="background: var(--bg-primary); padding: 1.25rem; border-radius: 0.6rem; border: 1px solid var(--border-color);">
                     <div style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600;">النقدية الافتتاحية</div>
@@ -158,8 +158,8 @@
                         {
                             <tr>
                                 <td style="font-weight: 600;">@(string.IsNullOrWhiteSpace(s.CashierName) ? "كاشير" : s.CashierName)</td>
-                                <td>@s.OpenedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
-                                <td>@(s.ClosedAt.HasValue ? s.ClosedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "-")</td>
+                                <td>@s.OpenedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</td>
+                                <td>@(s.ClosedAt.HasValue ? s.ClosedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "-")</td>
                                 <td>@s.OpeningCash.ToString("N2") ج.م</td>
                                 <td>@(s.Status == "Closed" ? s.ClosingCash.ToString("N2") + " ج.م" : "-")</td>
                                 <td>
@@ -239,11 +239,11 @@
                 <div class="grid-2" style="margin-bottom: 1.25rem;">
                     <div style="background: var(--bg-primary); padding: 0.85rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light);">
                         <span style="font-size: 0.78rem; color: var(--text-secondary); display: block;">وقت الفتح</span>
-                        <span>@selectedShiftDetails.OpenedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</span>
+                        <span>@selectedShiftDetails.OpenedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</span>
                     </div>
                     <div style="background: var(--bg-primary); padding: 0.85rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light);">
                         <span style="font-size: 0.78rem; color: var(--text-secondary); display: block;">وقت الإغلاق</span>
-                        <span>@(selectedShiftDetails.ClosedAt.HasValue ? selectedShiftDetails.ClosedAt.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") : "لا زالت مفتوحة")</span>
+                        <span>@(selectedShiftDetails.ClosedAt.HasValue ? selectedShiftDetails.ClosedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "لا زالت مفتوحة")</span>
                     </div>
                 </div>
 

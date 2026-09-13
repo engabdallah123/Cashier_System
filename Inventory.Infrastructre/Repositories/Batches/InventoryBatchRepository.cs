@@ -50,6 +50,27 @@ namespace Inventory.Infrastructre.Repositories.Batches
                 .ToListAsync(ct);
         }
 
+        public async Task<int> GetMaxTodayBatchSequenceAsync(DateTime date, CancellationToken ct = default)
+        {
+            var prefix = $"BATCH-{date:yyyyMMdd}-";
+            var batchNumbers = await _context.Batches
+                .Where(b => b.BatchNumber.StartsWith(prefix))
+                .Select(b => b.BatchNumber)
+                .ToListAsync(ct);
+
+            int maxSeq = 0;
+            foreach (var bn in batchNumbers)
+            {
+                var suffix = bn.Substring(prefix.Length);
+                if (int.TryParse(suffix, out int seq) && seq > maxSeq)
+                {
+                    maxSeq = seq;
+                }
+            }
+
+            return maxSeq;
+        }
+
         public async Task AddAsync(InventoryBatch batch, CancellationToken ct = default)
         {
             await _context.Batches.AddAsync(batch, ct);

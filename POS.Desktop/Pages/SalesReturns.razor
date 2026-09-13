@@ -89,7 +89,7 @@
                     {
                         <tr>
                             <td><code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@ret.ReturnNumber</code></td>
-                            <td>@ret.ReturnDate.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@ret.ReturnDate.ToString("dd/MM/yyyy HH:mm")</td>
                             <td>@(string.IsNullOrWhiteSpace(ret.CashierName) ? "مستخدم كاشير" : ret.CashierName)</td>
                             <td>@(string.IsNullOrWhiteSpace(ret.CustomerName) ? "عميل عام" : ret.CustomerName)</td>
                             <td>
@@ -338,7 +338,7 @@
                                         {
                                             <tr>
                                                 <td style="padding: 0.65rem 0.75rem;"><code style="font-weight: 700; color: var(--accent-blue); font-size: 0.95rem;">@s.InvoiceNumber</code></td>
-                                                <td style="padding: 0.65rem 0.75rem;">@s.SaleDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                                <td style="padding: 0.65rem 0.75rem;">@s.SaleDate.ToString("dd/MM/yyyy HH:mm")</td>
                                                 <td style="padding: 0.65rem 0.75rem; font-weight: 600;">@(string.IsNullOrWhiteSpace(s.CustomerName) ? "عميل نقدي" : s.CustomerName)</td>
                                                 <td style="padding: 0.65rem 0.75rem;">
                                                     <span class="badge @(s.PaymentMethod == "Cash" ? "badge-green" : s.PaymentMethod == "Credit" ? "badge-red" : "badge-indigo")">
@@ -371,7 +371,7 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
                             <div style="display: flex; gap: 1rem; font-size: 0.88rem; flex-wrap: wrap;">
                                 <div><strong>رقم الفاتورة:</strong> <code style="color: var(--accent-blue); font-size: 0.95rem;">@selectedSaleDetail.InvoiceNumber</code></div>
-                                <div><strong>تاريخ البيع:</strong> @selectedSaleDetail.SaleDate.ToString("yyyy-MM-dd HH:mm")</div>
+                                <div><strong>تاريخ البيع:</strong> @selectedSaleDetail.SaleDate.ToString("dd/MM/yyyy HH:mm")</div>
                                 <div><strong>العميل:</strong> @(string.IsNullOrWhiteSpace(selectedSaleDetail.CustomerName) ? "عميل نقدي" : selectedSaleDetail.CustomerName)</div>
                                 <div><strong>إجمالي الفاتورة:</strong> <strong style="color: var(--accent-emerald);">@selectedSaleDetail.TotalAmount.ToString("N2") ج.م</strong></div>
                             </div>
@@ -589,7 +589,7 @@
                 </div>
                 <div>
                     <span style="font-size: 0.8rem; color: var(--text-secondary); display: block;">تاريخ المرتجع</span>
-                    <strong>@selectedReturnDetail.ReturnDate.ToString("yyyy-MM-dd HH:mm")</strong>
+                    <strong>@selectedReturnDetail.ReturnDate.ToString("dd/MM/yyyy HH:mm")</strong>
                 </div>
                 <div>
                     <span style="font-size: 0.8rem; color: var(--text-secondary); display: block;">الكاشير المسؤول</span>
@@ -838,7 +838,7 @@
                     </div>
                     <div>
                         <span style="color: var(--text-secondary); display: block; font-size: 0.8rem; margin-bottom: 0.2rem;">تاريخ المرتجع:</span>
-                        <strong style="color: var(--text-primary);">@returnToDelete.ReturnDate.ToString("yyyy-MM-dd HH:mm")</strong>
+                        <strong style="color: var(--text-primary);">@returnToDelete.ReturnDate.ToString("dd/MM/yyyy HH:mm")</strong>
                     </div>
                 </div>
 
@@ -1028,6 +1028,7 @@
             return salesList.Where(s =>
                 s.InvoiceNumber.Contains(q, StringComparison.OrdinalIgnoreCase) ||
                 (s.CustomerName != null && s.CustomerName.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
+                s.SaleDate.ToString("dd/MM/yyyy").Contains(q) ||
                 s.SaleDate.ToString("yyyy-MM-dd").Contains(q) ||
                 s.TotalAmount.ToString().Contains(q));
         }

@@ -51,5 +51,10 @@ namespace Purchases.Domain.Purchases.Entities
 
             return Result<PurchaseItem>.Success(item);
         }
+
+        public void UpdateBatchNumber(string? batchNumber)
+        {
+            BatchNumber = string.IsNullOrWhiteSpace(batchNumber) ? null : batchNumber.Trim();
+        }
     }
 }

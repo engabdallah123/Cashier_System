@@ -134,21 +134,21 @@
         </div>
 
         <!-- Table -->
-        <div class="table-container">
-            <table class="data-table">
+        <div class="table-container" style="overflow-x: auto; max-width: 100%; border-radius: 0.85rem; box-shadow: var(--shadow-md);">
+            <table class="data-table" style="min-width: 1150px; width: 100%;">
                 <thead>
                     <tr>
-                        <th>اسم المنتج</th>
-                        <th>الباركود</th>
-                        <th>تاريخ الصلاحية</th>
-                        <th>الحالة</th>
-                        <th>الأيام المتبقية</th>
-                        <th>كمية الدفعة (Batch)</th>
-                        <th>إجمالي المخزن</th>
-                        <th>رقم التشغيلة (Batch)</th>
-                        <th>فاتورة الشراء</th>
-                        <th>المورد</th>
-                        <th style="text-align: center; width: 120px;">الإجراء</th>
+                        <th style="min-width: 160px;">اسم المنتج</th>
+                        <th style="min-width: 110px; white-space: nowrap;">الباركود</th>
+                        <th style="min-width: 120px; white-space: nowrap;">تاريخ الصلاحية</th>
+                        <th style="min-width: 120px; white-space: nowrap;">الحالة</th>
+                        <th style="min-width: 125px; white-space: nowrap;">الأيام المتبقية</th>
+                        <th style="min-width: 135px; white-space: nowrap;">كمية الدفعة (Batch)</th>
+                        <th style="min-width: 100px; white-space: nowrap;">إجمالي المخزن</th>
+                        <th style="min-width: 125px; white-space: nowrap;">رقم التشغيلة (Batch)</th>
+                        <th style="min-width: 110px; white-space: nowrap;">فاتورة الشراء</th>
+                        <th style="min-width: 120px;">المورد</th>
+                        <th style="text-align: center; width: 120px; min-width: 110px; white-space: nowrap;">الإجراء</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -182,11 +182,11 @@
                                 <td style="font-weight: 700; color: @(isDepleted ? "#94a3b8" : "var(--text-primary)");">
                                     @item.ProductName
                                 </td>
-                                <td><code>@(string.IsNullOrWhiteSpace(item.Barcode) ? "-" : item.Barcode)</code></td>
-                                <td style="font-weight: 700; color: @(isDepleted ? "#94a3b8" : isExpired ? "var(--accent-red)" : isSoon ? "var(--accent-amber)" : "var(--accent-emerald)");">
-                                    <i class="fa-regular fa-calendar-xmark me-1"></i> @item.ExpiryDate.ToString("yyyy-MM-dd")
+                                <td style="white-space: nowrap;"><code>@(string.IsNullOrWhiteSpace(item.Barcode) ? "-" : item.Barcode)</code></td>
+                                <td style="font-weight: 700; white-space: nowrap; color: @(isDepleted ? "#94a3b8" : isExpired ? "var(--accent-red)" : isSoon ? "var(--accent-amber)" : "var(--accent-emerald)");">
+                                    <i class="fa-regular fa-calendar-xmark me-1"></i> @item.ExpiryDate.ToString("dd/MM/yyyy")
                                 </td>
-                                <td>
+                                <td style="white-space: nowrap;">
                                     @if (isDepleted)
                                     {
                                         if (item.WastedQuantity > 0)
@@ -215,11 +215,11 @@
                                         <span class="badge badge-green"><i class="fa-solid fa-circle-check me-1"></i> صالحة</span>
                                     }
                                 </td>
-                                <td style="font-weight: 700; color: @(isDepleted ? "#94a3b8" : isExpired ? "var(--accent-red)" : isSoon ? "var(--accent-amber)" : "var(--text-secondary)");">
+                                <td style="font-weight: 700; white-space: nowrap; color: @(isDepleted ? "#94a3b8" : isExpired ? "var(--accent-red)" : isSoon ? "var(--accent-amber)" : "var(--text-secondary)");">
                                     @(isExpired ? $"منتهية منذ {Math.Abs(item.DaysRemaining)} يوم" : isSoon ? $"باقي {item.DaysRemaining} يوم فقط" : isDepleted ? (item.DaysRemaining < 0 ? $"انتهت منذ {Math.Abs(item.DaysRemaining)} يوم" : $"متبقي {item.DaysRemaining} يوم") : $"باقي {item.DaysRemaining} يوم")
                                 </td>
                                 <!-- كمية الدفعة (Batch) -->
-                                <td>
+                                <td style="white-space: nowrap;">
                                     @if (isDepleted)
                                     {
                                         <span style="font-weight: 700; color: #94a3b8;">
@@ -244,10 +244,10 @@
                                     }
                                 </td>
                                 <!-- إجمالي المخزن الكلي للمنتج -->
-                                <td style="font-weight: 700; color: @(isDepleted ? "#cbd5e1" : "var(--text-primary)");">
+                                <td style="font-weight: 700; white-space: nowrap; color: @(isDepleted ? "#cbd5e1" : "var(--text-primary)");">
                                     @item.TotalProductStock.ToString("N0") قطعة
                                 </td>
-                                <td>
+                                <td style="white-space: nowrap;">
                                     @if (!string.IsNullOrWhiteSpace(item.BatchNumber))
                                     {
                                         <span class="badge badge-indigo" style="font-family: monospace;">@item.BatchNumber</span>
@@ -257,7 +257,7 @@
                                         <span style="color: var(--text-muted);">-</span>
                                     }
                                 </td>
-                                <td>
+                                <td style="white-space: nowrap;">
                                     @if (!string.IsNullOrWhiteSpace(item.InvoiceNumber))
                                     {
                                         <code style="background: rgba(255,255,255,0.05); padding: 0.15rem 0.4rem; border-radius: 4px;">@item.InvoiceNumber</code>
@@ -270,7 +270,7 @@
                                 <td style="color: var(--text-secondary);">
                                     @(string.IsNullOrWhiteSpace(item.SupplierName) ? "-" : item.SupplierName)
                                 </td>
-                                <td style="text-align: center;">
+                                <td style="text-align: center; white-space: nowrap;">
                                     @if (isDepleted)
                                     {
                                         <button class="btn btn-sm btn-secondary" style="font-size: 0.78rem; padding: 0.28rem 0.65rem; background: #475569; border: 1px solid #64748b; color: #f8fafc;" title="عرض تفاصيل الدفعة وحركات الهالك" @onclick="() => OpenBatchDetailsModal(item)">
@@ -371,7 +371,7 @@
                         @foreach (var w in PagedWasteItems)
                         {
                             <tr>
-                                <td style="white-space: nowrap; font-size: 0.85rem;">@w.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td style="white-space: nowrap; font-size: 0.85rem;">@w.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
                                 <td style="font-weight: 700; color: var(--text-primary);">@w.ProductName</td>
                                 <td><code>@(string.IsNullOrWhiteSpace(w.ProductBarcode) ? "-" : w.ProductBarcode)</code></td>
                                 <td><code>@(string.IsNullOrWhiteSpace(w.BatchNumber) ? "افتراضي" : w.BatchNumber)</code></td>
@@ -482,7 +482,7 @@
                                     <option value="@b.Id.ToString()">
                                         دفعة: @(string.IsNullOrWhiteSpace(b.BatchNumber) ? "افتراضي" : b.BatchNumber) |
                                         متبقي: @b.RemainingQuantity.ToString("N0") قطعة |
-                                        صلاحية: @(b.ExpiryDate?.ToString("yyyy-MM-dd") ?? "غير محدد") |
+                                        صلاحية: @(b.ExpiryDate?.ToString("dd/MM/yyyy") ?? "غير محدد") |
                                         تكلفة: @b.UnitCost.ToString("N2") ج.م
                                     </option>
                                 }
@@ -640,7 +640,7 @@
                         <div>
                             <span style="color: var(--text-secondary);">تاريخ انتهاء الصلاحية:</span>
                             <strong style="color: var(--text-primary); margin-right: 0.4rem;">
-                                @selectedBatchDetail.ExpiryDate.ToString("yyyy-MM-dd")
+                                @selectedBatchDetail.ExpiryDate.ToString("dd/MM/yyyy")
                             </strong>
                             <small style="color: @(selectedBatchDetail.DaysRemaining < 0 ? "var(--accent-red)" : "var(--accent-amber)");">
                                 (@(selectedBatchDetail.DaysRemaining < 0 ? $"منتهية منذ {Math.Abs(selectedBatchDetail.DaysRemaining)} يوم" : $"متبقي {selectedBatchDetail.DaysRemaining} يوم"))
@@ -723,7 +723,7 @@
                                     @foreach (var w in selectedBatchWasteItems)
                                     {
                                         <tr>
-                                            <td style="white-space: nowrap;">@w.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                            <td style="white-space: nowrap;">@w.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
                                             <td style="text-align: center; font-weight: 700; color: var(--accent-red);">
                                                 @w.Quantity.ToString("N0") @(w.Unit == "carton" ? "كرتونة" : "قطعة")
                                             </td>
@@ -750,6 +750,48 @@
                         </div>
                     }
                 </div>
+
+                @if (selectedBatchDetail.BatchRemainingQuantity <= 0 || selectedBatchDetail.IsDepleted)
+                {
+                    <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 0.5rem; padding: 0.85rem 1rem; margin-top: 1rem;">
+                        <h4 style="font-size: 0.95rem; font-weight: 700; color: #f59e0b; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.4rem;">
+                            <i class="fa-solid fa-arrows-rotate"></i>
+                            <span>تجديد رصيد الدفعة من الجرد الفعلي</span>
+                        </h4>
+                        <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.75rem; line-height: 1.5;">
+                            إذا وُجدت كميات فعلية متبقية من هذه الدفعة بالمخزن، يمكنك إدخال الكمية المتبقية لتحديث رصيد الدفعة وزيادة رصيد المنتج تلقائياً.
+                        </p>
+                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                            <input type="number" step="any" min="0.01" class="form-control" style="width: 140px; text-align: center; font-weight: 700;"
+                                   @bind="replenishInputQty" placeholder="الكمية الفعلية..." />
+                            <button class="btn btn-warning" style="font-size: 0.85rem; font-weight: 700; padding: 0.4rem 0.85rem;"
+                                    disabled="@isReplenishingBatch" @onclick="SubmitReplenishFromDetailsModal">
+                                @if (isReplenishingBatch)
+                                {
+                                    <i class="fa-solid fa-spinner fa-spin me-1"></i>
+                                    <span>جاري التجديد...</span>
+                                }
+                                else
+                                {
+                                    <i class="fa-solid fa-check me-1"></i>
+                                    <span>تجديد رصيد الدفعة والمخزن</span>
+                                }
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(replenishError))
+                        {
+                            <div style="color: #ef4444; font-size: 0.8rem; margin-top: 0.4rem;">
+                                <i class="fa-solid fa-circle-exclamation me-1"></i> @replenishError
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(replenishSuccess))
+                        {
+                            <div style="color: #10b981; font-size: 0.8rem; margin-top: 0.4rem;">
+                                <i class="fa-solid fa-circle-check me-1"></i> @replenishSuccess
+                            </div>
+                        }
+                    </div>
+                }
             </div>
 
             <div class="modal-footer" style="display: flex; justify-content: flex-end;">
@@ -1169,11 +1211,59 @@
         }
     }
 
+    private decimal replenishInputQty = 0;
+    private bool isReplenishingBatch = false;
+    private string? replenishError = null;
+    private string? replenishSuccess = null;
+
+    private async Task SubmitReplenishFromDetailsModal()
+    {
+        if (selectedBatchDetail == null || replenishInputQty <= 0)
+        {
+            replenishError = "يرجى إدخال كمية أكبر من الصفر للتجديد.";
+            return;
+        }
+
+        isReplenishingBatch = true;
+        replenishError = null;
+        replenishSuccess = null;
+        try
+        {
+            var (success, error) = await ApiClient.ReplenishBatchAsync(
+                selectedBatchDetail.BatchId,
+                replenishInputQty,
+                $"تجديد رصيد دفعة من شاشة تتبع الصلاحية بعد الجرد (الكمية الأصلية: {selectedBatchDetail.BatchOriginalQuantity})");
+
+            if (success)
+            {
+                replenishSuccess = $"تم تجديد رصيد الدفعة بنجاح (+{replenishInputQty:G29} قطعة) وتحديث المخزن.";
+                replenishInputQty = 0;
+                await LoadData();
+            }
+            else
+            {
+                replenishError = error ?? "فشل تجديد رصيد الدفعة.";
+            }
+        }
+        catch (Exception ex)
+        {
+            replenishError = ex.Message;
+        }
+        finally
+        {
+            isReplenishingBatch = false;
+            StateHasChanged();
+        }
+    }
+
     private void CloseBatchDetailsModal()
     {
         showBatchDetailsModal = false;
         selectedBatchDetail = null;
         selectedBatchWasteItems.Clear();
+        replenishInputQty = 0;
+        replenishError = null;
+        replenishSuccess = null;
     }
 
     private void CloseManualWasteModal()

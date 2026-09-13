@@ -179,7 +179,7 @@
                                 </span>
                             </td>
                             <td style="color: var(--accent-red); font-weight: 700;">@exp.Amount.ToString("N2") ج.م</td>
-                            <td>@exp.ExpenseDate.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td>@exp.ExpenseDate.ToString("dd/MM/yyyy HH:mm")</td>
                             <td style="color: var(--text-secondary); font-size: 0.85rem;">@(string.IsNullOrWhiteSpace(exp.Notes) ? "-" : exp.Notes)</td>
                         </tr>
                     }

@@ -90,7 +90,7 @@
                                     @(u.IsActive ? "نشط" : "غير نشط")
                                 </span>
                             </td>
-                            <td style="font-size: 0.85rem; color: var(--text-secondary);">@u.CreatedAt.ToString("yyyy-MM-dd")</td>
+                            <td style="font-size: 0.85rem; color: var(--text-secondary);">@u.CreatedAt.ToString("dd/MM/yyyy")</td>
                             @if (AuthState.UserRole == "Admin" || AuthState.UserRole == "Administrator")
                             {
                                 <td style="text-align: center;">

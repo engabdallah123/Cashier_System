@@ -74,6 +74,12 @@ namespace Purchases.Application.Purchases.Commands.UpdatePurchase
             if (updateDetailsResult.IsFailure)
                 return updateDetailsResult;
 
+            int todayBatchSeq = 0;
+            if (purchase.Status == PurchaseStatus.Received)
+            {
+                todayBatchSeq = await _inventoryUnitOfWork.BatchRepository.GetMaxTodayBatchSequenceAsync(purchase.PurchaseDate, cancellationToken);
+            }
+
             // إضافة الأصناف الجديدة وضبط المخزون والدفعات
             foreach (var itemReq in request.Items)
             {
@@ -104,31 +110,38 @@ namespace Purchases.Application.Purchases.Commands.UpdatePurchase
                         product.AdjustStock(baseQuantity, allowNegativeStock: true);
                         _inventoryUnitOfWork.ProductRepository.Update(product);
 
-                        var expiryDate = itemReq.ExpiryDate;
-                        if (!expiryDate.HasValue && product.ShelfLifeDays > 0)
+                        if (product.TrackExpiry)
                         {
-                            expiryDate = purchase.PurchaseDate.AddDays(product.ShelfLifeDays);
+                            todayBatchSeq++;
+                            var batchNumber = $"BATCH-{purchase.PurchaseDate:yyyyMMdd}-{todayBatchSeq}";
+                            newItem.UpdateBatchNumber(batchNumber);
+
+                            var expiryDate = itemReq.ExpiryDate;
+                            if (!expiryDate.HasValue && product.ShelfLifeDays > 0)
+                            {
+                                expiryDate = purchase.PurchaseDate.AddDays(product.ShelfLifeDays);
+                            }
+
+                            var batchResult = Inventory.Domain.Batches.Entities.InventoryBatch.Create(
+                                productId: product.Id,
+                                purchaseInvoiceId: purchase.Id,
+                                purchaseInvoiceItemId: newItem.Id,
+                                batchNumber: batchNumber,
+                                originalQuantity: itemReq.Quantity,
+                                originalUnit: !string.IsNullOrWhiteSpace(itemReq.Unit) ? itemReq.Unit : (factor > 1 ? (product.ParentUnit ?? "كرتونة") : product.BaseUnit),
+                                baseQuantity: baseQuantity,
+                                unitCost: unitCostPerPiece,
+                                purchaseDate: purchase.PurchaseDate,
+                                expiryDate: expiryDate);
+
+                            if (batchResult.IsSuccess)
+                            {
+                                await _inventoryUnitOfWork.BatchRepository.AddAsync(batchResult.Value!, cancellationToken);
+                            }
                         }
-
-                        var batchNumber = !string.IsNullOrWhiteSpace(itemReq.BatchNumber)
-                            ? itemReq.BatchNumber
-                            : $"BATCH-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..4]}";
-
-                        var batchResult = Inventory.Domain.Batches.Entities.InventoryBatch.Create(
-                            productId: product.Id,
-                            purchaseInvoiceId: purchase.Id,
-                            purchaseInvoiceItemId: newItem.Id,
-                            batchNumber: batchNumber,
-                            originalQuantity: itemReq.Quantity,
-                            originalUnit: !string.IsNullOrWhiteSpace(itemReq.Unit) ? itemReq.Unit : (factor > 1 ? (product.ParentUnit ?? "كرتونة") : product.BaseUnit),
-                            baseQuantity: baseQuantity,
-                            unitCost: unitCostPerPiece,
-                            purchaseDate: purchase.PurchaseDate,
-                            expiryDate: expiryDate);
-
-                        if (batchResult.IsSuccess)
+                        else
                         {
-                            await _inventoryUnitOfWork.BatchRepository.AddAsync(batchResult.Value!, cancellationToken);
+                            newItem.UpdateBatchNumber(null);
                         }
 
                         var movementResult = StockMovement.Create(

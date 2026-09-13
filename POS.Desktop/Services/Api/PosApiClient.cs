@@ -466,15 +466,15 @@ namespace POS.Desktop.Services.Api
         }
 
         // Sales & Shifts
-        public async Task<(Guid? SaleId, string? Error)> CreateSaleAsync(CreateSaleCommand command)
+        public async Task<(CreateSaleResult? Result, string? Error)> CreateSaleAsync(CreateSaleCommand command)
         {
             try
             {
                 var res = await _http.PostAsJsonAsync("api/sales", command);
                 if (res.IsSuccessStatusCode)
                 {
-                    var id = await res.Content.ReadFromJsonAsync<Guid>();
-                    return (id, null);
+                    var result = await res.Content.ReadFromJsonAsync<CreateSaleResult>();
+                    return (result, null);
                 }
 
                 var errContent = await res.Content.ReadAsStringAsync();
@@ -483,6 +483,25 @@ namespace POS.Desktop.Services.Api
             catch (Exception ex)
             {
                 return (null, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> ReplenishBatchAsync(Guid batchId, decimal quantity, string? notes = null)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync($"api/batches/{batchId}/replenish", new ReplenishBatchRequest(quantity, notes));
+                if (res.IsSuccessStatusCode)
+                {
+                    return (true, null);
+                }
+
+                var errContent = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(errContent, "فشل تجديد كمية الدفعة."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
             }
         }
 
@@ -558,6 +577,52 @@ namespace POS.Desktop.Services.Api
 
                 if (root.TryGetProperty("Message", out var msgPascal) && !string.IsNullOrWhiteSpace(msgPascal.GetString()))
                     return msgPascal.GetString()!;
+
+                if (root.TryGetProperty("errors", out var errorsProp))
+                {
+                    var messages = new List<string>();
+                    if (errorsProp.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var err in errorsProp.EnumerateArray())
+                        {
+                            if (err.TryGetProperty("errorMessage", out var em) && !string.IsNullOrWhiteSpace(em.GetString()))
+                                messages.Add(em.GetString()!);
+                            else if (err.TryGetProperty("ErrorMessage", out var emP) && !string.IsNullOrWhiteSpace(emP.GetString()))
+                                messages.Add(emP.GetString()!);
+                        }
+                    }
+                    else if (errorsProp.ValueKind == System.Text.Json.JsonValueKind.Object)
+                    {
+                        foreach (var prop in errorsProp.EnumerateObject())
+                        {
+                            if (prop.Value.ValueKind == System.Text.Json.JsonValueKind.Array)
+                            {
+                                foreach (var item in prop.Value.EnumerateArray())
+                                {
+                                    var str = item.GetString();
+                                    if (!string.IsNullOrWhiteSpace(str)) messages.Add(str);
+                                }
+                            }
+                            else if (prop.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+                            {
+                                var str = prop.Value.GetString();
+                                if (!string.IsNullOrWhiteSpace(str)) messages.Add(str);
+                            }
+                        }
+                    }
+
+                    if (messages.Any())
+                        return string.Join(" | ", messages);
+                }
+
+                if (root.TryGetProperty("detail", out var detailProp) && !string.IsNullOrWhiteSpace(detailProp.GetString()))
+                    return detailProp.GetString()!;
+
+                if (root.TryGetProperty("Detail", out var detailPascal) && !string.IsNullOrWhiteSpace(detailPascal.GetString()))
+                    return detailPascal.GetString()!;
+
+                if (root.TryGetProperty("title", out var titleProp) && !string.IsNullOrWhiteSpace(titleProp.GetString()))
+                    return titleProp.GetString()!;
 
                 if (root.TryGetProperty("code", out var codeProp) && !string.IsNullOrWhiteSpace(codeProp.GetString()))
                     return codeProp.GetString()!;

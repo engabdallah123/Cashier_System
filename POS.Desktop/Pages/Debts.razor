@@ -130,7 +130,7 @@
                         {
                             <tr>
                                 <td><code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@debt.InvoiceNumber</code></td>
-                                <td>@debt.SaleDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td>@debt.SaleDate.ToString("dd/MM/yyyy HH:mm")</td>
                                 <td><strong>@(string.IsNullOrWhiteSpace(debt.CustomerName) ? "عميل غير مسجل" : debt.CustomerName)</strong></td>
                                 <td>@(string.IsNullOrWhiteSpace(debt.CustomerPhone) ? "-" : debt.CustomerPhone)</td>
                                 <td>@debt.TotalAmount.ToString("N2") ج.م</td>
@@ -186,7 +186,7 @@
                         {
                             <tr>
                                 <td><code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@debt.InvoiceNumber</code></td>
-                                <td>@debt.PurchaseDate.ToString("yyyy-MM-dd")</td>
+                                <td>@debt.PurchaseDate.ToString("dd/MM/yyyy")</td>
                                 <td><strong>@(string.IsNullOrWhiteSpace(debt.SupplierName) ? "مورد عام" : debt.SupplierName)</strong></td>
                                 <td>@(string.IsNullOrWhiteSpace(debt.SupplierPhone) ? "-" : debt.SupplierPhone)</td>
                                 <td>@debt.TotalAmount.ToString("N2") ج.م</td>
@@ -353,7 +353,7 @@
                 <!-- Customer Sale Invoice Details -->
                 <div style="flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; background: var(--bg-primary); padding: 0.65rem 1rem; border-radius: 0.5rem; font-size: 0.86rem; border: 1px solid var(--border-color-light);">
                     <div><span style="color: var(--text-secondary);">رقم الفاتورة:</span> <code style="font-size: 0.95rem; font-weight: 700;">@detailedSaleInvoice.InvoiceNumber</code></div>
-                    <div><span style="color: var(--text-secondary);">تاريخ الفاتورة:</span> <strong>@detailedSaleInvoice.SaleDate.ToString("yyyy-MM-dd HH:mm")</strong></div>
+                    <div><span style="color: var(--text-secondary);">تاريخ الفاتورة:</span> <strong>@detailedSaleInvoice.SaleDate.ToString("dd/MM/yyyy HH:mm")</strong></div>
                     <div><span style="color: var(--text-secondary);">العميل:</span> <strong style="color: var(--accent-blue);">@(detailedSaleInvoice.CustomerName ?? "عميل عام")</strong></div>
                     <div><span style="color: var(--text-secondary);">الكاشير:</span> <strong>@(detailedSaleInvoice.CashierName ?? "-")</strong></div>
                     <div><span style="color: var(--text-secondary);">طريقة الدفع:</span> <span class="badge badge-secondary">@detailedSaleInvoice.PaymentMethod</span></div>
@@ -438,7 +438,7 @@
                 <!-- Supplier Purchase Invoice Details -->
                 <div style="flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1rem; background: var(--bg-primary); padding: 0.65rem 1rem; border-radius: 0.5rem; font-size: 0.86rem; border: 1px solid var(--border-color-light);">
                     <div><span style="color: var(--text-secondary);">رقم الفاتورة:</span> <code style="font-size: 0.95rem; font-weight: 700;">@detailedPurchaseInvoice.InvoiceNumber</code></div>
-                    <div><span style="color: var(--text-secondary);">تاريخ الشراء:</span> <strong>@detailedPurchaseInvoice.PurchaseDate.ToString("yyyy-MM-dd")</strong></div>
+                    <div><span style="color: var(--text-secondary);">تاريخ الشراء:</span> <strong>@detailedPurchaseInvoice.PurchaseDate.ToString("dd/MM/yyyy")</strong></div>
                     <div><span style="color: var(--text-secondary);">المورد:</span> <strong style="color: var(--accent-amber);">@(detailedPurchaseInvoice.SupplierName ?? "مورد عام")</strong></div>
                     <div><span style="color: var(--text-secondary);">حالة الفاتورة:</span> <span class="badge badge-amber">@detailedPurchaseInvoice.Status</span></div>
                 </div>
@@ -478,7 +478,7 @@
                                         <td style="text-align: center; font-weight: 800; font-size: 0.95rem; padding: 0.5rem 0.75rem;">@itm.Quantity</td>
                                         <td style="text-align: left; padding: 0.5rem 0.75rem;">@itm.UnitCost.ToString("N2") ج.م</td>
                                         <td style="text-align: left; font-weight: 800; color: var(--accent-emerald); padding: 0.5rem 0.75rem;">@itm.Total.ToString("N2") ج.م</td>
-                                        <td style="padding: 0.5rem 0.75rem;">@(itm.ExpiryDate.HasValue ? itm.ExpiryDate.Value.ToString("yyyy-MM-dd") : "-")</td>
+                                        <td style="padding: 0.5rem 0.75rem;">@(itm.ExpiryDate.HasValue ? itm.ExpiryDate.Value.ToString("dd/MM/yyyy") : "-")</td>
                                         <td style="padding: 0.5rem 0.75rem;"><code>@(itm.BatchNumber ?? "-")</code></td>
                                     </tr>
                                 }

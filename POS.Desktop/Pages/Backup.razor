@@ -144,7 +144,7 @@
                                     <i class="fa-solid fa-file-code me-2" style="color: var(--accent-blue);"></i>
                                     <code style="font-weight: 600;">@file.Name</code>
                                 </td>
-                                <td>@file.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>@file.LastWriteTime.ToString("dd/MM/yyyy HH:mm:ss")</td>
                                 <td>@((file.Length / 1024.0).ToString("N1")) KB</td>
                                 <td style="text-align: center;">
                                     <span class="badge badge-green">جاهزة</span>
@@ -193,7 +193,7 @@
 
                 <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.6rem; padding: 1rem; font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.5rem;">
                     <div><strong>الملف المحدد:</strong> <code>@selectedFileForRestoreName</code></div>
-                    <div><strong>تاريخ الملف:</strong> @selectedFileForRestoreDate.ToString("yyyy-MM-dd HH:mm:ss")</div>
+                    <div><strong>تاريخ الملف:</strong> @selectedFileForRestoreDate.ToString("dd/MM/yyyy HH:mm:ss")</div>
                     <div><strong>حجم الملف:</strong> @((selectedFileForRestoreSize / 1024.0).ToString("N1")) KB</div>
                 </div>
 
@@ -244,7 +244,7 @@
                 </p>
 
                 <div style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 0.75rem 1rem; font-size: 0.85rem; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                    <div><strong>تاريخ النسخة:</strong> @fileToDelete.LastWriteTime.ToString("yyyy-MM-dd HH:mm")</div>
+                    <div><strong>تاريخ النسخة:</strong> @fileToDelete.LastWriteTime.ToString("dd/MM/yyyy HH:mm")</div>
                     <div><strong>الحجم:</strong> @((fileToDelete.Length / 1024.0).ToString("N1")) KB</div>
                 </div>
 

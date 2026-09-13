@@ -137,6 +137,28 @@ namespace POS.Desktop.Services.Api
         string PaymentMethod = "Cash",
         string? Notes = null);
 
+    public record DepletedBatchDto(
+        Guid BatchId,
+        Guid ProductId,
+        string ProductName,
+        string BatchNumber,
+        decimal OriginalQuantity,
+        string OriginalUnit,
+        DateTime PurchaseDate,
+        DateTime? ExpiryDate,
+        Guid? PurchaseInvoiceId
+    );
+
+    public record CreateSaleResult(
+        Guid SaleId,
+        List<DepletedBatchDto>? DepletedBatches
+    );
+
+    public record ReplenishBatchRequest(
+        decimal Quantity,
+        string? Notes = null
+    );
+
     public record OpenShiftCommand(Guid CashierId, decimal OpeningCash, string? Notes = null);
     public record CloseShiftCommand(Guid ShiftId, decimal ActualClosingCash, string? ClosingNotes = null);
     public record ShiftDto(

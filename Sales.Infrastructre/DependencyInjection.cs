@@ -15,7 +15,10 @@ namespace Sales.Infrastructre
                 ?? throw new ArgumentNullException(nameof(configuration));
 
             services.AddDbContext<SalesDbContext>(options =>
-                options.UseSqlServer(connectionString));
+            {
+                options.UseSqlServer(connectionString);
+                options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+            });
 
             services.AddScoped<ISalesUnitOfWork, SalesUnitOfWork>();
 

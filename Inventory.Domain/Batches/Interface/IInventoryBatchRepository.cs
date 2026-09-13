@@ -9,6 +9,7 @@ namespace Inventory.Domain.Batches.Interface
         Task<IReadOnlyList<InventoryBatch>> GetAllActiveBatchesAsync(CancellationToken ct = default);
         Task<InventoryBatch?> GetByPurchaseItemIdAsync(Guid purchaseItemId, CancellationToken ct = default);
         Task<IReadOnlyList<InventoryBatch>> GetBatchesByPurchaseIdAsync(Guid purchaseId, CancellationToken ct = default);
+        Task<int> GetMaxTodayBatchSequenceAsync(DateTime date, CancellationToken ct = default);
         Task AddAsync(InventoryBatch batch, CancellationToken ct = default);
         void Update(InventoryBatch batch);
         void Delete(InventoryBatch batch);

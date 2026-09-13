@@ -835,6 +835,121 @@
     </div>
 }
 
+<!-- Depleted Batches Stock Alert & Replenishment Modal -->
+@if (showDepletedBatchesModal)
+{
+    <div class="modal-overlay" style="z-index: 1200; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px);">
+        <div class="modal-card" style="width: 820px; max-width: 95vw; max-height: 90vh; display: flex; flex-direction: column; border: 1.5px solid var(--accent-amber);" @onclick:stopPropagation="true">
+            <div class="modal-header" style="background: rgba(245, 158, 11, 0.1); border-bottom: 1px solid rgba(245, 158, 11, 0.25);">
+                <h3 class="modal-title" style="color: #f59e0b; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                    <span>تنبيه هام: نفاد كمية تشغيلة/دفعة ومطابقة الجرد الفعلي</span>
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseDepletedBatchesModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body" style="overflow-y: auto; flex: 1; padding: 1.25rem;">
+                <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 0.5rem; padding: 0.85rem 1rem; margin-bottom: 1.25rem; font-size: 0.9rem; line-height: 1.6; color: #fbbf24;">
+                    <i class="fa-solid fa-circle-info me-2"></i>
+                    <strong>تم استهلاك كمية الدفعة التالية بالكامل في النظام طبقاً لنظام الصرف (FIFO).</strong>
+                    <br />
+                    يرجى التوجه إلى المخزن أو الرف للتأكد من وجود كميات فعلية متبقية من هذه الدفعة قبل الانتقال لصرف الدفعة التالية. إذا وُجدت كمية متبقية في المخزن، يمكنك إدخالها أدناه لتجديد رصيد هذه الدفعة وتحديث رصيد المخزن فوراً.
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 1rem;">
+                    @foreach (var item in depletedBatchesList)
+                    {
+                        <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 0.65rem; padding: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+                                <div>
+                                    <div style="font-size: 1.1rem; font-weight: 800; color: var(--text-primary);">
+                                        @item.Batch.ProductName
+                                    </div>
+                                    <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.2rem;">
+                                        رقم الدفعة (Batch): <code style="background: rgba(255,255,255,0.06); padding: 0.15rem 0.4rem; border-radius: 0.25rem; color: var(--accent-blue);">@item.Batch.BatchNumber</code>
+                                    </div>
+                                </div>
+                                <div>
+                                    <span class="badge badge-amber" style="font-size: 0.82rem; padding: 0.3rem 0.6rem;">
+                                        <i class="fa-solid fa-triangle-exclamation me-1"></i> الرصيد بالنظام: 0 @item.Batch.OriginalUnit
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; background: var(--bg-card); padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 0.75rem; font-size: 0.85rem;">
+                                <div>
+                                    <span style="color: var(--text-secondary); display: block;">الكمية الأصلية:</span>
+                                    <strong style="color: var(--text-primary);">@item.Batch.OriginalQuantity.ToString("G29") @item.Batch.OriginalUnit</strong>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-secondary); display: block;">تاريخ الشراء:</span>
+                                    <strong style="color: var(--text-primary);">@item.Batch.PurchaseDate.ToString("dd/MM/yyyy")</strong>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-secondary); display: block;">تاريخ الانتهاء:</span>
+                                    <strong style="color: @(item.Batch.ExpiryDate.HasValue ? "var(--accent-amber)" : "var(--text-muted)");">
+                                        @(item.Batch.ExpiryDate.HasValue ? item.Batch.ExpiryDate.Value.ToString("dd/MM/yyyy") : "بدون صلاحية")
+                                    </strong>
+                                </div>
+                            </div>
+
+                            @if (item.IsReplenished)
+                            {
+                                <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 0.45rem; padding: 0.6rem 0.85rem; color: #10b981; font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    <span>@item.SuccessMessage</span>
+                                </div>
+                            }
+                            else
+                            {
+                                <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; background: rgba(255,255,255,0.02); padding: 0.6rem 0.75rem; border-radius: 0.45rem;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 260px;">
+                                        <label style="margin: 0; font-size: 0.85rem; font-weight: 700; white-space: nowrap; color: var(--text-primary);">
+                                            الكمية الفعلية الموجودة بالمخزن:
+                                        </label>
+                                        <input type="number" step="any" min="0.01" class="form-control" style="width: 120px; text-align: center; font-weight: 700;"
+                                               @bind="item.EnteredRemainingQty" placeholder="0" />
+                                        <span style="font-size: 0.82rem; color: var(--text-secondary);">@item.Batch.OriginalUnit</span>
+                                    </div>
+                                    <button class="btn btn-warning" style="padding: 0.4rem 0.85rem; font-size: 0.85rem; font-weight: 700;"
+                                            disabled="@item.IsReplenishing"
+                                            @onclick="() => ReplenishBatchItemAsync(item)">
+                                        @if (item.IsReplenishing)
+                                        {
+                                            <i class="fa-solid fa-spinner fa-spin me-1"></i>
+                                            <span>جاري التجديد...</span>
+                                        }
+                                        else
+                                        {
+                                            <i class="fa-solid fa-arrows-rotate me-1"></i>
+                                            <span>تجديد رصيد الدفعة والمخزن</span>
+                                        }
+                                    </button>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(item.ErrorMessage))
+                                {
+                                    <div style="color: #ef4444; font-size: 0.8rem; margin-top: 0.4rem;">
+                                        <i class="fa-solid fa-circle-exclamation me-1"></i> @item.ErrorMessage
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="modal-footer" style="padding: 0.75rem 1.25rem; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 0.75rem;">
+                <button class="btn btn-secondary" style="padding: 0.5rem 1.25rem;" @onclick="CloseDepletedBatchesModal">
+                    تأكيد وإغلاق النافذة
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     public class PosAlertNotification
     {
@@ -850,6 +965,77 @@
     private List<PosAlertNotification> activeAlerts = new();
     private bool showLowStockModal = false;
     private string lowStockSearch = string.Empty;
+
+    // Depleted batches alert modal state
+    public class DepletedBatchUiItem
+    {
+        public DepletedBatchDto Batch { get; set; } = default!;
+        public decimal EnteredRemainingQty { get; set; } = 0;
+        public bool IsReplenishing { get; set; } = false;
+        public bool IsReplenished { get; set; } = false;
+        public string? ErrorMessage { get; set; }
+        public string? SuccessMessage { get; set; }
+    }
+
+    private bool showDepletedBatchesModal = false;
+    private List<DepletedBatchUiItem> depletedBatchesList = new();
+
+    private void ShowDepletedBatchesModal(IEnumerable<DepletedBatchDto> batches)
+    {
+        depletedBatchesList = batches.Select(b => new DepletedBatchUiItem
+        {
+            Batch = b,
+            EnteredRemainingQty = 0
+        }).ToList();
+        showDepletedBatchesModal = true;
+        StateHasChanged();
+    }
+
+    private void CloseDepletedBatchesModal()
+    {
+        showDepletedBatchesModal = false;
+        depletedBatchesList.Clear();
+        StateHasChanged();
+    }
+
+    private async Task ReplenishBatchItemAsync(DepletedBatchUiItem item)
+    {
+        if (item.EnteredRemainingQty <= 0)
+        {
+            item.ErrorMessage = "يرجى إدخال كمية متبقية أكبر من الصفر للتجديد.";
+            return;
+        }
+
+        item.IsReplenishing = true;
+        item.ErrorMessage = null;
+        try
+        {
+            var (success, error) = await ApiClient.ReplenishBatchAsync(
+                item.Batch.BatchId,
+                item.EnteredRemainingQty,
+                $"تجديد رصيد دفعة بعد الجرد الفعلي أثناء البيع (الكمية الأصلية: {item.Batch.OriginalQuantity})");
+
+            if (success)
+            {
+                item.IsReplenished = true;
+                item.SuccessMessage = $"تم تجديد رصيد الدفعة بنجاح (+{item.EnteredRemainingQty:G29} {item.Batch.OriginalUnit}). تم تعديل رصيد المخزن تلقائياً.";
+                await LoadCatalogAsync();
+            }
+            else
+            {
+                item.ErrorMessage = error ?? "فشل تجديد رصيد الدفعة.";
+            }
+        }
+        catch (Exception ex)
+        {
+            item.ErrorMessage = $"حدث خطأ: {ex.Message}";
+        }
+        finally
+        {
+            item.IsReplenishing = false;
+            StateHasChanged();
+        }
+    }
 
     private int LowStockCount => products.Count(p => p.IsActive && p.QuantityInStock <= p.ReorderLevel);
     private IEnumerable<ProductDto> LowStockProductsList => products.Where(p => p.IsActive && p.QuantityInStock <= p.ReorderLevel);
@@ -1303,10 +1489,10 @@
                 PaymentMethod: Cart.PaymentMethod,
                 Notes: null);
 
-            var (saleId, error) = await ApiClient.CreateSaleAsync(cmd);
-            if (saleId.HasValue)
+            var (saleResult, error) = await ApiClient.CreateSaleAsync(cmd);
+            if (saleResult != null)
             {
-                var createdId = saleId.Value;
+                var createdId = saleResult.SaleId;
                 Cart.Clear();
                 ClosePaymentModal();
 
@@ -1319,6 +1505,12 @@
 
                 // Auto-refresh product stock balances on the same page
                 await LoadCatalogAsync();
+
+                // Depleted batches alert modal
+                if (saleResult.DepletedBatches != null && saleResult.DepletedBatches.Count > 0)
+                {
+                    ShowDepletedBatchesModal(saleResult.DepletedBatches);
+                }
             }
             else
             {

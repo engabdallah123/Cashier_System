@@ -689,11 +689,15 @@ body {
     background-color: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 0.85rem;
-    overflow: visible;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
     position: relative;
     box-shadow: var(--shadow-md);
     padding: 0;
     margin-bottom: 1.5rem;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
 }
 
 .data-table {
@@ -2995,6 +2999,20 @@ kbd {
     border-color: rgba(16, 185, 129, 0.4);
 }
 
+/* Date Inputs Formatting (Day / Month / Year) */
+input[type="date"] {
+    direction: ltr !important;
+    text-align: center !important;
+    font-family: inherit;
+}
 
+input[type="date"]::-webkit-datetime-edit {
+    direction: ltr !important;
+    text-align: center !important;
+}
 
+input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    filter: invert(0.8);
+}
 

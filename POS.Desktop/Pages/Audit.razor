@@ -91,7 +91,7 @@
                         @foreach (var log in PagedLogs)
                         {
                             <tr>
-                                <td>@log.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>@log.CreatedAt.ToString("dd/MM/yyyy HH:mm:ss")</td>
                                 <td>
                                     <span style="font-weight: 600;">@(log.UserId.HasValue ? $"User #{log.UserId.Value.ToString()[..6]}" : "النظام / System")</span>
                                 </td>
@@ -161,7 +161,7 @@
                     </div>
                     <div style="background: var(--bg-primary); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light);">
                         <span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">التاريخ والوقت</span>
-                        <strong style="font-size: 0.85rem;">@selectedLog.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")</strong>
+                        <strong style="font-size: 0.85rem;">@selectedLog.CreatedAt.ToString("dd/MM/yyyy HH:mm:ss")</strong>
                     </div>
                 </div>
 

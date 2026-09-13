@@ -11,7 +11,7 @@ using Shifts.Domain;
 
 namespace Sales.Application.Sales.Commands.CreateSale
 {
-    internal sealed class CreateSaleCommandHandler : ICommandHandler<CreateSaleCommand, Guid>
+    internal sealed class CreateSaleCommandHandler : ICommandHandler<CreateSaleCommand, CreateSaleResult>
     {
         private readonly ISalesUnitOfWork _salesUnitOfWork;
         private readonly IInventoryUnitOfWork _inventoryUnitOfWork;
@@ -33,12 +33,12 @@ namespace Sales.Application.Sales.Commands.CreateSale
             _cacheService = cacheService;
         }
 
-        public async Task<Result<Guid>> Handle(CreateSaleCommand request, CancellationToken cancellationToken)
+        public async Task<Result<CreateSaleResult>> Handle(CreateSaleCommand request, CancellationToken cancellationToken)
         {
             // 1. التحقق من وجود شفت مفتوح للكاشير
             var shift = await _shiftsUnitOfWork.ShiftRepository.GetByIdAsync(request.ShiftId, cancellationToken);
             if (shift is null || shift.CashierId != request.CashierId || shift.Status != Shifts.Domain.Shifts.Entities.ShiftStatus.Open)
-                return Result<Guid>.Failure(SaleErrors.NoOpenShiftAvailable);
+                return Result<CreateSaleResult>.Failure(SaleErrors.NoOpenShiftAvailable);
 
             // 2. فحص إعدادات التنسيق وحظر المخزون السالب
             var settings = (await _settingsUnitOfWork.StoreSettingRepository.GetAllAsync()).FirstOrDefault();
@@ -49,10 +49,10 @@ namespace Sales.Application.Sales.Commands.CreateSale
             {
                 var product = await _inventoryUnitOfWork.ProductRepository.GetByIdAsync(itemReq.ProductId, cancellationToken);
                 if (product is null)
-                    return Result<Guid>.Failure(new Error("Product.NotFound", $"المنتج '{itemReq.ProductId}' غير موجود."));
+                    return Result<CreateSaleResult>.Failure(new Error("Product.NotFound", $"المنتج '{itemReq.ProductId}' غير موجود."));
 
                 if (!allowNegativeStock && product.QuantityInStock < itemReq.Quantity)
-                    return Result<Guid>.Failure(new Error("Stock.Insufficient", $"الكمية المتاحة من '{product.NameAr}' هي {product.QuantityInStock} فقط."));
+                    return Result<CreateSaleResult>.Failure(new Error("Stock.Insufficient", $"الكمية المتاحة من '{product.NameAr}' هي {product.QuantityInStock} فقط."));
             }
 
             // 4. إنشاء الفاتورة
@@ -65,7 +65,7 @@ namespace Sales.Application.Sales.Commands.CreateSale
                 request.PaidAmount, request.PaymentMethod, request.Notes);
 
             if (saleResult.IsFailure)
-                return Result<Guid>.Failure(saleResult.Error);
+                return Result<CreateSaleResult>.Failure(saleResult.Error);
 
             var sale = saleResult.Value!;
 
@@ -73,14 +73,16 @@ namespace Sales.Application.Sales.Commands.CreateSale
             {
                 var itemResult = sale.AddItem(itemReq.ProductId, itemReq.Quantity, itemReq.UnitPrice, itemReq.Discount, itemReq.Tax);
                 if (itemResult.IsFailure)
-                    return Result<Guid>.Failure(itemResult.Error);
+                    return Result<CreateSaleResult>.Failure(itemResult.Error);
             }
 
             var completeResult = sale.Complete();
             if (completeResult.IsFailure)
-                return Result<Guid>.Failure(completeResult.Error);
+                return Result<CreateSaleResult>.Failure(completeResult.Error);
 
             await _salesUnitOfWork.SaleRepository.AddAsync(sale);
+
+            var depletedBatches = new List<DepletedBatchDto>();
 
             // 5. خصم الكمية من المخزون وتسجيل حركة المخزون وخصم دفعات المخزون بنظام FIFO
             foreach (var item in sale.Items)
@@ -105,6 +107,21 @@ namespace Sales.Application.Sales.Commands.CreateSale
                         {
                             _inventoryUnitOfWork.BatchRepository.Update(batch);
                             remainingToDeduct -= deductAmount;
+
+                            if (batch.RemainingQuantity == 0)
+                            {
+                                depletedBatches.Add(new DepletedBatchDto(
+                                    batch.Id,
+                                    product.Id,
+                                    product.NameAr,
+                                    batch.BatchNumber,
+                                    batch.OriginalQuantity,
+                                    batch.OriginalUnit,
+                                    batch.PurchaseDate,
+                                    batch.ExpiryDate,
+                                    batch.PurchaseInvoiceId
+                                ));
+                            }
                         }
                     }
 
@@ -134,7 +151,7 @@ namespace Sales.Application.Sales.Commands.CreateSale
             await _cacheService.RemoveByPrefixAsync("dashboard_", cancellationToken);
             await _cacheService.RemoveByPrefixAsync("monthly_calendar_", cancellationToken);
 
-            return Result<Guid>.Success(sale.Id);
+            return Result<CreateSaleResult>.Success(new CreateSaleResult(sale.Id, depletedBatches));
         }
     }
 }

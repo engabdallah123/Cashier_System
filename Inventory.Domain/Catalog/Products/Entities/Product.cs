@@ -60,8 +60,8 @@ namespace Inventory.Domain.Catalog.Products.Entities
             BaseUnit = string.IsNullOrWhiteSpace(baseUnit) ? "قطعة" : baseUnit.Trim();
             ParentUnit = string.IsNullOrWhiteSpace(parentUnit) ? null : parentUnit.Trim();
             ConversionFactor = conversionFactor > 0 ? conversionFactor : 1;
-            ShelfLifeDays = Math.Max(0, shelfLifeDays);
-            ExpiryAlertDays = Math.Max(0, expiryAlertDays);
+            ShelfLifeDays = trackExpiry ? Math.Max(0, shelfLifeDays) : 0;
+            ExpiryAlertDays = trackExpiry ? Math.Max(0, expiryAlertDays) : 0;
             PurchasePrice = purchasePrice;
             SellingPrice = sellingPrice;
             WholesalePrice = wholesalePrice;
@@ -147,8 +147,8 @@ namespace Inventory.Domain.Catalog.Products.Entities
             BaseUnit = string.IsNullOrWhiteSpace(baseUnit) ? "قطعة" : baseUnit.Trim();
             ParentUnit = string.IsNullOrWhiteSpace(parentUnit) ? null : parentUnit.Trim();
             ConversionFactor = conversionFactor > 0 ? conversionFactor : 1;
-            ShelfLifeDays = Math.Max(0, shelfLifeDays);
-            ExpiryAlertDays = Math.Max(0, expiryAlertDays);
+            ShelfLifeDays = trackExpiry ? Math.Max(0, shelfLifeDays) : 0;
+            ExpiryAlertDays = trackExpiry ? Math.Max(0, expiryAlertDays) : 0;
             PurchasePrice = purchasePrice;
             SellingPrice = sellingPrice;
             WholesalePrice = wholesalePrice;

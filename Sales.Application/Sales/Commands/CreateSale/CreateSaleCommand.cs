@@ -18,5 +18,5 @@ namespace Sales.Application.Sales.Commands.CreateSale
         decimal TaxAmount = 0,
         decimal PaidAmount = 0,
         string PaymentMethod = "Cash",
-        string? Notes = null) : ICommand<Guid>;
+        string? Notes = null) : ICommand<CreateSaleResult>;
 }

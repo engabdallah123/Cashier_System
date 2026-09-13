@@ -20,6 +20,15 @@ namespace POS.Desktop
 
         protected override void OnStartup(StartupEventArgs e)
         {
+            var culture = new System.Globalization.CultureInfo("en-GB");
+            System.Globalization.CultureInfo.DefaultThreadCurrentCulture = culture;
+            System.Globalization.CultureInfo.DefaultThreadCurrentUICulture = culture;
+            System.Threading.Thread.CurrentThread.CurrentCulture = culture;
+            System.Threading.Thread.CurrentThread.CurrentUICulture = culture;
+
+            // Enforce en-GB locale in underlying Chromium/WebView2 process so HTML5 date controls use dd/MM/yyyy
+            Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--lang=en-GB");
+
             base.OnStartup(e);
 
             EnsureBackendApiRunning();

@@ -72,7 +72,7 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                     string nowPeriod = now.Hour >= 12 ? "م" : "ص";
                     column.Item().PaddingTop(3).AlignCenter().Text(t =>
                     {
-                        t.Span(FormatRtl($"وقت الطباعة: {now:yyyy/MM/dd}  \u202A{now:hh:mm:ss}\u202C {nowPeriod}")).FontSize(7.5f);
+                        t.Span(FormatRtl($"وقت الطباعة: {now:dd/MM/yyyy}  \u202A{now:hh:mm:ss}\u202C {nowPeriod}")).FontSize(7.5f);
                     });
 
                     // 7. Divider Line
@@ -101,7 +101,7 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                     string salePeriod = saleDate.Hour >= 12 ? "م" : "ص";
                     column.Item().AlignRight().Text(t =>
                     {
-                        t.Span(FormatRtl($"التاريخ: {saleDate:yyyy/MM/dd}  \u202A{saleDate:hh:mm:ss}\u202C {salePeriod}")).FontSize(7.5f);
+                        t.Span(FormatRtl($"التاريخ: {saleDate:dd/MM/yyyy}  \u202A{saleDate:hh:mm:ss}\u202C {salePeriod}")).FontSize(7.5f);
                     });
 
                     string cashier = string.IsNullOrWhiteSpace(_receipt.CashierName) ? "الكاشير" : _receipt.CashierName;
@@ -320,7 +320,7 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                     {
                         column.Item().AlignRight().Text("SALES INVOICE").FontSize(14).Bold().FontColor(Colors.Blue.Darken2);
                         column.Item().AlignRight().Text($"Invoice #: {_receipt.InvoiceNumber}").FontSize(9).SemiBold();
-                        column.Item().AlignRight().Text($"Date: {_receipt.SaleDate:yyyy-MM-dd HH:mm}").FontSize(8.5f).FontColor(Colors.Grey.Darken1);
+                        column.Item().AlignRight().Text($"Date: {_receipt.SaleDate:dd/MM/yyyy HH:mm}").FontSize(8.5f).FontColor(Colors.Grey.Darken1);
                     });
                 });
             });
