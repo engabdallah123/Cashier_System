@@ -65,7 +65,7 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                     // 5. Boxed Order Number
                     int orderNum = _receipt.OrderNumber > 0 ? _receipt.OrderNumber : 1;
                     column.Item().PaddingTop(4).AlignCenter().Border(1.5f).BorderColor(Colors.Black).PaddingVertical(3).PaddingHorizontal(16)
-                        .Text(FormatRtl($"الطلب # {orderNum}")).FontSize(14).ExtraBold();
+                        .Text(FormatRtl($"فاتورة # {orderNum}")).FontSize(14).ExtraBold();
 
                     // 6. Print Time
                     var now = DateTime.Now;
@@ -230,7 +230,7 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                         column.Item().AlignCenter().Text(FormatRtl("شكراً لزيارتكم!")).FontSize(8).SemiBold();
                     }
 
-                    // 14. QR Code & Barcode for Fast Scanner Lookup
+                    // 14. QR Code for Fast Scanner Lookup
                     if (!string.IsNullOrWhiteSpace(_receipt.InvoiceNumber))
                     {
                         column.Item().PaddingTop(4).AlignCenter().Column(barcodeCol =>
@@ -241,14 +241,7 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                                 barcodeCol.Item().AlignCenter().Width(62).Height(62).Image(qrBytes).FitArea();
                             }
 
-                            var barcodeSvg = BarcodeAndQrHelper.GenerateCode128Svg(_receipt.InvoiceNumber, height: 26, moduleWidth: 1);
-                            if (!string.IsNullOrWhiteSpace(barcodeSvg))
-                            {
-                                barcodeCol.Item().PaddingTop(3).AlignCenter().Width(140).Height(26).Svg(barcodeSvg);
-                            }
-
-                            barcodeCol.Item().PaddingTop(1).AlignCenter().Text(FormatRtl(_receipt.InvoiceNumber)).FontSize(7.5f).Bold();
-                            barcodeCol.Item().AlignCenter().Text(FormatRtl("امسح الرمز لاسترجاع الفاتورة")).FontSize(6.8f).FontColor(Colors.Grey.Darken2);
+                            barcodeCol.Item().PaddingTop(2).AlignCenter().Text(_receipt.InvoiceNumber).FontSize(8).Bold();
                         });
                     }
                 });
@@ -473,18 +466,6 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
         {
             container.Column(column =>
             {
-                if (!string.IsNullOrWhiteSpace(_receipt.InvoiceNumber))
-                {
-                    var barcodeSvg = BarcodeAndQrHelper.GenerateCode128Svg(_receipt.InvoiceNumber, height: 24, moduleWidth: 1);
-                    if (!string.IsNullOrWhiteSpace(barcodeSvg))
-                    {
-                        column.Item().PaddingBottom(4).AlignCenter().Column(bc =>
-                        {
-                            bc.Item().AlignCenter().Width(160).Height(24).Svg(barcodeSvg);
-                            bc.Item().AlignCenter().Text($"Invoice Barcode: {_receipt.InvoiceNumber}").FontSize(7.5f).FontColor(Colors.Grey.Darken2);
-                        });
-                    }
-                }
 
                 column.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
                 column.Item().PaddingTop(5).Row(row =>
