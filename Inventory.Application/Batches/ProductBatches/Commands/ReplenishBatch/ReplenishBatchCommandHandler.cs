@@ -49,7 +49,7 @@ namespace Inventory.Application.Batches.ProductBatches.Commands.ReplenishBatch
                     : Guid.NewGuid();
 
                 var movementResult = StockMovement.Create(
-                    batch.ProductId,
+                    batch.ProductId,                                 
                     delta,
                     StockMovementType.Adjustment,
                     effectiveUserId,
