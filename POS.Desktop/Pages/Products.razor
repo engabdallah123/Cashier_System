@@ -49,7 +49,7 @@
         </div>
     </div>
 
-    <div class="table-container">
+    <div class="table-container" style="overflow: visible;">
         <table class="data-table">
             <thead>
                 <tr>
@@ -82,10 +82,17 @@
                     for (int i = 0; i < pagedList.Count; i++)
                     {
                         var prod = pagedList[i];
-                        bool isNearBottom = i >= pagedList.Count - 3 && pagedList.Count > 3;
                         <tr>
                             <td><code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@prod.Barcode</code></td>
-                            <td style="font-weight: 600;">@prod.NameAr</td>
+                            <td style="font-weight: 600;">
+                                @prod.NameAr
+                                @if (prod.IsWeighable)
+                                {
+                                    <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.68rem; margin-right: 0.35rem; padding: 0.15rem 0.4rem; border-radius: 4px;" title="صنف مباع بالميزان الإلكتروني">
+                                        <i class="fa-solid fa-scale-balanced me-1"></i> بالوزن
+                                    </span>
+                                }
+                            </td>
                             <td>@prod.NameEn</td>
                             <td>
                                 <span class="badge badge-indigo">
@@ -107,7 +114,7 @@
                             @if (CanManageProducts)
                             {
                                 <td style="text-align: center;">
-                                    <div class="action-dropdown-container">
+                                    <div class="action-dropdown-container @(activeMenuProductId == prod.Id ? "active" : "")">
                                         <button class="action-dropdown-btn @(activeMenuProductId == prod.Id ? "active" : "")" @onclick="() => ToggleProductMenu(prod.Id)">
                                             <i class="fa-solid fa-sliders"></i>
                                             <span>خيارات</span>
@@ -116,7 +123,7 @@
                                         @if (activeMenuProductId == prod.Id)
                                         {
                                             <div class="action-dropdown-backdrop" @onclick="CloseProductMenu"></div>
-                                            <div class="action-dropdown-menu @(isNearBottom ? "dropup" : "")" @onclick:stopPropagation="true">
+                                            <div class="action-dropdown-menu" @onclick:stopPropagation="true">
                                                 <button class="action-dropdown-item item-primary" @onclick="async () => { CloseProductMenu(); await OpenBarcodeModal(prod); }">
                                                     <i class="fa-solid fa-barcode" style="color: var(--accent-blue);"></i>
                                                     <span>طباعة الباركود</span>
@@ -173,32 +180,95 @@
                     </div>
                 }
 
-                <div class="form-group" style="margin-bottom: 1.1rem; background: rgba(255,255,255,0.02); padding: 0.85rem 1rem; border-radius: 0.75rem; border: 1px solid var(--border-color-light);">
-                    <label style="font-weight: 700; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem;">
-                        <span>رمز الباركود <span style="color: var(--accent-red);">*</span></span>
-                        <span style="font-size: 0.78rem; font-weight: normal; color: var(--text-secondary);">امسح بالقارئ أو أدخل الأرقام يدوياً</span>
-                    </label>
-                    <div style="display: flex; gap: 0.5rem; align-items: center;">
-                        <input id="product-modal-barcode-input" class="form-control" @bind="newProduct.Barcode" placeholder="امسح أو أدخل رقم الباركود..." style="flex: 1; min-width: 280px; font-size: 1.15rem; font-weight: 700; font-family: 'Courier New', Courier, monospace; letter-spacing: 1.5px; color: var(--accent-blue); background: var(--bg-secondary); padding: 0.6rem 0.85rem;" />
-                        
-                        <button class="btn btn-secondary" type="button" @onclick="FetchOnlineProductInfo" disabled="@isFetchingOnline" title="جلب اسم المنتج والصورة أونلاين عبر الباركود" style="padding: 0.6rem 0.85rem; font-weight: 600; white-space: nowrap;">
-                            @if (isFetchingOnline)
-                            {
-                                <i class="fa-solid fa-spinner fa-spin"></i>
-                            }
-                            else
-                            {
-                                <span>جلب 🌐</span>
-                            }
-                        </button>
-                        <button class="btn btn-secondary" type="button" @onclick="GenerateBarcode" title="توليد باركود تلقائي" style="padding: 0.6rem 0.85rem; font-weight: 600; white-space: nowrap;">
-                            <span>توليد 🪄</span>
-                        </button>
-                        <button class="btn btn-secondary" type="button" @onclick="PrintBarcodeFromAddModal" title="طباعة ملصق الباركود لهذا الكود" style="padding: 0.6rem 0.85rem; font-weight: 600; white-space: nowrap;">
-                             <span>طباعة 🖨️</span>
-                        </button>
+                <!-- Product Type Selector (عادي vs بالوزن/ميزان) -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1.25rem;">
+                    <div class="product-type-card" 
+                         @onclick="() => SetProductType(false)"
+                         style="padding: 0.85rem 1rem; border-radius: 0.65rem; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; border: 2px solid @(!newProduct.IsWeighable ? "var(--accent-indigo)" : "var(--border-color)"); background: @(!newProduct.IsWeighable ? "rgba(99, 102, 241, 0.12)" : "var(--bg-secondary)"); transition: all 0.2s;">
+                        <div style="font-size: 1.6rem; color: @(!newProduct.IsWeighable ? "var(--accent-indigo)" : "var(--text-secondary)");">
+                            <i class="fa-solid fa-box"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 800; font-size: 0.95rem; color: @(!newProduct.IsWeighable ? "var(--accent-indigo)" : "var(--text-primary)");">
+                                منتج عادي (بالقطعة / التعبئة)
+                            </div>
+                            <div style="font-size: 0.76rem; color: var(--text-secondary); font-weight: 500; margin-top: 0.15rem;">
+                                مشروبات، معلبات، منظفات، كراتين وعلب
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="product-type-card" 
+                         @onclick="() => SetProductType(true)"
+                         style="padding: 0.85rem 1rem; border-radius: 0.65rem; cursor: pointer; display: flex; align-items: center; gap: 0.75rem; border: 2px solid @(newProduct.IsWeighable ? "var(--accent-emerald)" : "var(--border-color)"); background: @(newProduct.IsWeighable ? "rgba(16, 185, 129, 0.12)" : "var(--bg-secondary)"); transition: all 0.2s;">
+                        <div style="font-size: 1.6rem; color: @(newProduct.IsWeighable ? "var(--accent-emerald)" : "var(--text-secondary)");">
+                            <i class="fa-solid fa-scale-balanced"></i>
+                        </div>
+                        <div>
+                            <div style="font-weight: 800; font-size: 0.95rem; color: @(newProduct.IsWeighable ? "var(--accent-emerald)" : "var(--text-primary)");">
+                                منتج بالوزن / ميزان باركود
+                            </div>
+                            <div style="font-size: 0.76rem; color: var(--text-secondary); font-weight: 500; margin-top: 0.15rem;">
+                                جبن، لانشون، مخللات، خضروات، لحوم
+                            </div>
+                        </div>
                     </div>
                 </div>
+
+                @if (newProduct.IsWeighable)
+                {
+                    <!-- Weighable Product Barcode / PLU Section -->
+                    <div class="form-group" style="margin-bottom: 1.1rem; background: rgba(16, 185, 129, 0.04); padding: 0.85rem 1rem; border-radius: 0.75rem; border: 1.5px solid rgba(16, 185, 129, 0.35);">
+                        <label style="font-weight: 700; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem; color: var(--accent-emerald);">
+                            <span><i class="fa-solid fa-scale-balanced me-1"></i> كود الميزان (PLU Code) أو الباركود <span style="color: var(--accent-red);">*</span></span>
+                            <span style="font-size: 0.78rem; font-weight: normal; color: var(--text-secondary);">كود الصنف المسجل بالميزان (مثلاً: 101 أو 0101)</span>
+                        </label>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input id="product-modal-barcode-input" class="form-control" @bind="newProduct.Barcode" placeholder="مثال: 0101 أو 101 أو 200101..." style="flex: 1; min-width: 280px; font-size: 1.15rem; font-weight: 700; font-family: 'Courier New', Courier, monospace; letter-spacing: 1.5px; color: var(--accent-emerald); background: var(--bg-secondary); padding: 0.6rem 0.85rem; border-color: rgba(16, 185, 129, 0.4);" />
+                            
+                            <button class="btn btn-secondary" type="button" @onclick="GenerateScalePluCode" title="توليد كود ميزان تسلسلي تلقائي" style="padding: 0.6rem 0.85rem; font-weight: 600; white-space: nowrap; border-color: rgba(16, 185, 129, 0.4);">
+                                <span>توليد كود ميزان 🪄</span>
+                            </button>
+                            <button class="btn btn-secondary" type="button" @onclick="PrintBarcodeFromAddModal" title="طباعة ملصق الباركود لهذا الكود" style="padding: 0.6rem 0.85rem; font-weight: 600; white-space: nowrap;">
+                                 <span>طباعة 🖨️</span>
+                            </button>
+                        </div>
+                        <div style="font-size: 0.78rem; color: var(--accent-emerald); margin-top: 0.5rem; display: flex; align-items: center; gap: 0.4rem;">
+                            <i class="fa-solid fa-circle-info"></i>
+                            <span>الكاشير سيتعرف تلقائياً على هذا الصنف عند قراءة أي استيكر ميزان يحتوي على هذا الكود ويستخرج الوزن فوراً.</span>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <!-- Regular Product Barcode Section -->
+                    <div class="form-group" style="margin-bottom: 1.1rem; background: rgba(255,255,255,0.02); padding: 0.85rem 1rem; border-radius: 0.75rem; border: 1px solid var(--border-color-light);">
+                        <label style="font-weight: 700; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.4rem;">
+                            <span>رمز الباركود <span style="color: var(--accent-red);">*</span></span>
+                            <span style="font-size: 0.78rem; font-weight: normal; color: var(--text-secondary);">امسح بالقارئ أو أدخل الأرقام يدوياً</span>
+                        </label>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input id="product-modal-barcode-input" class="form-control" @bind="newProduct.Barcode" placeholder="امسح أو أدخل رقم الباركود..." style="flex: 1; min-width: 280px; font-size: 1.15rem; font-weight: 700; font-family: 'Courier New', Courier, monospace; letter-spacing: 1.5px; color: var(--accent-blue); background: var(--bg-secondary); padding: 0.6rem 0.85rem;" />
+                            
+                            <button class="btn btn-secondary" type="button" @onclick="FetchOnlineProductInfo" disabled="@isFetchingOnline" title="جلب اسم المنتج والصورة أونلاين عبر الباركود" style="padding: 0.6rem 0.85rem; font-weight: 600; white-space: nowrap;">
+                                @if (isFetchingOnline)
+                                {
+                                    <i class="fa-solid fa-spinner fa-spin"></i>
+                                }
+                                else
+                                {
+                                    <span>جلب 🌐</span>
+                                }
+                            </button>
+                            <button class="btn btn-secondary" type="button" @onclick="GenerateBarcode" title="توليد باركود تلقائي" style="padding: 0.6rem 0.85rem; font-weight: 600; white-space: nowrap;">
+                                <span>توليد 🪄</span>
+                            </button>
+                            <button class="btn btn-secondary" type="button" @onclick="PrintBarcodeFromAddModal" title="طباعة ملصق الباركود لهذا الكود" style="padding: 0.6rem 0.85rem; font-weight: 600; white-space: nowrap;">
+                                 <span>طباعة 🖨️</span>
+                            </button>
+                        </div>
+                    </div>
+                }
 
                 <div class="grid-2">
                     <div class="form-group">
@@ -216,113 +286,141 @@
                 <div class="grid-2">
                     <div class="form-group">
                         <label>الاسم (بالعربية) <span style="font-size: 0.78rem; font-weight: normal; color: var(--text-secondary);">(مطلوب إن لم يُدخل الاسم بالإنجليزي)</span></label>
-                        <input class="form-control" @bind="newProduct.NameAr" placeholder="مثال: حليب كامل الدسم 1 لتر" />
+                        <input class="form-control" @bind="newProduct.NameAr" placeholder="@(newProduct.IsWeighable ? "مثال: جبنة رومي قديمة بطارخ" : "مثال: حليب كامل الدسم 1 لتر")" />
                     </div>
 
                     <div class="form-group">
                         <label>الاسم (بالإنجليزية) <span style="font-size: 0.78rem; font-weight: normal; color: var(--text-secondary);">(مطلوب إن لم يُدخل الاسم بالعربية)</span></label>
-                        <input class="form-control" @bind="newProduct.NameEn" placeholder="مثال: Full Cream Milk 1L" />
+                        <input class="form-control" @bind="newProduct.NameEn" placeholder="@(newProduct.IsWeighable ? "مثال: Aged Roumi Cheese" : "مثال: Full Cream Milk 1L")" />
                     </div>
                 </div>
 
-                <!-- 2-Tier Unit Packaging Configuration -->
-                <div style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 0.75rem; padding: 0.85rem 1rem; margin-bottom: 1.1rem;">
-                    <div style="font-weight: 700; font-size: 0.88rem; color: var(--accent-indigo); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.4rem;">
-                        <i class="fa-solid fa-boxes-stacked"></i>
-                        <span>تهيئة وحدات المنتج (الوحدة الصغرى / الوحدة الكبرى / معامل التحويل)</span>
-                    </div>
-                    <div class="grid-3" style="margin-bottom: 0.5rem;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.82rem;">الوحدة الأساسية / الصغرى (Base Unit) <span style="color: var(--accent-red);">*</span></label>
-                            <input class="form-control" @bind="newProduct.BaseUnit" list="common-base-units-list" placeholder="مثال: قطعة، كيس..." />
-                            <datalist id="common-base-units-list">
-                                <option value="قطعة"></option>
-                                <option value="كيس"></option>
-                                <option value="علبة"></option>
-                                <option value="زجاجة"></option>
-                                <option value="كانز"></option>
-                                <option value="شريط"></option>
-                                <option value="قرص"></option>
-                                <option value="كيلوجرام"></option>
-                                <option value="جرام"></option>
-                                <option value="لتر"></option>
-                            </datalist>
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.82rem;">الوحدة الكبرى (Parent Unit)</label>
-                            <input class="form-control" @bind="newProduct.ParentUnit" list="common-parent-units-list" placeholder="مثال: كرتونة، كيس كبير..." />
-                            <datalist id="common-parent-units-list">
-                                <option value="كرتونة"></option>
-                                <option value="كيس"></option>
-                                <option value="باكت"></option>
-                                <option value="علبة"></option>
-                                <option value="دستة"></option>
-                                <option value="رول"></option>
-                            </datalist>
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.82rem;">معامل التحويل (كم قطعة بالكرتونة؟) <span style="color: var(--accent-red);">*</span></label>
-                            <input type="number" min="1" class="form-control" @bind="newProduct.ConversionFactor" @bind:after="SyncCartonPricesFromPiecePrices" placeholder="1" />
-                        </div>
-                    </div>
-                    <div style="font-size: 0.8rem; color: var(--accent-indigo); background: rgba(99, 102, 241, 0.08); padding: 0.4rem 0.75rem; border-radius: 0.4rem; display: flex; align-items: center; justify-content: space-between;">
-                        <span><i class="fa-solid fa-circle-info me-1"></i> 1 @(string.IsNullOrWhiteSpace(newProduct.ParentUnit) ? "كرتونة" : newProduct.ParentUnit) = <strong>@(newProduct.ConversionFactor > 0 ? newProduct.ConversionFactor : 1)</strong> @(string.IsNullOrWhiteSpace(newProduct.BaseUnit) ? "قطعة" : newProduct.BaseUnit)</span>
-                        <span style="color: var(--text-secondary);">المخزون يُحسب دائماً بالوحدة الأساسية (@(string.IsNullOrWhiteSpace(newProduct.BaseUnit) ? "قطعة" : newProduct.BaseUnit))</span>
-                    </div>
-                </div>
-
-                <!-- Carton Price Calculator & Matching (معاينة وحاسبة أسعار الكرتونة) -->
-                @if (newProduct.ConversionFactor > 1)
+                @if (newProduct.IsWeighable)
                 {
-                    <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 0.75rem; padding: 0.9rem 1rem; margin-bottom: 1.1rem;">
-                        <div style="font-weight: 700; font-size: 0.88rem; color: var(--accent-emerald); display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; flex-wrap: wrap; gap: 0.5rem;">
-                            <div style="display: flex; align-items: center; gap: 0.4rem;">
-                                <i class="fa-solid fa-calculator"></i>
-                                <span>حاسبة أسعار الكرتونة والقطع (1 @(string.IsNullOrWhiteSpace(newProduct.ParentUnit) ? "كرتونة" : newProduct.ParentUnit) = @newProduct.ConversionFactor @(string.IsNullOrWhiteSpace(newProduct.BaseUnit) ? "قطعة" : newProduct.BaseUnit))</span>
-                            </div>
-                            <button type="button" class="btn btn-sm btn-primary" style="background: var(--accent-emerald); border-color: var(--accent-emerald); font-weight: 700; font-size: 0.8rem; padding: 0.35rem 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);" @onclick="ApplyCartonPricesToPiecePrices" title="تطبيق أسعار القطعة المدخلة في خانات أسعار المنتج">
-                                <i class="fa-solid fa-wand-magic-sparkles"></i>
-                                <span>مطابقة الأسعار</span>
-                            </button>
+                    <!-- Weighable Units Box -->
+                    <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 0.75rem; padding: 0.85rem 1rem; margin-bottom: 1.1rem;">
+                        <div style="font-weight: 700; font-size: 0.88rem; color: var(--accent-emerald); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.4rem;">
+                            <i class="fa-solid fa-weight-scale"></i>
+                            <span>وحدة قياس الوزن بالميزان</span>
                         </div>
-
-                        <div class="grid-3" style="margin-bottom: 0.4rem;">
+                        <div class="grid-2" style="margin-bottom: 0.3rem;">
                             <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.2rem;">سعر تكلفة شراء القطعة (جنيه)</label>
-                                <input type="number" step="0.01" min="0" class="form-control" @bind="calcPiecePurchaseCost" @bind:event="oninput" placeholder="تكلفة القطعة" style="border-color: rgba(59, 130, 246, 0.4);" />
-                                <div style="font-size: 0.78rem; color: var(--accent-blue); margin-top: 0.3rem;">
-                                    <span>سعر شراء الكرتونة: </span>
-                                    <strong style="font-size: 0.92rem; color: #60a5fa;">@(calcCartonPurchaseCost.ToString("N2")) ج.م</strong>
-                                </div>
+                                <label style="font-size: 0.82rem;">الوحدة الأساسية للوزن <span style="color: var(--accent-red);">*</span></label>
+                                <select class="form-select" @bind="newProduct.BaseUnit" style="font-weight: 600;">
+                                    <option value="كيلوجرام">كيلوجرام (كجم)</option>
+                                    <option value="جرام">جرام (جم)</option>
+                                </select>
                             </div>
-
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.2rem;">سعر بيع القطعة قطاعي (جنيه)</label>
-                                <input type="number" step="0.01" min="0" class="form-control" @bind="calcPieceSellingPrice" @bind:event="oninput" placeholder="بيع القطعة قطاعي" style="border-color: rgba(16, 185, 129, 0.4);" />
-                                <div style="font-size: 0.78rem; color: var(--accent-emerald); margin-top: 0.3rem;">
-                                    <span>سعر بيع الكرتونة قطاعي: </span>
-                                    <strong style="font-size: 0.92rem; color: #34d399;">@(calcCartonSellingPrice.ToString("N2")) ج.م</strong>
-                                </div>
-                            </div>
-
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.2rem;">سعر بيع القطعة جملة (جنيه)</label>
-                                <input type="number" step="0.01" min="0" class="form-control" @bind="calcPieceWholesalePrice" @bind:event="oninput" placeholder="بيع القطعة جملة" style="border-color: rgba(245, 158, 11, 0.4);" />
-                                <div style="font-size: 0.78rem; color: var(--accent-amber); margin-top: 0.3rem;">
-                                    <span>سعر بيع الكرتونة جملة: </span>
-                                    <strong style="font-size: 0.92rem; color: #fbbf24;">@(calcCartonWholesalePrice.ToString("N2")) ج.م</strong>
+                            <div class="form-group" style="margin-bottom: 0; display: flex; flex-direction: column; justify-content: flex-end;">
+                                <div style="font-size: 0.8rem; color: var(--text-secondary); background: var(--bg-primary); padding: 0.5rem 0.75rem; border-radius: 0.4rem; border: 1px solid var(--border-color);">
+                                    <i class="fa-solid fa-check me-1" style="color: var(--accent-emerald);"></i>
+                                    الأسعار والكميات والمخزون تُحسب لكل 1 @(newProduct.BaseUnit ?? "كيلوجرام")
                                 </div>
                             </div>
                         </div>
-
-                        @if (priceMatchedSuccessNotice)
-                        {
-                            <div style="font-size: 0.78rem; color: var(--accent-emerald); margin-top: 0.3rem; display: flex; align-items: center; gap: 0.35rem;">
-                                <i class="fa-solid fa-circle-check"></i>
-                                <span>تمت مطابقة ونقل الأسعار إلى حقول أسعار المنتج بنجاح!</span>
-                            </div>
-                        }
                     </div>
+                }
+                else
+                {
+                    <!-- 2-Tier Unit Packaging Configuration -->
+                    <div style="background: rgba(99, 102, 241, 0.05); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 0.75rem; padding: 0.85rem 1rem; margin-bottom: 1.1rem;">
+                        <div style="font-weight: 700; font-size: 0.88rem; color: var(--accent-indigo); margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.4rem;">
+                            <i class="fa-solid fa-boxes-stacked"></i>
+                            <span>تهيئة وحدات المنتج (الوحدة الصغرى / الوحدة الكبرى / معامل التحويل)</span>
+                        </div>
+                        <div class="grid-3" style="margin-bottom: 0.5rem;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.82rem;">الوحدة الأساسية / الصغرى (Base Unit) <span style="color: var(--accent-red);">*</span></label>
+                                <input class="form-control" @bind="newProduct.BaseUnit" list="common-base-units-list" placeholder="مثال: قطعة، كيس..." />
+                                <datalist id="common-base-units-list">
+                                    <option value="قطعة"></option>
+                                    <option value="كيس"></option>
+                                    <option value="علبة"></option>
+                                    <option value="زجاجة"></option>
+                                    <option value="كانز"></option>
+                                    <option value="شريط"></option>
+                                    <option value="قرص"></option>
+                                    <option value="كيلوجرام"></option>
+                                    <option value="جرام"></option>
+                                    <option value="لتر"></option>
+                                </datalist>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.82rem;">الوحدة الكبرى (Parent Unit)</label>
+                                <input class="form-control" @bind="newProduct.ParentUnit" list="common-parent-units-list" placeholder="مثال: كرتونة، كيس كبير..." />
+                                <datalist id="common-parent-units-list">
+                                    <option value="كرتونة"></option>
+                                    <option value="كيس"></option>
+                                    <option value="باكت"></option>
+                                    <option value="علبة"></option>
+                                    <option value="دستة"></option>
+                                    <option value="رول"></option>
+                                </datalist>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.82rem;">معامل التحويل (كم قطعة بالكرتونة؟) <span style="color: var(--accent-red);">*</span></label>
+                                <input type="number" min="1" class="form-control" @bind="newProduct.ConversionFactor" @bind:after="SyncCartonPricesFromPiecePrices" placeholder="1" />
+                            </div>
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--accent-indigo); background: rgba(99, 102, 241, 0.08); padding: 0.4rem 0.75rem; border-radius: 0.4rem; display: flex; align-items: center; justify-content: space-between;">
+                            <span><i class="fa-solid fa-circle-info me-1"></i> 1 @(string.IsNullOrWhiteSpace(newProduct.ParentUnit) ? "كرتونة" : newProduct.ParentUnit) = <strong>@(newProduct.ConversionFactor > 0 ? newProduct.ConversionFactor : 1)</strong> @(string.IsNullOrWhiteSpace(newProduct.BaseUnit) ? "قطعة" : newProduct.BaseUnit)</span>
+                            <span style="color: var(--text-secondary);">المخزون يُحسب دائماً بالوحدة الأساسية (@(string.IsNullOrWhiteSpace(newProduct.BaseUnit) ? "قطعة" : newProduct.BaseUnit))</span>
+                        </div>
+                    </div>
+
+                    <!-- Carton Price Calculator & Matching (معاينة وحاسبة أسعار الكرتونة) -->
+                    @if (newProduct.ConversionFactor > 1)
+                    {
+                        <div style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 0.75rem; padding: 0.9rem 1rem; margin-bottom: 1.1rem;">
+                            <div style="font-weight: 700; font-size: 0.88rem; color: var(--accent-emerald); display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; flex-wrap: wrap; gap: 0.5rem;">
+                                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                    <i class="fa-solid fa-calculator"></i>
+                                    <span>حاسبة أسعار الكرتونة والقطع (1 @(string.IsNullOrWhiteSpace(newProduct.ParentUnit) ? "كرتونة" : newProduct.ParentUnit) = @newProduct.ConversionFactor @(string.IsNullOrWhiteSpace(newProduct.BaseUnit) ? "قطعة" : newProduct.BaseUnit))</span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-primary" style="background: var(--accent-emerald); border-color: var(--accent-emerald); font-weight: 700; font-size: 0.8rem; padding: 0.35rem 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem; box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);" @onclick="ApplyCartonPricesToPiecePrices" title="تطبيق أسعار القطعة المدخلة في خانات أسعار المنتج">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                    <span>مطابقة الأسعار</span>
+                                </button>
+                            </div>
+
+                            <div class="grid-3" style="margin-bottom: 0.4rem;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.2rem;">سعر تكلفة شراء القطعة (جنيه)</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" @bind="calcPiecePurchaseCost" @bind:event="oninput" placeholder="تكلفة القطعة" style="border-color: rgba(59, 130, 246, 0.4);" />
+                                    <div style="font-size: 0.78rem; color: var(--accent-blue); margin-top: 0.3rem;">
+                                        <span>سعر شراء الكرتونة: </span>
+                                        <strong style="font-size: 0.92rem; color: #60a5fa;">@(calcCartonPurchaseCost.ToString("N2")) ج.م</strong>
+                                    </div>
+                                </div>
+
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.2rem;">سعر بيع القطعة قطاعي (جنيه)</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" @bind="calcPieceSellingPrice" @bind:event="oninput" placeholder="بيع القطعة قطاعي" style="border-color: rgba(16, 185, 129, 0.4);" />
+                                    <div style="font-size: 0.78rem; color: var(--accent-emerald); margin-top: 0.3rem;">
+                                        <span>سعر بيع الكرتونة قطاعي: </span>
+                                        <strong style="font-size: 0.92rem; color: #34d399;">@(calcCartonSellingPrice.ToString("N2")) ج.م</strong>
+                                    </div>
+                                </div>
+
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.2rem;">سعر بيع القطعة جملة (جنيه)</label>
+                                    <input type="number" step="0.01" min="0" class="form-control" @bind="calcPieceWholesalePrice" @bind:event="oninput" placeholder="بيع القطعة جملة" style="border-color: rgba(245, 158, 11, 0.4);" />
+                                    <div style="font-size: 0.78rem; color: var(--accent-amber); margin-top: 0.3rem;">
+                                        <span>سعر بيع الكرتونة جملة: </span>
+                                        <strong style="font-size: 0.92rem; color: #fbbf24;">@(calcCartonWholesalePrice.ToString("N2")) ج.م</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @if (priceMatchedSuccessNotice)
+                            {
+                                <div style="font-size: 0.78rem; color: var(--accent-emerald); margin-top: 0.3rem; display: flex; align-items: center; gap: 0.35rem;">
+                                    <i class="fa-solid fa-circle-check"></i>
+                                    <span>تمت مطابقة ونقل الأسعار إلى حقول أسعار المنتج بنجاح!</span>
+                                </div>
+                            }
+                        </div>
+                    }
                 }
 
                 <div class="grid-2">
@@ -345,30 +443,30 @@
 
                 <div class="grid-3">
                     <div class="form-group">
-                        <label>سعر التكلفة للقطعة (جنيه)</label>
+                        <label>@(newProduct.IsWeighable ? "سعر التكلفة للكيلو (جنيه)" : "سعر التكلفة للقطعة (جنيه)")</label>
                         <input type="number" step="0.01" class="form-control" @bind="newProduct.PurchasePrice" @bind:after="OnPiecePriceChanged" />
                     </div>
 
                     <div class="form-group">
-                        <label>سعر البيع للقطاعي / قطعة (جنيه) <span style="color: var(--accent-red);">*</span></label>
+                        <label>@(newProduct.IsWeighable ? "سعر بيع الكيلو قطاعي (جنيه)" : "سعر البيع للقطاعي / قطعة (جنيه)") <span style="color: var(--accent-red);">*</span></label>
                         <input type="number" step="0.01" class="form-control" @bind="newProduct.SellingPrice" @bind:after="OnPiecePriceChanged" />
                     </div>
 
                     <div class="form-group">
-                        <label>سعر البيع للجملة / قطعة (جنيه)</label>
+                        <label>@(newProduct.IsWeighable ? "سعر بيع الكيلو جملة (جنيه)" : "سعر البيع للجملة / قطعة (جنيه)")</label>
                         <input type="number" step="0.01" class="form-control" @bind="newProduct.WholesalePrice" @bind:after="OnPiecePriceChanged" />
                     </div>
                 </div>
 
                 <div class="grid-2">
                     <div class="form-group">
-                        <label>حد إعادة الطلب (بالقطعة)</label>
-                        <input type="number" class="form-control" @bind="newProduct.ReorderLevel" />
+                        <label>@(newProduct.IsWeighable ? "حد إعادة الطلب (بالكيلوجرام)" : "حد إعادة الطلب (بالقطعة)")</label>
+                        <input type="number" step="any" class="form-control" @bind="newProduct.ReorderLevel" />
                     </div>
 
                     <div class="form-group">
-                        <label>الحد الأقصى للمخزون (بالقطعة)</label>
-                        <input type="number" class="form-control" @bind="newProduct.MaxStockLevel" />
+                        <label>@(newProduct.IsWeighable ? "الحد الأقصى للمخزون (بالكيلوجرام)" : "الحد الأقصى للمخزون (بالقطعة)")</label>
+                        <input type="number" step="any" class="form-control" @bind="newProduct.MaxStockLevel" />
                     </div>
                 </div>
 
@@ -448,7 +546,7 @@
                         <!-- Shelf Life Duration: Unit Selector + Count (العدد كم) -->
                         <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 0.75rem; margin-bottom: 0.65rem; align-items: flex-end;">
                             <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.82rem; font-weight: 700; color: #fef08a;">
+                                <label style="font-size: 0.82rem; font-weight: 700; color: var(--accent-amber);">
                                     وحدة مدة الصلاحية <span style="color: var(--accent-red);">*</span>
                                 </label>
                                 <select class="form-select" value="@shelfLifeUnit" @onchange="OnShelfLifeUnitChanged" style="font-weight: 600;">
@@ -459,7 +557,7 @@
                             </div>
 
                             <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.82rem; font-weight: 700; color: #fef08a;">
+                                <label style="font-size: 0.82rem; font-weight: 700; color: var(--accent-amber);">
                                     العدد كم؟ (@(shelfLifeUnit == "year" ? "عدد السنوات" : (shelfLifeUnit == "month" ? "عدد الشهور" : "عدد الأيام"))) <span style="color: var(--accent-red);">*</span>
                                 </label>
                                 <input type="number" min="1" class="form-control" value="@shelfLifeCount" @onchange="OnShelfLifeCountChanged" @oninput="OnShelfLifeCountInput" placeholder="@(shelfLifeUnit == "year" ? "مثال: 2 سنة" : (shelfLifeUnit == "month" ? "مثال: 6 شهور" : "مثال: 30 يوم"))" style="font-weight: 700; font-size: 1rem; color: var(--accent-emerald);" />
@@ -1307,6 +1405,58 @@
             barcodeShowPrice);
 
         CloseModals();
+    }
+
+    private void SetProductType(bool isWeighable)
+    {
+        newProduct.IsWeighable = isWeighable;
+        if (isWeighable)
+        {
+            newProduct.BaseUnit = "كيلوجرام";
+            newProduct.ParentUnit = null;
+            newProduct.ConversionFactor = 1;
+            if (string.IsNullOrWhiteSpace(newProduct.Barcode) || newProduct.Barcode.Length > 8)
+            {
+                GenerateScalePluCode();
+            }
+        }
+        else
+        {
+            if (string.IsNullOrWhiteSpace(newProduct.BaseUnit) || newProduct.BaseUnit == "كيلوجرام")
+                newProduct.BaseUnit = "قطعة";
+            if (string.IsNullOrWhiteSpace(newProduct.ParentUnit))
+                newProduct.ParentUnit = "كرتونة";
+            if (newProduct.ConversionFactor <= 0)
+                newProduct.ConversionFactor = 1;
+            if (string.IsNullOrWhiteSpace(newProduct.Barcode) || newProduct.Barcode.Length <= 4)
+            {
+                GenerateBarcode();
+            }
+        }
+        StateHasChanged();
+    }
+
+    private void GenerateScalePluCode()
+    {
+        int nextCode = 101;
+        var existingCodes = products
+            .Where(p => p.IsWeighable && !string.IsNullOrWhiteSpace(p.Barcode))
+            .Select(p => {
+                var clean = p.Barcode.Trim();
+                if (clean.StartsWith("20") && clean.Length >= 6 && int.TryParse(clean.Substring(2, 4), out int codeFromFull))
+                    return codeFromFull;
+                if (int.TryParse(clean, out int directCode))
+                    return directCode;
+                return 0;
+            })
+            .Where(c => c > 0)
+            .ToList();
+
+        if (existingCodes.Any())
+        {
+            nextCode = existingCodes.Max() + 1;
+        }
+        newProduct.Barcode = nextCode.ToString("D4"); // e.g. "0101"
     }
 
     private void GenerateBarcode()

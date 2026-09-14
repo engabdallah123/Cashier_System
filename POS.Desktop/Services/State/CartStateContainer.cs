@@ -14,19 +14,20 @@ namespace POS.Desktop.Services.State
         public decimal TaxRate { get; set; }
 
         public string BaseUnit { get; set; } = "قطعة";
-        public string ParentUnit { get; set; } = "كرتونة";
+        public string? ParentUnit { get; set; } = "كرتونة";
         public int ConversionFactor { get; set; } = 1;
         public int PiecesPerBox { get; set; } = 1;
         public int BoxesPerCarton { get; set; } = 1;
         public string SelectedUnit { get; set; } = "Piece"; // "Piece", "Box", "Carton"
         public decimal UnitQuantity { get; set; } = 1;
+        public bool IsWeighable { get; set; } = false;
 
-        public int CartonPieces => ConversionFactor > 1 
+        public int CartonPieces => (!IsWeighable && ConversionFactor > 1)
             ? ConversionFactor 
-            : (BoxesPerCarton > 1 ? BoxesPerCarton : (PiecesPerBox * BoxesPerCarton > 1 ? PiecesPerBox * BoxesPerCarton : 1));
+            : (!IsWeighable && BoxesPerCarton > 1 ? BoxesPerCarton : (!IsWeighable && PiecesPerBox * BoxesPerCarton > 1 ? PiecesPerBox * BoxesPerCarton : 1));
 
-        public bool HasCarton => CartonPieces > 1;
-        public bool HasPackagingUnits => HasCarton || PiecesPerBox > 1;
+        public bool HasCarton => !IsWeighable && CartonPieces > 1;
+        public bool HasPackagingUnits => !IsWeighable && (HasCarton || PiecesPerBox > 1);
 
         public decimal ActiveBaseUnitPrice => (IsWholesale && WholesalePrice > 0) ? WholesalePrice : RetailPrice;
         public decimal CartonUnitPrice => ActiveBaseUnitPrice * CartonPieces;
@@ -46,6 +47,51 @@ namespace POS.Desktop.Services.State
 
         public event Action? OnCartChanged;
 
+        public void AddOrIncrementWeighedProduct(
+            Guid productId,
+            string barcode,
+            string name,
+            decimal retailPrice,
+            decimal wholesalePrice,
+            decimal weightInKg,
+            string baseUnit = "كجم",
+            decimal taxRate = 0,
+            bool initialWholesale = false)
+        {
+            var existing = Items.FirstOrDefault(i => i.ProductId == productId);
+            if (existing is not null)
+            {
+                existing.UnitQuantity += weightInKg;
+                existing.Quantity = existing.UnitQuantity;
+            }
+            else
+            {
+                var activeUnitPrice = initialWholesale && wholesalePrice > 0 ? wholesalePrice : retailPrice;
+                var item = new CartItemModel
+                {
+                    ProductId = productId,
+                    Barcode = barcode,
+                    ProductName = name,
+                    RetailPrice = retailPrice,
+                    WholesalePrice = wholesalePrice,
+                    UnitPrice = activeUnitPrice,
+                    UnitQuantity = weightInKg,
+                    Quantity = weightInKg,
+                    TaxRate = taxRate,
+                    IsWholesale = initialWholesale,
+                    IsWeighable = true,
+                    PiecesPerBox = 1,
+                    BoxesPerCarton = 1,
+                    ConversionFactor = 1,
+                    BaseUnit = string.IsNullOrWhiteSpace(baseUnit) ? "كجم" : baseUnit,
+                    ParentUnit = null,
+                    SelectedUnit = "Piece"
+                };
+                Items.Add(item);
+            }
+            NotifyStateChanged();
+        }
+
         public void AddOrIncrementProduct(
             Guid productId,
             string barcode,
@@ -59,7 +105,8 @@ namespace POS.Desktop.Services.State
             string baseUnit = "قطعة",
             string parentUnit = "كرتونة",
             string initialUnit = "Piece",
-            bool initialWholesale = false)
+            bool initialWholesale = false,
+            bool isWeighable = false)
         {
             var existing = Items.FirstOrDefault(i => i.ProductId == productId);
             if (existing is not null)
@@ -83,11 +130,12 @@ namespace POS.Desktop.Services.State
                     Quantity = 1,
                     TaxRate = taxRate,
                     IsWholesale = initialWholesale,
+                    IsWeighable = isWeighable,
                     PiecesPerBox = Math.Max(1, piecesPerBox),
                     BoxesPerCarton = Math.Max(1, effectiveCarton),
                     ConversionFactor = Math.Max(1, effectiveCarton),
-                    BaseUnit = string.IsNullOrWhiteSpace(baseUnit) ? "قطعة" : baseUnit,
-                    ParentUnit = string.IsNullOrWhiteSpace(parentUnit) ? "كرتونة" : parentUnit,
+                    BaseUnit = string.IsNullOrWhiteSpace(baseUnit) ? (isWeighable ? "كجم" : "قطعة") : baseUnit,
+                    ParentUnit = string.IsNullOrWhiteSpace(parentUnit) ? (isWeighable ? null : "كرتونة") : parentUnit,
                     SelectedUnit = initialUnit
                 };
                 RecalculateBaseQuantity(item);
@@ -157,6 +205,12 @@ namespace POS.Desktop.Services.State
 
         private static void RecalculateBaseQuantity(CartItemModel item)
         {
+            if (item.IsWeighable)
+            {
+                item.Quantity = item.UnitQuantity;
+                return;
+            }
+
             decimal multiplier = item.SelectedUnit switch
             {
                 "Box" => item.PiecesPerBox > 1 ? item.PiecesPerBox : 1m,

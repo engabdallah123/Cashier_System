@@ -2390,6 +2390,11 @@ kbd {
     display: inline-block;
 }
 
+.action-dropdown-container.active,
+.action-dropdown-container:has(.action-dropdown-menu) {
+    z-index: 1001;
+}
+
 .action-dropdown-btn {
     display: inline-flex;
     align-items: center;
@@ -2496,6 +2501,17 @@ kbd {
     from {
         opacity: 0;
         transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes dropupFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
     }
     to {
         opacity: 1;

@@ -30,7 +30,7 @@
         </div>
     </div>
 
-    <div class="table-container">
+    <div class="table-container" style="overflow: visible;">
         <table class="data-table">
             <thead>
                 <tr>
@@ -60,7 +60,6 @@
                     for (int i = 0; i < pagedList.Count; i++)
                     {
                         var cat = pagedList[i];
-                        bool isNearBottom = i >= pagedList.Count - 3 && pagedList.Count > 3;
                         var parent = categories.FirstOrDefault(c => c.Id == cat.ParentCategoryId);
                         <tr>
                             <td style="font-weight: 600;">@cat.NameAr</td>
@@ -86,7 +85,7 @@
                             @if (CanManageCategories)
                             {
                                 <td style="text-align: center;">
-                                    <div class="action-dropdown-container">
+                                    <div class="action-dropdown-container @(activeMenuCategoryId == cat.Id ? "active" : "")">
                                         <button class="action-dropdown-btn @(activeMenuCategoryId == cat.Id ? "active" : "")" @onclick="() => ToggleCategoryMenu(cat.Id)">
                                             <i class="fa-solid fa-sliders"></i>
                                             <span>خيارات</span>
@@ -95,7 +94,7 @@
                                         @if (activeMenuCategoryId == cat.Id)
                                         {
                                             <div class="action-dropdown-backdrop" @onclick="CloseCategoryMenu"></div>
-                                            <div class="action-dropdown-menu @(isNearBottom ? "dropup" : "")" @onclick:stopPropagation="true">
+                                            <div class="action-dropdown-menu" @onclick:stopPropagation="true">
                                                 <button class="action-dropdown-item item-primary" @onclick="() => { CloseCategoryMenu(); OpenEditModal(cat); }">
                                                     <i class="fa-solid fa-pen-to-square" style="color: var(--accent-blue);"></i>
                                                     <span>تعديل البيانات</span>
@@ -379,7 +378,8 @@
         if (categoryToDelete == null) return;
 
         isSaving = true;
-        var success = await ApiClient.DeleteCategoryAsync(categoryToDelete.Id);
+        errorMessage = string.Empty;
+        var (success, error) = await ApiClient.DeleteCategoryAsync(categoryToDelete.Id);
         isSaving = false;
 
         if (success)
@@ -389,7 +389,7 @@
         }
         else
         {
-            errorMessage = "فشل حذف التصنيف. يرجى التأكد من عدم وجود منتجات مرتبطة بهذا التصنيف.";
+            errorMessage = !string.IsNullOrEmpty(error) ? error : "التصنيف ده مرتبط بمنتج ولن يتم مسحه.";
         }
     }
 

@@ -44,7 +44,7 @@ namespace Identity.Application.Auth.Commands.Login
             return Result<AuthResponse>.Success(new AuthResponse(
                 accessToken,
                 refreshToken,
-                DateTime.UtcNow.AddHours(1),
+                DateTime.UtcNow.AddDays(7),
                 user.Id,
                 user.FullName,
                 roles.FirstOrDefault() ?? "Cashier"));

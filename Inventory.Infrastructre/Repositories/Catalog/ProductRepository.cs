@@ -63,5 +63,10 @@ namespace Inventory.Infrastructre.Repositories.Catalog
         {
             return await _context.Products.ToListAsync(cancellationToken);
         }
+
+        public async Task<bool> HasProductsWithCategoryIdAsync(Guid categoryId, CancellationToken cancellationToken = default)
+        {
+            return await _context.Products.AnyAsync(p => p.CategoryId == categoryId, cancellationToken);
+        }
     }
 }

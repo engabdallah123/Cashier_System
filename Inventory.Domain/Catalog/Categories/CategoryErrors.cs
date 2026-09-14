@@ -15,5 +15,11 @@ namespace Inventory.Domain.Catalog.Categories
 
         public static readonly Error DuplicateName =
             Error.Conflict("Category.DuplicateName", "يوجد بالفعل تصنيف بنفس الاسم.");
+
+        public static readonly Error HasAssociatedProducts =
+            new("Category.HasAssociatedProducts", "التصنيف ده مرتبط بمنتج ولن يتم مسحه.");
+
+        public static readonly Error HasSubCategories =
+            new("Category.HasSubCategories", "التصنيف ده مرتبط بتصنيفات فرعية ولن يتم مسحه.");
     }
 }

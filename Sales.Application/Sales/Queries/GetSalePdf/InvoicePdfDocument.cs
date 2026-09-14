@@ -206,7 +206,7 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                         });
                     }
 
-                    var totalQty = (int)_receipt.Items.Sum(i => i.Quantity);
+                    var totalQty = _receipt.Items.Count;
                     column.Item().PaddingTop(5).PaddingBottom(3).AlignCenter().Layers(layers =>
                     {
                         layers.Layer().Svg("<svg viewBox='0 0 100 30' preserveAspectRatio='none' xmlns='http://www.w3.org/2000/svg'><rect x='1' y='1' width='98' height='28' rx='14' ry='14' fill='none' stroke='black' stroke-width='2'/></svg>");

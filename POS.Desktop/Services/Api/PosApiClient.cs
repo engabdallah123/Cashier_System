@@ -246,13 +246,18 @@ namespace POS.Desktop.Services.Api
                     return (id, null);
                 }
 
-                if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized || res.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
-                    return (null, "Access denied. Admin authorization required.");
+                    return (null, "انتهت صلاحية جلسة تسجيل الدخول (Session Expired). يرجى تسجيل الخروج والدخول مجدداً.");
+                }
+
+                if (res.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    return (null, "عفواً، لا يملك حسابك الحالي الصلاحيات الكافية لإضافة منتج (مطلوب صلاحية مدير أو مشرف).");
                 }
 
                 var errContent = await res.Content.ReadAsStringAsync();
-                return (null, ExtractErrorMessage(errContent, "Failed to save product. Please check inputs or system logs."));
+                return (null, ExtractErrorMessage(errContent, "فشل حفظ المنتج. الرجاء التحقق من المدخلات."));
             }
             catch (Exception ex)
             {
@@ -281,7 +286,7 @@ namespace POS.Desktop.Services.Api
                 }
 
                 var errContent = await res.Content.ReadAsStringAsync();
-                return (null, ExtractErrorMessage(errContent, "Failed to upload image."));
+                return (null, ExtractErrorMessage(errContent, "فشل رفع الصورة."));
             }
             catch (Exception ex)
             {
@@ -296,13 +301,18 @@ namespace POS.Desktop.Services.Api
                 var res = await _http.PutAsJsonAsync($"api/inventory/products/{model.Id}", model);
                 if (res.IsSuccessStatusCode) return (true, null);
 
-                if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized || res.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                 {
-                    return (false, "Access denied. Admin authorization required.");
+                    return (false, "انتهت صلاحية جلسة تسجيل الدخول (Session Expired). يرجى تسجيل الخروج والدخول مجدداً.");
+                }
+
+                if (res.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    return (false, "عفواً، لا يملك حسابك الحالي الصلاحيات الكافية لتعديل المنتج (مطلوب صلاحية مدير أو مشرف).");
                 }
 
                 var errContent = await res.Content.ReadAsStringAsync();
-                return (false, ExtractErrorMessage(errContent, "Failed to update product."));
+                return (false, ExtractErrorMessage(errContent, "فشل تحديث بيانات المنتج."));
             }
             catch (Exception ex)
             {
@@ -316,6 +326,17 @@ namespace POS.Desktop.Services.Api
             {
                 var res = await _http.DeleteAsync($"api/inventory/products/{id}");
                 if (res.IsSuccessStatusCode) return (true, null);
+
+                if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    return (false, "انتهت صلاحية جلسة تسجيل الدخول (Session Expired). يرجى تسجيل الخروج والدخول مجدداً.");
+                }
+
+                if (res.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    return (false, "عفواً، لا يملك حسابك الحالي صلاحية حذف المنتج (مطلوب صلاحية مدير).");
+                }
+
                 var err = await res.Content.ReadAsStringAsync();
                 return (false, ExtractErrorMessage(err, "فشل حذف المنتج من النظام."));
             }
@@ -332,6 +353,17 @@ namespace POS.Desktop.Services.Api
                 var endpoint = activate ? $"api/inventory/products/{productId}/activate" : $"api/inventory/products/{productId}/deactivate";
                 var res = await _http.PutAsync(endpoint, null);
                 if (res.IsSuccessStatusCode) return (true, null);
+
+                if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    return (false, "انتهت صلاحية جلسة تسجيل الدخول (Session Expired). يرجى تسجيل الخروج والدخول مجدداً.");
+                }
+
+                if (res.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    return (false, "عفواً، لا يملك حسابك الحالي صلاحية تغيير حالة المنتج.");
+                }
+
                 var err = await res.Content.ReadAsStringAsync();
                 return (false, ExtractErrorMessage(err, "فشل تغيير حالة المنتج."));
             }
@@ -396,16 +428,18 @@ namespace POS.Desktop.Services.Api
             }
         }
 
-        public async Task<bool> DeleteCategoryAsync(Guid id)
+        public async Task<(bool Success, string? Error)> DeleteCategoryAsync(Guid id)
         {
             try
             {
                 var res = await _http.DeleteAsync($"api/inventory/categories/{id}");
-                return res.IsSuccessStatusCode;
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل حذف التصنيف."));
             }
-            catch
+            catch (Exception ex)
             {
-                return false;
+                return (false, ex.Message);
             }
         }
 

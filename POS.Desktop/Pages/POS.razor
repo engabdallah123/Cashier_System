@@ -143,9 +143,26 @@
                             </div>
                         </div>
                         <div class="product-card-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 0.25rem;">
-                            <span class="product-price">@prod.SellingPrice.ToString("N2") ج.م</span>
+                            <span class="product-price">
+                                @prod.SellingPrice.ToString("N2") ج.م
+                                @if (prod.IsWeighable)
+                                {
+                                    <span style="font-size: 0.72rem; color: var(--accent-emerald); font-weight: 600;">/كجم</span>
+                                }
+                            </span>
                             <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                @if (prod.ConversionFactor > 1 || (!string.IsNullOrWhiteSpace(prod.Description) && prod.Description.Contains("[UNITS:")))
+                                @if (prod.IsWeighable)
+                                {
+                                    <button type="button" 
+                                            class="btn" 
+                                            style="padding: 0.12rem 0.45rem; font-size: 0.68rem; font-weight: 700; background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 4px;" 
+                                            @onclick:stopPropagation="true" 
+                                            @onclick="() => OpenManualWeightModal(prod)" 
+                                            title="وزن الصنف وإضافته للسلة">
+                                        <i class="fa-solid fa-scale-balanced me-1"></i> وزن
+                                    </button>
+                                }
+                                else if (prod.ConversionFactor > 1 || (!string.IsNullOrWhiteSpace(prod.Description) && prod.Description.Contains("[UNITS:")))
                                 {
                                     int cartonSize = prod.ConversionFactor > 1 ? prod.ConversionFactor : PackagingUnitHelper.Parse(prod.Description).TotalPiecesPerCarton;
                                     <button type="button" 
@@ -230,8 +247,14 @@
                             <tr>
                                 <td style="text-align: center; color: var(--text-muted); font-size: 0.75rem;">@currentIndex</td>
                                 <td>
-                                    <div style="font-weight: 700; color: var(--text-primary); font-size: 0.85rem; line-height: 1.2;">
-                                        @item.ProductName
+                                    <div style="font-weight: 700; color: var(--text-primary); font-size: 0.85rem; line-height: 1.2; display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap;">
+                                        <span>@item.ProductName</span>
+                                        @if (item.IsWeighable)
+                                        {
+                                            <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.65rem; padding: 0.1rem 0.35rem; border-radius: 4px;">
+                                                <i class="fa-solid fa-scale-balanced me-1"></i> ميزان
+                                            </span>
+                                        }
                                     </div>
                                     <div style="font-size: 0.74rem; color: var(--text-secondary); display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.15rem;">
                                         @if (item.SelectedUnit == "Carton")
@@ -256,44 +279,47 @@
                                             }
                                         }
 
-                                        <!-- Unit Selection Buttons -->
-                                        <div style="display: inline-flex; border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; font-size: 0.68rem;">
-                                            <button type="button" 
-                                                    class="btn @(item.SelectedUnit == "Piece" ? "btn-primary" : "btn-secondary")" 
-                                                    style="padding: 0.05rem 0.35rem; border-radius: 0; font-size: 0.68rem;" 
-                                                    @onclick='() => SetItemUnit(item.ProductId, "Piece")'>
-                                                @item.BaseUnit
-                                            </button>
-                                            @if (item.PiecesPerBox > 1)
-                                            {
+                                        <!-- Unit Selection Buttons (Hidden for weighable items) -->
+                                        @if (!item.IsWeighable)
+                                        {
+                                            <div style="display: inline-flex; border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; font-size: 0.68rem;">
                                                 <button type="button" 
-                                                        class="btn @(item.SelectedUnit == "Box" ? "btn-primary" : "btn-secondary")" 
+                                                        class="btn @(item.SelectedUnit == "Piece" ? "btn-primary" : "btn-secondary")" 
                                                         style="padding: 0.05rem 0.35rem; border-radius: 0; font-size: 0.68rem;" 
-                                                        @onclick='() => SetItemUnit(item.ProductId, "Box")'>
-                                                    علبة (@item.PiecesPerBox)
+                                                        @onclick='() => SetItemUnit(item.ProductId, "Piece")'>
+                                                    @item.BaseUnit
                                                 </button>
-                                            }
-                                            @if (item.HasCarton)
-                                            {
-                                                <button type="button" 
-                                                        class="btn @(item.SelectedUnit == "Carton" ? "btn-primary" : "btn-secondary")" 
-                                                        style="padding: 0.05rem 0.35rem; border-radius: 0; font-size: 0.68rem;" 
-                                                        @onclick='() => SetItemUnit(item.ProductId, "Carton")'
-                                                        title="البيع بالكرتونة (@item.CartonPieces @item.BaseUnit)">
-                                                    @item.ParentUnit (@item.CartonPieces)
-                                                </button>
-                                            }
-                                            else
-                                            {
-                                                <button type="button" 
-                                                        class="btn btn-secondary" 
-                                                        style="padding: 0.05rem 0.35rem; border-radius: 0; font-size: 0.68rem; opacity: 0.85;" 
-                                                        @onclick='() => PromptCartonSize(item.ProductId)'
-                                                        title="تحديد معامل الكرتونة للبيع">
-                                                    + كرتونة
-                                                </button>
-                                            }
-                                        </div>
+                                                @if (item.PiecesPerBox > 1)
+                                                {
+                                                    <button type="button" 
+                                                            class="btn @(item.SelectedUnit == "Box" ? "btn-primary" : "btn-secondary")" 
+                                                            style="padding: 0.05rem 0.35rem; border-radius: 0; font-size: 0.68rem;" 
+                                                            @onclick='() => SetItemUnit(item.ProductId, "Box")'>
+                                                        علبة (@item.PiecesPerBox)
+                                                    </button>
+                                                }
+                                                @if (item.HasCarton)
+                                                {
+                                                    <button type="button" 
+                                                            class="btn @(item.SelectedUnit == "Carton" ? "btn-primary" : "btn-secondary")" 
+                                                            style="padding: 0.05rem 0.35rem; border-radius: 0; font-size: 0.68rem;" 
+                                                            @onclick='() => SetItemUnit(item.ProductId, "Carton")'
+                                                            title="البيع بالكرتونة (@item.CartonPieces @item.BaseUnit)">
+                                                        @item.ParentUnit (@item.CartonPieces)
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button type="button" 
+                                                            class="btn btn-secondary" 
+                                                            style="padding: 0.05rem 0.35rem; border-radius: 0; font-size: 0.68rem; opacity: 0.85;" 
+                                                            @onclick='() => PromptCartonSize(item.ProductId)'
+                                                            title="تحديد معامل الكرتونة للبيع">
+                                                        + كرتونة
+                                                    </button>
+                                                }
+                                            </div>
+                                        }
                                     </div>
                                 </td>
                                 <td style="text-align: center;">
@@ -307,18 +333,24 @@
                                 </td>
                                 <td style="text-align: center;">
                                     <div class="qty-controls" style="display: inline-flex; align-items: center; gap: 0.15rem;">
-                                        <button class="qty-btn" @onclick="() => Cart.UpdateQuantity(item.ProductId, item.UnitQuantity - 1)" title="إنقاص واحد">-</button>
+                                        <button class="qty-btn" @onclick="() => Cart.UpdateQuantity(item.ProductId, Math.Max(0.001m, item.UnitQuantity - (item.IsWeighable ? 0.050m : 1m)))" title="@(item.IsWeighable ? "إنقاص 50 جرام" : "إنقاص واحد")">-</button>
                                         <input type="number"
-                                               min="1"
-                                               step="any"
+                                               min="0.001"
+                                               step="0.001"
                                                class="qty-input"
-                                               value="@item.UnitQuantity"
+                                               value="@(item.IsWeighable ? item.UnitQuantity.ToString("0.000") : item.UnitQuantity.ToString("G29"))"
                                                @onchange="(e) => OnQuantityInputChanged(item.ProductId, e.Value)"
-                                               title="انقر للتعديل المباشر باللوحة"
-                                               style="width: 44px; text-align: center; font-weight: 700; font-size: 0.85rem; color: var(--accent-amber); background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.1rem; outline: none;" />
-                                        <button class="qty-btn" @onclick="() => Cart.UpdateQuantity(item.ProductId, item.UnitQuantity + 1)" title="زيادة واحد">+</button>
+                                               title="انقر للتعديل المباشر للوزن أو الكمية"
+                                               style="width: @(item.IsWeighable ? "62px" : "44px"); text-align: center; font-weight: 700; font-size: 0.85rem; color: var(--accent-amber); background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; padding: 0.1rem; outline: none;" />
+                                        <button class="qty-btn" @onclick="() => Cart.UpdateQuantity(item.ProductId, item.UnitQuantity + (item.IsWeighable ? 0.050m : 1m))" title="@(item.IsWeighable ? "زيادة 50 جرام" : "زيادة واحد")">+</button>
                                     </div>
-                                    @if (item.SelectedUnit == "Carton")
+                                    @if (item.IsWeighable)
+                                    {
+                                        <div style="font-size: 0.65rem; color: var(--accent-emerald); font-weight: 700; margin-top: 0.1rem;">
+                                            @item.Quantity.ToString("0.000") @item.BaseUnit
+                                        </div>
+                                    }
+                                    else if (item.SelectedUnit == "Carton")
                                     {
                                         <div style="font-size: 0.65rem; color: var(--accent-indigo); font-weight: 600; margin-top: 0.1rem;">
                                             (@item.Quantity.ToString("N0") قطعة)
@@ -607,6 +639,112 @@
                         <i class="fa-solid fa-check-circle me-1"></i> <span>تأكيد الدفع وطباعة الفاتورة [Enter]</span>
                     }
                 </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Manual Weight Entry Modal (لأصناف الميزان والجبن واللانشون) -->
+@if (showWeightModal && weightModalProduct != null)
+{
+    <div class="modal-overlay" @onclick="CloseWeightModal" style="z-index: 1050;">
+        <div class="modal-card" style="width: 490px; border-top: 4px solid var(--accent-emerald);" @onclick:stopPropagation="true">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                <h3 class="modal-title" style="display: flex; align-items: center; gap: 0.5rem; color: var(--accent-emerald);">
+                    <i class="fa-solid fa-scale-balanced"></i>
+                    <span>تحديد وزن: @weightModalProduct.NameAr</span>
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem;" @onclick="CloseWeightModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body" style="padding: 1.25rem 1rem;">
+                <!-- Product Info Badge -->
+                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 0.65rem; padding: 0.75rem 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary);">سعر بيع الكيلو:</div>
+                        <div style="font-size: 1.25rem; font-weight: 800; color: var(--accent-emerald);">
+                            @weightModalProduct.SellingPrice.ToString("N2") <span style="font-size: 0.85rem;">ج.م / @(weightModalProduct.BaseUnit ?? "كجم")</span>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(weightModalProduct.Barcode))
+                    {
+                        <div style="text-align: left;">
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">كود الميزان (PLU):</div>
+                            <code style="font-size: 0.95rem; font-weight: 700; color: #a7f3d0; background: rgba(0,0,0,0.3); padding: 0.2rem 0.5rem; border-radius: 4px;">@weightModalProduct.Barcode</code>
+                        </div>
+                    }
+                </div>
+
+                <!-- Weight Input Field -->
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label style="font-weight: 700; font-size: 0.92rem; margin-bottom: 0.4rem; display: flex; justify-content: space-between;">
+                        <span>الوزن المطلوب (@(weightModalProduct.BaseUnit ?? "كيلوجرام")):</span>
+                        <span style="font-size: 0.8rem; color: var(--accent-emerald); font-weight: 600;">(بالكسور: 0.250 = ربع كيلو)</span>
+                    </label>
+                    <div style="position: relative;">
+                        <input id="manual-weight-input"
+                               type="number"
+                               step="0.001"
+                               min="0.001"
+                               class="form-control"
+                               @bind="enteredWeightString"
+                               @bind:event="oninput"
+                               @onkeyup="HandleWeightModalKeyUp"
+                               style="font-size: 1.6rem; font-weight: 800; text-align: center; color: var(--accent-emerald); background: var(--bg-secondary); border: 2px solid var(--accent-emerald); border-radius: 0.6rem; padding: 0.6rem;" />
+                        <span style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); font-weight: 700; color: var(--text-muted); font-size: 1rem;">
+                            @(weightModalProduct.BaseUnit ?? "كجم")
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Quick Weight Preset Buttons -->
+                <div style="margin-bottom: 1.25rem;">
+                    <label style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 0.35rem; display: block;">أوزان شائعة سريعة:</label>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.45rem;">
+                        <button type="button" class="btn btn-secondary" style="font-size: 0.82rem; font-weight: 700; padding: 0.45rem;" @onclick="() => SetQuickWeight(0.125m)">
+                            1/8 كجم (125 جم)
+                        </button>
+                        <button type="button" class="btn btn-secondary" style="font-size: 0.82rem; font-weight: 700; padding: 0.45rem;" @onclick="() => SetQuickWeight(0.250m)">
+                            1/4 كجم (250 جم)
+                        </button>
+                        <button type="button" class="btn btn-secondary" style="font-size: 0.82rem; font-weight: 700; padding: 0.45rem;" @onclick="() => SetQuickWeight(0.500m)">
+                            1/2 كجم (500 جم)
+                        </button>
+                        <button type="button" class="btn btn-secondary" style="font-size: 0.82rem; font-weight: 700; padding: 0.45rem;" @onclick="() => SetQuickWeight(0.750m)">
+                            3/4 كجم (750 جم)
+                        </button>
+                        <button type="button" class="btn btn-secondary" style="font-size: 0.82rem; font-weight: 700; padding: 0.45rem;" @onclick="() => SetQuickWeight(1.000m)">
+                            1 كجم (1000 جم)
+                        </button>
+                        <button type="button" class="btn btn-secondary" style="font-size: 0.82rem; font-weight: 700; padding: 0.45rem;" @onclick="() => SetQuickWeight(2.000m)">
+                            2 كجم
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Calculated Total -->
+                @{
+                    decimal currentParsedWeight = decimal.TryParse(enteredWeightString, out var pw) ? pw : 0m;
+                    decimal calculatedSubtotal = currentParsedWeight * weightModalProduct.SellingPrice;
+                }
+                <div style="background: var(--bg-secondary); border-radius: 0.6rem; padding: 0.85rem 1rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: center; border: 1px dashed var(--border-color);">
+                    <span style="font-size: 0.9rem; color: var(--text-secondary);">الإجمالي المحسوب:</span>
+                    <strong style="font-size: 1.35rem; color: var(--accent-amber);">
+                        @calculatedSubtotal.ToString("N2") <span style="font-size: 0.85rem;">ج.م</span>
+                    </strong>
+                </div>
+
+                <!-- Modal Actions -->
+                <div style="display: flex; gap: 0.75rem;">
+                    <button type="button" class="btn btn-primary" style="flex: 2; padding: 0.65rem; font-size: 0.95rem; font-weight: 700; background: var(--accent-emerald); border-color: var(--accent-emerald);" @onclick="ConfirmWeightModal">
+                        <i class="fa-solid fa-plus-circle me-1"></i> إضافة للسلة [Enter]
+                    </button>
+                    <button type="button" class="btn btn-secondary" style="flex: 1; padding: 0.65rem;" @onclick="CloseWeightModal">
+                        إلغاء [Esc]
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -1134,6 +1272,10 @@
 
     private int TotalPages => Math.Max(1, (int)Math.Ceiling((double)filteredProducts.Count / pageSize));
 
+    private bool showWeightModal = false;
+    private ProductDto? weightModalProduct;
+    private string enteredWeightString = "0.250";
+
     private IEnumerable<ProductDto> PagedProducts =>
         filteredProducts.Skip((currentPage - 1) * pageSize).Take(pageSize);
 
@@ -1225,6 +1367,64 @@
                 var code = scannedBarcode.Trim();
                 scannedBarcode = string.Empty;
 
+                // 1. Electronic Barcode Scale (EAN-13: e.g. 20 0101 00350 4)
+                if (ScaleBarcodeHelper.IsScaleBarcode(code))
+                {
+                    var scaleResult = ScaleBarcodeHelper.Parse(code);
+                    if (scaleResult.IsScaleBarcode)
+                    {
+                        ProductDto? scaleProd = null;
+
+                        // Check in local loaded products first with candidate codes
+                        foreach (var cand in scaleResult.CandidateCodes)
+                        {
+                            scaleProd = products.FirstOrDefault(p =>
+                                p.IsWeighable &&
+                                !string.IsNullOrWhiteSpace(p.Barcode) &&
+                                string.Equals(p.Barcode.Trim(), cand, StringComparison.OrdinalIgnoreCase));
+                            if (scaleProd != null) break;
+                        }
+
+                        // Try matching without leading zeros (e.g. 101 matching 0101)
+                        if (scaleProd == null)
+                        {
+                            scaleProd = products.FirstOrDefault(p =>
+                                p.IsWeighable &&
+                                !string.IsNullOrWhiteSpace(p.Barcode) &&
+                                (p.Barcode.Trim().TrimStart('0') == scaleResult.PluCode ||
+                                 scaleResult.PluCode.TrimStart('0') == p.Barcode.Trim().TrimStart('0')));
+                        }
+
+                        // Try via API if not found locally
+                        if (scaleProd == null)
+                        {
+                            foreach (var cand in scaleResult.CandidateCodes)
+                            {
+                                var p = await ApiClient.GetProductByBarcodeAsync(cand);
+                                if (p != null && p.IsWeighable)
+                                {
+                                    scaleProd = p;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (scaleProd != null)
+                        {
+                            AddWeighedProductToCart(scaleProd, scaleResult.WeightInKg);
+                            await FocusBarcodeAsync();
+                            return;
+                        }
+                        else
+                        {
+                            saleError = $"تمت قراءة استيكر ميزان بكود صنف ({scaleResult.PluCode}) ووزن ({scaleResult.WeightInKg:N3} كجم) لكن لم يتم العثور على صنف بالوزن مطابق في النظام. يرجى التأكد من تسجيل كود الصنف بالميزان.";
+                            await FocusBarcodeAsync();
+                            return;
+                        }
+                    }
+                }
+
+                // 2. Standard product barcode lookup
                 var prod = await ApiClient.GetProductByBarcodeAsync(code);
                 if (prod is not null)
                 {
@@ -1261,6 +1461,12 @@
             saleError = $"المنتج '{prod.NameAr}' غير نشط وموقوف عن البيع.";
             return;
         }
+
+        if (prod.IsWeighable)
+        {
+            OpenManualWeightModal(prod);
+            return;
+        }
         saleError = null;
         var existingInCart = Cart.Items.FirstOrDefault(i => i.ProductId == prod.Id);
         var nextQty = (existingInCart?.Quantity ?? 0) + 1;
@@ -1288,6 +1494,88 @@
             initialWholesale);
 
         _ = FocusBarcodeAsync();
+    }
+
+    private void AddWeighedProductToCart(ProductDto prod, decimal weightInKg, bool initialWholesale = false)
+    {
+        if (!prod.IsActive)
+        {
+            saleError = $"صنف الميزان '{prod.NameAr}' غير نشط وموقوف عن البيع.";
+            return;
+        }
+        saleError = null;
+        var existingInCart = Cart.Items.FirstOrDefault(i => i.ProductId == prod.Id);
+        var nextQty = (existingInCart?.Quantity ?? 0) + weightInKg;
+        CheckAndTriggerStockAlert(prod, nextQty);
+
+        Cart.AddOrIncrementWeighedProduct(
+            prod.Id,
+            prod.Barcode,
+            prod.NameAr,
+            prod.SellingPrice,
+            prod.WholesalePrice,
+            weightInKg,
+            string.IsNullOrWhiteSpace(prod.BaseUnit) ? "كجم" : prod.BaseUnit,
+            prod.TaxRate,
+            initialWholesale);
+
+        TriggerAlert(
+            title: "⚖️ صنف بالميزان",
+            message: $"تمت إضافة <strong style='color: #fff;'>{prod.NameAr}</strong><br />الوزن: <strong style='color: #34d399; font-size: 0.95rem;'>{weightInKg:N3}</strong> {prod.BaseUnit ?? "كجم"}",
+            alertType: "success",
+            icon: "fa-scale-balanced",
+            dedupKey: $"weighed_{prod.Id}");
+
+        _ = FocusBarcodeAsync();
+    }
+
+    private void OpenManualWeightModal(ProductDto prod)
+    {
+        weightModalProduct = prod;
+        enteredWeightString = "0.250";
+        showWeightModal = true;
+        _ = InvokeAsync(async () =>
+        {
+            await Task.Delay(100);
+            await JS.InvokeVoidAsync("focusElementById", "manual-weight-input", 50);
+        });
+    }
+
+    private void CloseWeightModal()
+    {
+        showWeightModal = false;
+        weightModalProduct = null;
+        _ = FocusBarcodeAsync();
+    }
+
+    private void SetQuickWeight(decimal weight)
+    {
+        enteredWeightString = weight.ToString("0.000");
+    }
+
+    private void ConfirmWeightModal()
+    {
+        if (weightModalProduct == null) return;
+
+        if (!decimal.TryParse(enteredWeightString, out var parsedWeight) || parsedWeight <= 0)
+        {
+            parsedWeight = 0.250m;
+        }
+
+        AddWeighedProductToCart(weightModalProduct, parsedWeight);
+        CloseWeightModal();
+    }
+
+    private void HandleWeightModalKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            ConfirmWeightModal();
+        }
+        else if (e.Key == "Escape")
+        {
+            CloseWeightModal();
+        }
     }
 
     private void AddCartonToCart(ProductDto prod)

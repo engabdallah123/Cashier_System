@@ -22,7 +22,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPost]
-        [Authorize(Roles = "Admin,Manager,Cashier")]
+        [Authorize(Roles = "Admin,Manager,Cashier,Administrator")]
         public async Task<IActionResult> Create([FromBody] CreateCategoryCommand command, CancellationToken ct)
         {
             var result = await _sender.Send(command, ct);
@@ -33,7 +33,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPut("{id:guid}")]
-        [Authorize(Roles = "Admin,Manager,Cashier")]
+        [Authorize(Roles = "Admin,Manager,Cashier,Administrator")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCategoryCommand command, CancellationToken ct)
         {
             if (id != command.Id)
@@ -47,7 +47,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPut("{id:guid}/activate")]
-        [Authorize(Roles = "Admin,Manager,Cashier")]
+        [Authorize(Roles = "Admin,Manager,Cashier,Administrator")]
         public async Task<IActionResult> Activate(Guid id, CancellationToken ct)
         {
             var result = await _sender.Send(new ActivateCategoryCommand(id), ct);
@@ -58,7 +58,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPut("{id:guid}/deactivate")]
-        [Authorize(Roles = "Admin,Manager,Cashier")]
+        [Authorize(Roles = "Admin,Manager,Cashier,Administrator")]
         public async Task<IActionResult> Deactivate(Guid id, CancellationToken ct)
         {
             var result = await _sender.Send(new DeactivateCategoryCommand(id), ct);
@@ -69,7 +69,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpDelete("{id:guid}")]
-        [Authorize(Roles = "Admin,Manager,Cashier")]
+        [Authorize(Roles = "Admin,Manager,Cashier,Administrator")]
         public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
         {
             var result = await _sender.Send(new DeleteCategoryCommand(id), ct);

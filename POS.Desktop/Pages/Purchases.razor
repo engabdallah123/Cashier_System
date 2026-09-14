@@ -479,9 +479,32 @@
                     </div>
                 </div>
 
-                <h4 style="font-size: 0.95rem; font-weight: 700; margin: 1rem 0 0.5rem 0; color: var(--accent-indigo); display: flex; align-items: center; gap: 0.4rem;">
-                    <i class="fa-solid fa-boxes-stacked"></i> أصناف الفاتورة
-                </h4>
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0 0.5rem 0;">
+                    <h4 style="font-size: 0.95rem; font-weight: 700; margin: 0; color: var(--accent-indigo); display: flex; align-items: center; gap: 0.4rem;">
+                        <i class="fa-solid fa-boxes-stacked"></i> أصناف الفاتورة
+                    </h4>
+                    <div style="display: flex; gap: 0.35rem; align-items: center;">
+                        <button type="button" 
+                                class="btn btn-sm @(purchaseProductTypeFilter == "all" ? "btn-primary" : "btn-secondary")" 
+                                style="font-size: 0.76rem; padding: 0.2rem 0.55rem;" 
+                                @onclick="@(() => purchaseProductTypeFilter = "all")">
+                            <i class="fa-solid fa-list me-1"></i> الكل
+                        </button>
+                        <button type="button" 
+                                class="btn btn-sm @(purchaseProductTypeFilter == "regular" ? "btn-primary" : "btn-secondary")" 
+                                style="font-size: 0.76rem; padding: 0.2rem 0.55rem;" 
+                                @onclick="@(() => purchaseProductTypeFilter = "regular")">
+                            <i class="fa-solid fa-box me-1"></i> منتجات عادية
+                        </button>
+                        <button type="button" 
+                                class="btn btn-sm @(purchaseProductTypeFilter == "weighed" ? "btn-primary" : "btn-secondary")" 
+                                style="font-size: 0.76rem; padding: 0.2rem 0.55rem; @(purchaseProductTypeFilter == "weighed" ? "background-color: #10b981; border-color: #059669;" : "")" 
+                                @onclick="@(() => purchaseProductTypeFilter = "weighed")">
+                            <i class="fa-solid fa-scale-balanced me-1"></i> منتجات بالوزن
+                        </button>
+                    </div>
+                </div>
+
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
                     <div class="search-box" style="width: 100%;">
                         <i class="fa-solid fa-barcode"></i>
@@ -489,7 +512,7 @@
                                @bind="scannedPurchaseBarcode" 
                                @bind:event="oninput" 
                                @onkeyup="HandlePurchaseBarcodeKeyUp" 
-                               placeholder="مسح أو إدخال الباركود... [Enter]" 
+                               placeholder="مسح أو إدخال الباركود / باركود الميزان... [Enter]" 
                                class="form-control" />
                     </div>
                     <div class="search-box" style="width: 100%;">
@@ -503,88 +526,176 @@
                 </div>
 
                 <!-- Product Selection & Multi-Unit / Expiry Row -->
-                <!-- Product Selection & Multi-Unit / Expiry Row -->
                 <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1rem;">
-                    <!-- Row 1: Product Selection & Unit Type -->
-                    <div style="display: grid; grid-template-columns: @(selectedUnitType == "carton" ? "2fr 1fr 1fr" : "2fr 1fr"); gap: 0.75rem; margin-bottom: 0.75rem; align-items: flex-end;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">اسم الصنف / المنتج</label>
-                            <select class="form-select" value="@selectedProductIdString" @onchange="OnProductSelected">
-                                <option value="">-- @(FilteredPurchaseProducts.Any() ? "اختر المنتج (" + FilteredPurchaseProducts.Count + ")" : "لا توجد نتائج مطابقة") --</option>
-                                @foreach (var p in FilteredPurchaseProducts)
-                                {
-                                    <option value="@p.Id.ToString()">@p.NameAr (@(p.PurchasePrice > 0 ? p.PurchasePrice : p.SellingPrice) ج.م)</option>
-                                }
-                            </select>
+                    @if (SelectedProduct != null && SelectedProduct.IsWeighable)
+                    {
+                        <!-- Weighable Product Notification Banner -->
+                        <div style="background: rgba(16, 185, 129, 0.08); border: 1.5px solid rgba(16, 185, 129, 0.35); border-radius: 0.5rem; padding: 0.55rem 0.85rem; margin-bottom: 0.85rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                            <div style="color: #10b981; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem;">
+                                <i class="fa-solid fa-scale-balanced fa-lg"></i>
+                                <span>صنف بالوزن (ميزان باركود / أجبان ومقطعات): @SelectedProduct.NameAr</span>
+                            </div>
+                            <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 600; font-size: 0.76rem; border: 1px solid rgba(16, 185, 129, 0.4);">
+                                توريد بالكيلوجرام (كجم)
+                            </span>
                         </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">نوع الوحدة للتوريد</label>
-                            <select class="form-select" value="@selectedUnitType" @onchange="OnUnitTypeChanged">
-                                <option value="piece">@(SelectedProduct?.BaseUnit ?? "قطعة") (الوحدة الصغرى)</option>
-                                <option value="carton">@(SelectedProduct?.ParentUnit ?? "كرتونة") (@addItemCartonFactor @(SelectedProduct?.BaseUnit ?? "قطعة"))</option>
-                            </select>
+
+                        <!-- Row 1: Product Selection & Fixed Weight Unit -->
+                        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; align-items: flex-end;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">اسم الصنف / المنتج</label>
+                                <select class="form-select" value="@selectedProductIdString" @onchange="OnProductSelected">
+                                    <option value="">-- @(FilteredPurchaseProducts.Any() ? "اختر الصنف (" + FilteredPurchaseProducts.Count + ")" : "لا توجد نتائج مطابقة") --</option>
+                                    @foreach (var p in FilteredPurchaseProducts)
+                                    {
+                                        <option value="@p.Id.ToString()">
+                                            @(p.IsWeighable ? "⚖️ [وزن] " : "📦 [عادي] ") @p.NameAr (@(p.PurchasePrice > 0 ? p.PurchasePrice : p.SellingPrice) ج.م@(p.IsWeighable ? " / كجم" : ""))
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">وحدة القياس</label>
+                                <input type="text" class="form-control" value="@(SelectedProduct?.BaseUnit ?? "كيلوجرام (كجم)")" disabled style="background: rgba(255,255,255,0.04); font-weight: 600; color: #10b981;" />
+                            </div>
                         </div>
+
+                        <!-- Row 2: Weight Quantity, Price per Kg, Production Date -->
+                        <div style="display: grid; grid-template-columns: @(SelectedProduct.TrackExpiry ? "1.2fr 1.3fr 1.3fr" : "1.2fr 1.3fr"); gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-end;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: #10b981; margin-bottom: 0.25rem; font-weight: 700;">
+                                    <i class="fa-solid fa-scale-balanced me-1"></i> الوزن المورّد (كجم)
+                                </label>
+                                <input type="number" step="0.001" min="0.001" class="form-control" @bind="addItemQty" placeholder="مثال: 12.500" style="font-weight: 700; border-color: rgba(16, 185, 129, 0.4);" />
+                                <div style="display: flex; gap: 0.3rem; margin-top: 0.35rem; flex-wrap: wrap;">
+                                    <button type="button" class="btn btn-sm btn-secondary" style="font-size: 0.7rem; padding: 0.1rem 0.4rem;" @onclick="() => addItemQty += 1m">+1 كجم</button>
+                                    <button type="button" class="btn btn-sm btn-secondary" style="font-size: 0.7rem; padding: 0.1rem 0.4rem;" @onclick="() => addItemQty += 5m">+5 كجم</button>
+                                    <button type="button" class="btn btn-sm btn-secondary" style="font-size: 0.7rem; padding: 0.1rem 0.4rem;" @onclick="() => addItemQty += 10m">+10 كجم</button>
+                                    <button type="button" class="btn btn-sm btn-secondary" style="font-size: 0.7rem; padding: 0.1rem 0.4rem;" @onclick="() => addItemQty += 25m">+25 كجم (شيكارة/قالب)</button>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">سعر شراء الكيلو (ج.م / كجم)</label>
+                                <input type="number" step="0.01" class="form-control" @bind="addItemCost" @bind:after="OnAddItemCostChanged" placeholder="سعر الكيلو" min="0" />
+                                <div style="font-size: 0.75rem; color: #10b981; margin-top: 0.35rem; font-weight: 600;">
+                                    الإجمالي: @((addItemQty * addItemCost).ToString("N2")) ج.م
+                                </div>
+                            </div>
+                            @if (SelectedProduct.TrackExpiry)
+                            {
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: flex; align-items: center; justify-content: space-between;">
+                                        <span><i class="fa-solid fa-calendar-day me-1"></i> تاريخ الإنتاج</span>
+                                        <span style="font-size: 0.7rem; color: var(--accent-indigo);">(dd/mm/yyyy)</span>
+                                    </label>
+                                    <div style="display: flex; align-items: stretch; direction: ltr; position: relative;">
+                                        <input type="text"
+                                               class="form-control"
+                                               style="font-size: 0.85rem; direction: ltr; text-align: center; font-weight: 600; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+                                               placeholder="dd/MM/yyyy"
+                                               value="@addItemProductionDateStr"
+                                               @onchange="OnProductionDateStrChanged" />
+                                        <label class="btn btn-secondary"
+                                               style="border-top-left-radius: 0; border-bottom-left-radius: 0; margin: 0; padding: 0 0.65rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); border-left: none;"
+                                               title="اختر التاريخ من التقويم">
+                                            <i class="fa-solid fa-calendar-days" style="color: var(--accent-indigo); font-size: 0.85rem; pointer-events: none;"></i>
+                                            <input type="date"
+                                                   tabindex="-1"
+                                                   style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"
+                                                   value="@(addItemProductionDate?.ToString("yyyy-MM-dd"))"
+                                                   @onchange="OnProductionDatePickerChanged" />
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Regular Product Selection & Multi-Unit (Piece / Carton) -->
+                        <!-- Row 1: Product Selection & Unit Type -->
+                        <div style="display: grid; grid-template-columns: @(selectedUnitType == "carton" ? "2fr 1fr 1fr" : "2fr 1fr"); gap: 0.75rem; margin-bottom: 0.75rem; align-items: flex-end;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">اسم الصنف / المنتج</label>
+                                <select class="form-select" value="@selectedProductIdString" @onchange="OnProductSelected">
+                                    <option value="">-- @(FilteredPurchaseProducts.Any() ? "اختر المنتج (" + FilteredPurchaseProducts.Count + ")" : "لا توجد نتائج مطابقة") --</option>
+                                    @foreach (var p in FilteredPurchaseProducts)
+                                    {
+                                        <option value="@p.Id.ToString()">
+                                            @(p.IsWeighable ? "⚖️ [وزن] " : "📦 [عادي] ") @p.NameAr (@(p.PurchasePrice > 0 ? p.PurchasePrice : p.SellingPrice) ج.م@(p.IsWeighable ? " / كجم" : ""))
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">نوع الوحدة للتوريد</label>
+                                <select class="form-select" value="@selectedUnitType" @onchange="OnUnitTypeChanged">
+                                    <option value="piece">@(SelectedProduct?.BaseUnit ?? "قطعة") (الوحدة الصغرى)</option>
+                                    <option value="carton">@(SelectedProduct?.ParentUnit ?? "كرتونة") (@addItemCartonFactor @(SelectedProduct?.BaseUnit ?? "قطعة"))</option>
+                                </select>
+                            </div>
+                            @if (selectedUnitType == "carton")
+                            {
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.8rem; color: #60a5fa; margin-bottom: 0.25rem; font-weight: 600;">قطع الكرتونة</label>
+                                    <input type="number" class="form-control" style="border-color: #3b82f6; background: rgba(59,130,246,0.07);" @bind="addItemCartonFactor" @bind:after="OnCartonFactorChanged" min="1" title="عدد القطع في الكرتونة الواحدة" />
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Row 2: Quantity, Unit Purchase Cost, Production Date (if TrackExpiry) -->
+                        <div style="display: grid; grid-template-columns: @(SelectedProduct != null && SelectedProduct.TrackExpiry ? "1fr 1.3fr 1.3fr" : "1fr 1.3fr"); gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-end;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">@(selectedUnitType == "carton" ? "عدد الكراتين" : "الكمية (بالقطعة)")</label>
+                                <input type="number" class="form-control" @bind="addItemQty" placeholder="الكمية" min="1" />
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">سعر الشراء / @(selectedUnitType == "carton" ? (SelectedProduct?.ParentUnit ?? "الكرتونة") : (SelectedProduct?.BaseUnit ?? "القطعة"))</label>
+                                <input type="number" step="0.01" class="form-control" @bind="addItemCost" @bind:after="OnAddItemCostChanged" placeholder="سعر الشراء" min="0" title="سعر شراء @(selectedUnitType == "carton" ? (SelectedProduct?.ParentUnit ?? "الكرتونة") : (SelectedProduct?.BaseUnit ?? "القطعة"))" />
+                            </div>
+                            @if (SelectedProduct != null && SelectedProduct.TrackExpiry)
+                            {
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: flex; align-items: center; justify-content: space-between;">
+                                        <span><i class="fa-solid fa-calendar-day me-1"></i> تاريخ الإنتاج</span>
+                                        <span style="font-size: 0.7rem; color: var(--accent-indigo);">(dd/mm/yyyy)</span>
+                                    </label>
+                                    <div style="display: flex; align-items: stretch; direction: ltr; position: relative;">
+                                        <input type="text"
+                                               class="form-control"
+                                               style="font-size: 0.85rem; direction: ltr; text-align: center; font-weight: 600; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+                                               placeholder="dd/MM/yyyy"
+                                               value="@addItemProductionDateStr"
+                                               @onchange="OnProductionDateStrChanged" />
+                                        <label class="btn btn-secondary"
+                                               style="border-top-left-radius: 0; border-bottom-left-radius: 0; margin: 0; padding: 0 0.65rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); border-left: none;"
+                                               title="اختر التاريخ من التقويم">
+                                            <i class="fa-solid fa-calendar-days" style="color: var(--accent-indigo); font-size: 0.85rem; pointer-events: none;"></i>
+                                            <input type="date"
+                                                   tabindex="-1"
+                                                   style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"
+                                                   value="@(addItemProductionDate?.ToString("yyyy-MM-dd"))"
+                                                   @onchange="OnProductionDatePickerChanged" />
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
                         @if (selectedUnitType == "carton")
                         {
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.8rem; color: #60a5fa; margin-bottom: 0.25rem; font-weight: 600;">قطع الكرتونة</label>
-                                <input type="number" class="form-control" style="border-color: #3b82f6; background: rgba(59,130,246,0.07);" @bind="addItemCartonFactor" @bind:after="OnCartonFactorChanged" min="1" title="عدد القطع في الكرتونة الواحدة" />
-                            </div>
-                        }
-                    </div>
-
-                    <!-- Row 2: Quantity, Unit Purchase Cost, Production Date (if TrackExpiry) -->
-                    <div style="display: grid; grid-template-columns: @(SelectedProduct != null && SelectedProduct.TrackExpiry ? "1fr 1.3fr 1.3fr" : "1fr 1.3fr"); gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-end;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">@(selectedUnitType == "carton" ? "عدد الكراتين" : "الكمية (بالقطعة)")</label>
-                            <input type="number" class="form-control" @bind="addItemQty" placeholder="الكمية" min="1" />
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">سعر الشراء / @(selectedUnitType == "carton" ? (SelectedProduct?.ParentUnit ?? "الكرتونة") : (SelectedProduct?.BaseUnit ?? "القطعة"))</label>
-                            <input type="number" step="0.01" class="form-control" @bind="addItemCost" @bind:after="OnAddItemCostChanged" placeholder="سعر الشراء" min="0" title="سعر شراء @(selectedUnitType == "carton" ? (SelectedProduct?.ParentUnit ?? "الكرتونة") : (SelectedProduct?.BaseUnit ?? "القطعة"))" />
-                        </div>
-                        @if (SelectedProduct != null && SelectedProduct.TrackExpiry)
-                        {
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: flex; align-items: center; justify-content: space-between;">
-                                    <span><i class="fa-solid fa-calendar-day me-1"></i> تاريخ الإنتاج</span>
-                                    <span style="font-size: 0.7rem; color: var(--accent-indigo);">(dd/mm/yyyy)</span>
-                                </label>
-                                <div style="display: flex; align-items: stretch; direction: ltr; position: relative;">
-                                    <input type="text"
-                                           class="form-control"
-                                           style="font-size: 0.85rem; direction: ltr; text-align: center; font-weight: 600; border-top-right-radius: 0; border-bottom-right-radius: 0;"
-                                           placeholder="dd/MM/yyyy"
-                                           value="@addItemProductionDateStr"
-                                           @onchange="OnProductionDateStrChanged" />
-                                    <label class="btn btn-secondary"
-                                           style="border-top-left-radius: 0; border-bottom-left-radius: 0; margin: 0; padding: 0 0.65rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); border-left: none;"
-                                           title="اختر التاريخ من التقويم">
-                                        <i class="fa-solid fa-calendar-days" style="color: var(--accent-indigo); font-size: 0.85rem; pointer-events: none;"></i>
-                                        <input type="date"
-                                               tabindex="-1"
-                                               style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"
-                                               value="@(addItemProductionDate?.ToString("yyyy-MM-dd"))"
-                                               @onchange="OnProductionDatePickerChanged" />
-                                    </label>
+                            var unitFactor = addItemCartonFactor > 0 ? addItemCartonFactor : 1;
+                            <div style="margin-top: 0.6rem; padding: 0.55rem 0.85rem; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 0.4rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; flex-wrap: wrap; gap: 0.5rem;">
+                                <div style="color: var(--accent-amber); display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fa-solid fa-calculator"></i>
+                                    <span>توريد بالكرتونة: <strong>@addItemQty @(SelectedProduct?.ParentUnit ?? "كرتونة")</strong> (@unitFactor قطعة/كرتونة) = <strong style="color: #60a5fa;">@(addItemQty * unitFactor) @(SelectedProduct?.BaseUnit ?? "قطعة") في المخزون</strong></span>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-secondary);">تكلفة القطعة المحسوبة: </span>
+                                    <strong style="color: var(--accent-emerald); font-size: 0.95rem;">@(addItemCost > 0 ? (addItemCost / (decimal)unitFactor).ToString("N2") : "0.00") ج.م</strong>
                                 </div>
                             </div>
                         }
-                    </div>
-
-                    @if (selectedUnitType == "carton")
-                    {
-                        var unitFactor = addItemCartonFactor > 0 ? addItemCartonFactor : 1;
-                        <div style="margin-top: 0.6rem; padding: 0.55rem 0.85rem; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 0.4rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; flex-wrap: wrap; gap: 0.5rem;">
-                            <div style="color: var(--accent-amber); display: flex; align-items: center; gap: 0.5rem;">
-                                <i class="fa-solid fa-calculator"></i>
-                                <span>توريد بالكرتونة: <strong>@addItemQty @(SelectedProduct?.ParentUnit ?? "كرتونة")</strong> (@unitFactor قطعة/كرتونة) = <strong style="color: #60a5fa;">@(addItemQty * unitFactor) @(SelectedProduct?.BaseUnit ?? "قطعة") في المخزون</strong></span>
-                            </div>
-                            <div>
-                                <span style="color: var(--text-secondary);">تكلفة القطعة المحسوبة: </span>
-                                <strong style="color: var(--accent-emerald); font-size: 0.95rem;">@(addItemCost > 0 ? (addItemCost / (decimal)unitFactor).ToString("N2") : "0.00") ج.م</strong>
-                            </div>
-                        </div>
                     }
 
                     @if (SelectedProduct != null && SelectedProduct.TrackExpiry && addItemExpiryDate.HasValue)
@@ -625,12 +736,48 @@
                     </button>
                 </div>
 
+                <!-- Invoice Items Summary Chips & Table Filter -->
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.65rem;">
+                    <!-- Metrics Summary Separating Regular and Weighed Items -->
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.82rem;">
+                        <span style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 0.4rem; padding: 0.3rem 0.65rem; color: var(--accent-indigo); font-weight: 600;">
+                            <i class="fa-solid fa-box me-1"></i> أصناف عادية: <strong>@RegularPurchaseItemsCount</strong> صنف (@RegularPurchaseItemsTotal.ToString("N2") ج.م)
+                        </span>
+                        <span style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 0.4rem; padding: 0.3rem 0.65rem; color: #10b981; font-weight: 600;">
+                            <i class="fa-solid fa-scale-balanced me-1"></i> أصناف بالوزن: <strong>@WeighedPurchaseItemsCount</strong> صنف — <strong>@TotalWeighedKg.ToString("0.000") كجم</strong> (@WeighedPurchaseItemsTotal.ToString("N2") ج.م)
+                        </span>
+                    </div>
+
+                    <!-- Table View Filter Tabs -->
+                    <div style="display: flex; gap: 0.25rem; align-items: center;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); margin-left: 0.2rem;">عرض:</span>
+                        <button type="button" 
+                                class="btn btn-sm @(purchaseTableFilter == "all" ? "btn-primary" : "btn-secondary")" 
+                                style="font-size: 0.74rem; padding: 0.15rem 0.5rem;" 
+                                @onclick="@(() => purchaseTableFilter = "all")">
+                            الكل (@purchaseItems.Count)
+                        </button>
+                        <button type="button" 
+                                class="btn btn-sm @(purchaseTableFilter == "regular" ? "btn-primary" : "btn-secondary")" 
+                                style="font-size: 0.74rem; padding: 0.15rem 0.5rem;" 
+                                @onclick="@(() => purchaseTableFilter = "regular")">
+                            <i class="fa-solid fa-box me-1"></i> عادية (@RegularPurchaseItemsCount)
+                        </button>
+                        <button type="button" 
+                                class="btn btn-sm @(purchaseTableFilter == "weighed" ? "btn-primary" : "btn-secondary")" 
+                                style="font-size: 0.74rem; padding: 0.15rem 0.5rem; @(purchaseTableFilter == "weighed" ? "background-color: #10b981; border-color: #059669;" : "")" 
+                                @onclick="@(() => purchaseTableFilter = "weighed")">
+                            <i class="fa-solid fa-scale-balanced me-1"></i> بالوزن (@WeighedPurchaseItemsCount)
+                        </button>
+                    </div>
+                </div>
+
                 <div class="table-container" style="min-height: 250px; max-height: 380px; overflow-y: auto; margin-bottom: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px;">
                     <table class="data-table">
                         <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 2; box-shadow: 0 1px 0 var(--border-color);">
                             <tr>
-                                <th style="min-width: 180px;">المنتج</th>
-                                <th style="min-width: 130px;">الكمية والوحدة</th>
+                                <th style="min-width: 200px;">المنتج</th>
+                                <th style="min-width: 140px;">الكمية / الوزن</th>
                                 <th style="min-width: 110px;">تاريخ الصلاحية</th>
                                 <th style="min-width: 100px;">رقم التشغيلة</th>
                                 <th style="min-width: 130px;">سعر التكلفة</th>
@@ -647,19 +794,51 @@
                                     </td>
                                 </tr>
                             }
+                            else if (!DisplayedPurchaseItems.Any())
+                            {
+                                <tr>
+                                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                                        لا توجد أصناف مطابقة لفلتر العرض الحالي.
+                                    </td>
+                                </tr>
+                            }
                             else
                             {
-                                @foreach (var item in purchaseItems)
+                                @foreach (var item in DisplayedPurchaseItems)
                                 {
                                     var prod = availableProducts.FirstOrDefault(p => p.Id == item.ProductId);
+                                    var isWeighed = prod?.IsWeighable == true || (item.Unit != null && (item.Unit.Contains("كجم") || item.Unit.Contains("كيلو")));
                                     var factor = (prod != null && prod.ConversionFactor > 1) ? prod.ConversionFactor : 1;
-                                    bool isCarton = !string.IsNullOrWhiteSpace(item.Unit) &&
+                                    bool isCarton = !isWeighed && !string.IsNullOrWhiteSpace(item.Unit) &&
                                                     (string.Equals(item.Unit.Trim(), "كرتونة", StringComparison.OrdinalIgnoreCase) ||
                                                      (!string.IsNullOrWhiteSpace(prod?.ParentUnit) && string.Equals(item.Unit.Trim(), prod.ParentUnit.Trim(), StringComparison.OrdinalIgnoreCase)));
                                     <tr>
-                                        <td style="font-weight: 600;">@(prod?.NameAr ?? "منتج")</td>
                                         <td>
-                                            @if (isCarton && factor > 1)
+                                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                                @if (isWeighed)
+                                                {
+                                                    <span class="badge" style="background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); font-size: 0.72rem; padding: 0.15rem 0.4rem;">
+                                                        <i class="fa-solid fa-scale-balanced me-1"></i> بالوزن
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 0.72rem; padding: 0.15rem 0.4rem;">
+                                                        <i class="fa-solid fa-box me-1"></i> عادي
+                                                    </span>
+                                                }
+                                                <span style="font-weight: 600;">@(prod?.NameAr ?? "منتج")</span>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if (isWeighed)
+                                            {
+                                                <div>
+                                                    <strong style="color: #10b981; font-size: 0.95rem;">@item.Quantity.ToString("0.000") @(prod?.BaseUnit ?? "كجم")</strong>
+                                                    <span style="font-size: 0.72rem; color: var(--text-secondary); display: block;">(وزن صافي)</span>
+                                                </div>
+                                            }
+                                            else if (isCarton && factor > 1)
                                             {
                                                 <div>
                                                     <strong style="color: var(--accent-blue);">@item.Quantity.ToString("G29") @(prod?.ParentUnit ?? "كرتونة")</strong>
@@ -678,7 +857,13 @@
                                         </td>
                                         <td>@(string.IsNullOrWhiteSpace(item.BatchNumber) ? "-" : item.BatchNumber)</td>
                                         <td>
-                                            @if (isCarton && factor > 1)
+                                            @if (isWeighed)
+                                            {
+                                                <div>
+                                                    <strong style="color: #10b981;">@item.UnitCost.ToString("N2") ج.م</strong> / كجم
+                                                </div>
+                                            }
+                                            else if (isCarton && factor > 1)
                                             {
                                                 <div>
                                                     <strong style="color: var(--accent-amber);">@item.UnitCost.ToString("N2") ج.م</strong> / @(prod?.ParentUnit ?? "كرتونة")
@@ -915,24 +1100,53 @@
                                 @foreach (var item in selectedPurchaseDetail.Items)
                                 {
                                     var pInfo = availableProducts.FirstOrDefault(p => p.Id == item.ProductId);
+                                    var isWeighed = pInfo?.IsWeighable == true || (item.BaseUnit != null && (item.BaseUnit.Contains("كجم") || item.BaseUnit.Contains("كيلو")));
                                     <tr>
                                         <td style="text-align: center; color: var(--text-muted); font-size: 0.85rem; padding: 0.5rem 0.75rem;">@idx</td>
-                                        <td style="font-weight: 600; padding: 0.5rem 0.75rem;">@item.ProductName</td>
+                                        <td style="font-weight: 600; padding: 0.5rem 0.75rem;">
+                                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                                @if (isWeighed)
+                                                {
+                                                    <span class="badge" style="background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); font-size: 0.72rem; padding: 0.15rem 0.4rem;">
+                                                        <i class="fa-solid fa-scale-balanced me-1"></i> بالوزن
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 0.72rem; padding: 0.15rem 0.4rem;">
+                                                        <i class="fa-solid fa-box me-1"></i> عادي
+                                                    </span>
+                                                }
+                                                <span>@item.ProductName</span>
+                                            </div>
+                                        </td>
                                         <td style="padding: 0.5rem 0.75rem;"><code>@(string.IsNullOrWhiteSpace(item.Barcode) ? "-" : item.Barcode)</code></td>
                                         <td style="text-align: center; font-weight: 700; color: var(--accent-blue); padding: 0.5rem 0.75rem;">
-                                            @item.Quantity.ToString("G29")
-                                            @if (pInfo != null && pInfo.ConversionFactor > 1 && item.Quantity >= pInfo.ConversionFactor)
+                                            @if (isWeighed)
                                             {
-                                                <div style="font-size: 0.72rem; color: var(--text-secondary); font-weight: normal;">
-                                                    (@PackagingUnitHelper.FormatTwoTierStockBreakdown(item.Quantity, pInfo.ConversionFactor, pInfo.BaseUnit, pInfo.ParentUnit))
+                                                <div>
+                                                    <strong style="color: #10b981; font-size: 0.95rem;">@item.Quantity.ToString("0.000") @(pInfo?.BaseUnit ?? "كجم")</strong>
+                                                    <span style="font-size: 0.72rem; color: var(--text-secondary); display: block;">(وزن صافي)</span>
                                                 </div>
+                                            }
+                                            else
+                                            {
+                                                <span>@item.Quantity.ToString("G29") @(pInfo?.BaseUnit ?? "قطعة")</span>
+                                                @if (pInfo != null && pInfo.ConversionFactor > 1 && item.Quantity >= pInfo.ConversionFactor)
+                                                {
+                                                    <div style="font-size: 0.72rem; color: var(--text-secondary); font-weight: normal;">
+                                                        (@PackagingUnitHelper.FormatTwoTierStockBreakdown(item.Quantity, pInfo.ConversionFactor, pInfo.BaseUnit, pInfo.ParentUnit))
+                                                    </div>
+                                                }
                                             }
                                         </td>
                                         <td style="color: @(item.ExpiryDate.HasValue && item.ExpiryDate.Value <= DateTime.Today ? "var(--accent-red)" : "inherit"); font-weight: 600; padding: 0.5rem 0.75rem;">
                                             @(item.ExpiryDate?.ToString("dd/MM/yyyy") ?? "-")
                                         </td>
                                         <td style="padding: 0.5rem 0.75rem;">@(string.IsNullOrWhiteSpace(item.BatchNumber) ? "-" : item.BatchNumber)</td>
-                                        <td style="text-align: left; padding: 0.5rem 0.75rem;">@item.UnitCost.ToString("N2") ج.م</td>
+                                        <td style="text-align: left; padding: 0.5rem 0.75rem;">
+                                            @item.UnitCost.ToString("N2") ج.م@(isWeighed ? " / كجم" : "")
+                                        </td>
                                         <td style="text-align: left; font-weight: 700; color: var(--accent-amber); padding: 0.5rem 0.75rem;">@item.Total.ToString("N2") ج.م</td>
                                     </tr>
                                     idx++;
@@ -1013,101 +1227,213 @@
                     </div>
                 </div>
 
-                <!-- Add Items in Edit -->
                 <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); border-radius: 0.6rem; padding: 0.9rem; margin-bottom: 1rem;">
-                    <h4 style="font-size: 0.9rem; font-weight: 700; margin-bottom: 0.6rem; color: var(--accent-indigo);">
-                        <i class="fa-solid fa-plus-circle me-1"></i> إضافة / مسح صنف في الفاتورة
-                    </h4>
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.6rem;">
+                        <h4 style="font-size: 0.9rem; font-weight: 700; margin: 0; color: var(--accent-indigo);">
+                            <i class="fa-solid fa-plus-circle me-1"></i> إضافة / مسح صنف في الفاتورة
+                        </h4>
+                        <div style="display: flex; gap: 0.35rem; align-items: center;">
+                            <button type="button" 
+                                    class="btn btn-sm @(editProductTypeFilter == "all" ? "btn-primary" : "btn-secondary")" 
+                                    style="font-size: 0.74rem; padding: 0.18rem 0.5rem;" 
+                                    @onclick="@(() => editProductTypeFilter = "all")">
+                                <i class="fa-solid fa-list me-1"></i> الكل
+                            </button>
+                            <button type="button" 
+                                    class="btn btn-sm @(editProductTypeFilter == "regular" ? "btn-primary" : "btn-secondary")" 
+                                    style="font-size: 0.74rem; padding: 0.18rem 0.5rem;" 
+                                    @onclick="@(() => editProductTypeFilter = "regular")">
+                                <i class="fa-solid fa-box me-1"></i> منتجات عادية
+                            </button>
+                            <button type="button" 
+                                    class="btn btn-sm @(editProductTypeFilter == "weighed" ? "btn-primary" : "btn-secondary")" 
+                                    style="font-size: 0.74rem; padding: 0.18rem 0.5rem; @(editProductTypeFilter == "weighed" ? "background-color: #10b981; border-color: #059669;" : "")" 
+                                    @onclick="@(() => editProductTypeFilter = "weighed")">
+                                <i class="fa-solid fa-scale-balanced me-1"></i> منتجات بالوزن
+                            </button>
+                        </div>
+                    </div>
+
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
                         <div class="search-box" style="width: 100%;">
                             <i class="fa-solid fa-barcode"></i>
-                            <input class="form-control" @bind="editScannedBarcode" @bind:event="oninput" @onkeyup="HandleEditBarcodeKeyUp" placeholder="مسح أو إدخال الباركود..." />
+                            <input class="form-control" @bind="editScannedBarcode" @bind:event="oninput" @onkeyup="HandleEditBarcodeKeyUp" placeholder="مسح أو إدخال الباركود / باركود الميزان..." />
                         </div>
                         <div class="search-box" style="width: 100%;">
                             <i class="fa-solid fa-magnifying-glass"></i>
                             <input class="form-control" @bind="editSearchProductByName" @bind:event="oninput" @onkeyup="HandleEditProductNameSearchKeyUp" placeholder="بحث عن الصنف بالاسم..." />
                         </div>
                     </div>
-                    <!-- Row 1: Product Selection & Unit Type -->
-                    <div style="display: grid; grid-template-columns: @(editSelectedUnitType == "carton" ? "2fr 1fr 1fr" : "2fr 1fr"); gap: 0.75rem; margin-bottom: 0.75rem; align-items: flex-end;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">اسم الصنف / المنتج</label>
-                            <select class="form-select" value="@editSelectedProductIdString" @onchange="OnEditProductSelected">
-                                <option value="">-- @(FilteredEditPurchaseProducts.Any() ? "اختر صنف (" + FilteredEditPurchaseProducts.Count + ")" : "لا توجد نتائج") --</option>
-                                @foreach (var prod in FilteredEditPurchaseProducts)
-                                {
-                                    <option value="@prod.Id">@prod.NameAr (@(prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice) ج.م)</option>
-                                }
-                            </select>
+
+                    @if (EditSelectedProduct != null && EditSelectedProduct.IsWeighable)
+                    {
+                        <!-- Weighable Product Notification Banner in Edit -->
+                        <div style="background: rgba(16, 185, 129, 0.08); border: 1.5px solid rgba(16, 185, 129, 0.35); border-radius: 0.5rem; padding: 0.55rem 0.85rem; margin-bottom: 0.85rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                            <div style="color: #10b981; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; font-size: 0.88rem;">
+                                <i class="fa-solid fa-scale-balanced fa-lg"></i>
+                                <span>صنف بالوزن (ميزان باركود / أجبان ومقطعات): @EditSelectedProduct.NameAr</span>
+                            </div>
+                            <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-weight: 600; font-size: 0.76rem; border: 1px solid rgba(16, 185, 129, 0.4);">
+                                توريد بالكيلوجرام (كجم)
+                            </span>
                         </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">نوع الوحدة للتوريد</label>
-                            <select class="form-select" value="@editSelectedUnitType" @onchange="OnEditUnitTypeChanged">
-                                <option value="piece">@(EditSelectedProduct?.BaseUnit ?? "قطعة") (الوحدة الصغرى)</option>
-                                <option value="carton">@(EditSelectedProduct?.ParentUnit ?? "كرتونة") (@editAddItemCartonFactor @(EditSelectedProduct?.BaseUnit ?? "قطعة"))</option>
-                            </select>
+
+                        <!-- Row 1: Product Selection & Fixed Weight Unit -->
+                        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem; align-items: flex-end;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">اسم الصنف / المنتج</label>
+                                <select class="form-select" value="@editSelectedProductIdString" @onchange="OnEditProductSelected">
+                                    <option value="">-- @(FilteredEditPurchaseProducts.Any() ? "اختر صنف (" + FilteredEditPurchaseProducts.Count + ")" : "لا توجد نتائج") --</option>
+                                    @foreach (var prod in FilteredEditPurchaseProducts)
+                                    {
+                                        <option value="@prod.Id">
+                                            @(prod.IsWeighable ? "⚖️ [وزن] " : "📦 [عادي] ") @prod.NameAr (@(prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice) ج.م@(prod.IsWeighable ? " / كجم" : ""))
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">وحدة القياس</label>
+                                <input type="text" class="form-control" value="@(EditSelectedProduct?.BaseUnit ?? "كيلوجرام (كجم)")" disabled style="background: rgba(255,255,255,0.04); font-weight: 600; color: #10b981;" />
+                            </div>
                         </div>
+
+                        <!-- Row 2: Weight Quantity, Price per Kg, Production Date -->
+                        <div style="display: grid; grid-template-columns: @(EditSelectedProduct.TrackExpiry ? "1.2fr 1.3fr 1.3fr" : "1.2fr 1.3fr"); gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-end;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: #10b981; margin-bottom: 0.25rem; font-weight: 700;">
+                                    <i class="fa-solid fa-scale-balanced me-1"></i> الوزن المورّد (كجم)
+                                </label>
+                                <input type="number" step="0.001" min="0.001" class="form-control" @bind="editAddItemQty" placeholder="مثال: 12.500" style="font-weight: 700; border-color: rgba(16, 185, 129, 0.4);" />
+                                <div style="display: flex; gap: 0.3rem; margin-top: 0.35rem; flex-wrap: wrap;">
+                                    <button type="button" class="btn btn-sm btn-secondary" style="font-size: 0.7rem; padding: 0.1rem 0.4rem;" @onclick="() => editAddItemQty += 1m">+1 كجم</button>
+                                    <button type="button" class="btn btn-sm btn-secondary" style="font-size: 0.7rem; padding: 0.1rem 0.4rem;" @onclick="() => editAddItemQty += 5m">+5 كجم</button>
+                                    <button type="button" class="btn btn-sm btn-secondary" style="font-size: 0.7rem; padding: 0.1rem 0.4rem;" @onclick="() => editAddItemQty += 10m">+10 كجم</button>
+                                    <button type="button" class="btn btn-sm btn-secondary" style="font-size: 0.7rem; padding: 0.1rem 0.4rem;" @onclick="() => editAddItemQty += 25m">+25 كجم (شيكارة/قالب)</button>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">سعر شراء الكيلو (ج.م / كجم)</label>
+                                <input type="number" step="0.01" class="form-control" @bind="editAddItemCost" @bind:after="OnEditAddItemCostChanged" placeholder="سعر الكيلو" min="0" />
+                                <div style="font-size: 0.75rem; color: #10b981; margin-top: 0.35rem; font-weight: 600;">
+                                    الإجمالي: @((editAddItemQty * editAddItemCost).ToString("N2")) ج.م
+                                </div>
+                            </div>
+                            @if (EditSelectedProduct.TrackExpiry)
+                            {
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: flex; align-items: center; justify-content: space-between;">
+                                        <span><i class="fa-solid fa-calendar-day me-1"></i> تاريخ الإنتاج</span>
+                                        <span style="font-size: 0.7rem; color: var(--accent-indigo);">(dd/mm/yyyy)</span>
+                                    </label>
+                                    <div style="display: flex; align-items: stretch; direction: ltr; position: relative;">
+                                        <input type="text"
+                                               class="form-control"
+                                               style="font-size: 0.85rem; direction: ltr; text-align: center; font-weight: 600; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+                                               placeholder="dd/MM/yyyy"
+                                               value="@editAddItemProductionDateStr"
+                                               @onchange="OnEditProductionDateStrChanged" />
+                                        <label class="btn btn-secondary"
+                                               style="border-top-left-radius: 0; border-bottom-left-radius: 0; margin: 0; padding: 0 0.65rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); border-left: none;"
+                                               title="اختر التاريخ من التقويم">
+                                            <i class="fa-solid fa-calendar-days" style="color: var(--accent-indigo); font-size: 0.85rem; pointer-events: none;"></i>
+                                            <input type="date"
+                                                   tabindex="-1"
+                                                   style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"
+                                                   value="@(editAddItemProductionDate?.ToString("yyyy-MM-dd"))"
+                                                   @onchange="OnEditProductionDatePickerChanged" />
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Regular Product Selection & Multi-Unit in Edit -->
+                        <!-- Row 1: Product Selection & Unit Type -->
+                        <div style="display: grid; grid-template-columns: @(editSelectedUnitType == "carton" ? "2fr 1fr 1fr" : "2fr 1fr"); gap: 0.75rem; margin-bottom: 0.75rem; align-items: flex-end;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">اسم الصنف / المنتج</label>
+                                <select class="form-select" value="@editSelectedProductIdString" @onchange="OnEditProductSelected">
+                                    <option value="">-- @(FilteredEditPurchaseProducts.Any() ? "اختر صنف (" + FilteredEditPurchaseProducts.Count + ")" : "لا توجد نتائج") --</option>
+                                    @foreach (var prod in FilteredEditPurchaseProducts)
+                                    {
+                                        <option value="@prod.Id">
+                                            @(prod.IsWeighable ? "⚖️ [وزن] " : "📦 [عادي] ") @prod.NameAr (@(prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice) ج.م@(prod.IsWeighable ? " / كجم" : ""))
+                                        </option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">نوع الوحدة للتوريد</label>
+                                <select class="form-select" value="@editSelectedUnitType" @onchange="OnEditUnitTypeChanged">
+                                    <option value="piece">@(EditSelectedProduct?.BaseUnit ?? "قطعة") (الوحدة الصغرى)</option>
+                                    <option value="carton">@(EditSelectedProduct?.ParentUnit ?? "كرتونة") (@editAddItemCartonFactor @(EditSelectedProduct?.BaseUnit ?? "قطعة"))</option>
+                                </select>
+                            </div>
+                            @if (editSelectedUnitType == "carton")
+                            {
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.8rem; color: #60a5fa; margin-bottom: 0.25rem; font-weight: 600;">قطع الكرتونة</label>
+                                    <input type="number" class="form-control" style="border-color: #3b82f6; background: rgba(59,130,246,0.07);" @bind="editAddItemCartonFactor" @bind:after="OnEditCartonFactorChanged" min="1" title="عدد القطع في الكرتونة الواحدة" />
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Row 2: Quantity, Unit Purchase Cost, Production Date (if TrackExpiry) -->
+                        <div style="display: grid; grid-template-columns: @(EditSelectedProduct != null && EditSelectedProduct.TrackExpiry ? "1fr 1.3fr 1.3fr" : "1fr 1.3fr"); gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-end;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">@(editSelectedUnitType == "carton" ? "عدد الكراتين" : "الكمية (بالقطعة)")</label>
+                                <input type="number" step="1" class="form-control" @bind="editAddItemQty" placeholder="الكمية" min="1" />
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">سعر الشراء / @(editSelectedUnitType == "carton" ? (EditSelectedProduct?.ParentUnit ?? "الكرتونة") : (EditSelectedProduct?.BaseUnit ?? "القطعة"))</label>
+                                <input type="number" step="0.01" class="form-control" @bind="editAddItemCost" @bind:after="OnEditAddItemCostChanged" placeholder="سعر الشراء" min="0" title="سعر شراء @(editSelectedUnitType == "carton" ? (EditSelectedProduct?.ParentUnit ?? "الكرتونة") : (EditSelectedProduct?.BaseUnit ?? "القطعة"))" />
+                            </div>
+                            @if (EditSelectedProduct != null && EditSelectedProduct.TrackExpiry)
+                            {
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: flex; align-items: center; justify-content: space-between;">
+                                        <span><i class="fa-solid fa-calendar-day me-1"></i> تاريخ الإنتاج</span>
+                                        <span style="font-size: 0.7rem; color: var(--accent-indigo);">(dd/mm/yyyy)</span>
+                                    </label>
+                                    <div style="display: flex; align-items: stretch; direction: ltr; position: relative;">
+                                        <input type="text"
+                                               class="form-control"
+                                               style="font-size: 0.85rem; direction: ltr; text-align: center; font-weight: 600; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+                                               placeholder="dd/MM/yyyy"
+                                               value="@editAddItemProductionDateStr"
+                                               @onchange="OnEditProductionDateStrChanged" />
+                                        <label class="btn btn-secondary"
+                                               style="border-top-left-radius: 0; border-bottom-left-radius: 0; margin: 0; padding: 0 0.65rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); border-left: none;"
+                                               title="اختر التاريخ من التقويم">
+                                            <i class="fa-solid fa-calendar-days" style="color: var(--accent-indigo); font-size: 0.85rem; pointer-events: none;"></i>
+                                            <input type="date"
+                                                   tabindex="-1"
+                                                   style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"
+                                                   value="@(editAddItemProductionDate?.ToString("yyyy-MM-dd"))"
+                                                   @onchange="OnEditProductionDatePickerChanged" />
+                                        </label>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
                         @if (editSelectedUnitType == "carton")
                         {
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.8rem; color: #60a5fa; margin-bottom: 0.25rem; font-weight: 600;">قطع الكرتونة</label>
-                                <input type="number" class="form-control" style="border-color: #3b82f6; background: rgba(59,130,246,0.07);" @bind="editAddItemCartonFactor" @bind:after="OnEditCartonFactorChanged" min="1" title="عدد القطع في الكرتونة الواحدة" />
-                            </div>
-                        }
-                    </div>
-
-                    <!-- Row 2: Quantity, Unit Purchase Cost, Production Date (if TrackExpiry) -->
-                    <div style="display: grid; grid-template-columns: @(EditSelectedProduct != null && EditSelectedProduct.TrackExpiry ? "1fr 1.3fr 1.3fr" : "1fr 1.3fr"); gap: 0.75rem; margin-bottom: 0.5rem; align-items: flex-end;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">@(editSelectedUnitType == "carton" ? "عدد الكراتين" : "الكمية (بالقطعة)")</label>
-                            <input type="number" step="1" class="form-control" @bind="editAddItemQty" placeholder="الكمية" min="1" />
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">سعر الشراء / @(editSelectedUnitType == "carton" ? (EditSelectedProduct?.ParentUnit ?? "الكرتونة") : (EditSelectedProduct?.BaseUnit ?? "القطعة"))</label>
-                            <input type="number" step="0.01" class="form-control" @bind="editAddItemCost" @bind:after="OnEditAddItemCostChanged" placeholder="سعر الشراء" min="0" title="سعر شراء @(editSelectedUnitType == "carton" ? (EditSelectedProduct?.ParentUnit ?? "الكرتونة") : (EditSelectedProduct?.BaseUnit ?? "القطعة"))" />
-                        </div>
-                        @if (EditSelectedProduct != null && EditSelectedProduct.TrackExpiry)
-                        {
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: flex; align-items: center; justify-content: space-between;">
-                                    <span><i class="fa-solid fa-calendar-day me-1"></i> تاريخ الإنتاج</span>
-                                    <span style="font-size: 0.7rem; color: var(--accent-indigo);">(dd/mm/yyyy)</span>
-                                </label>
-                                <div style="display: flex; align-items: stretch; direction: ltr; position: relative;">
-                                    <input type="text"
-                                           class="form-control"
-                                           style="font-size: 0.85rem; direction: ltr; text-align: center; font-weight: 600; border-top-right-radius: 0; border-bottom-right-radius: 0;"
-                                           placeholder="dd/MM/yyyy"
-                                           value="@editAddItemProductionDateStr"
-                                           @onchange="OnEditProductionDateStrChanged" />
-                                    <label class="btn btn-secondary"
-                                           style="border-top-left-radius: 0; border-bottom-left-radius: 0; margin: 0; padding: 0 0.65rem; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; background: rgba(255,255,255,0.08); border: 1px solid var(--border-color); border-left: none;"
-                                           title="اختر التاريخ من التقويم">
-                                        <i class="fa-solid fa-calendar-days" style="color: var(--accent-indigo); font-size: 0.85rem; pointer-events: none;"></i>
-                                        <input type="date"
-                                               tabindex="-1"
-                                               style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;"
-                                               value="@(editAddItemProductionDate?.ToString("yyyy-MM-dd"))"
-                                               @onchange="OnEditProductionDatePickerChanged" />
-                                    </label>
+                            var editUnitFactor = editAddItemCartonFactor > 0 ? editAddItemCartonFactor : 1;
+                            <div style="margin-top: 0.6rem; padding: 0.55rem 0.85rem; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 0.4rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; flex-wrap: gap; gap: 0.5rem;">
+                                <div style="color: var(--accent-amber); display: flex; align-items: center; gap: 0.5rem;">
+                                    <i class="fa-solid fa-calculator"></i>
+                                    <span>توريد بالكرتونة: <strong>@editAddItemQty @(EditSelectedProduct?.ParentUnit ?? "كرتونة")</strong> (@editUnitFactor قطعة/كرتونة) = <strong style="color: #60a5fa;">@(editAddItemQty * editUnitFactor) @(EditSelectedProduct?.BaseUnit ?? "قطعة") في المخزون</strong></span>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-secondary);">تكلفة القطعة المحسوبة: </span>
+                                    <strong style="color: var(--accent-emerald); font-size: 0.95rem;">@(editAddItemCost > 0 ? (editAddItemCost / (decimal)editUnitFactor).ToString("N2") : "0.00") ج.م</strong>
                                 </div>
                             </div>
                         }
-                    </div>
-
-                    @if (editSelectedUnitType == "carton")
-                    {
-                        var editUnitFactor = editAddItemCartonFactor > 0 ? editAddItemCartonFactor : 1;
-                        <div style="margin-top: 0.6rem; padding: 0.55rem 0.85rem; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 0.4rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem; flex-wrap: gap; gap: 0.5rem;">
-                            <div style="color: var(--accent-amber); display: flex; align-items: center; gap: 0.5rem;">
-                                <i class="fa-solid fa-calculator"></i>
-                                <span>توريد بالكرتونة: <strong>@editAddItemQty @(EditSelectedProduct?.ParentUnit ?? "كرتونة")</strong> (@editUnitFactor قطعة/كرتونة) = <strong style="color: #60a5fa;">@(editAddItemQty * editUnitFactor) @(EditSelectedProduct?.BaseUnit ?? "قطعة") في المخزون</strong></span>
-                            </div>
-                            <div>
-                                <span style="color: var(--text-secondary);">تكلفة القطعة المحسوبة: </span>
-                                <strong style="color: var(--accent-emerald); font-size: 0.95rem;">@(editAddItemCost > 0 ? (editAddItemCost / (decimal)editUnitFactor).ToString("N2") : "0.00") ج.م</strong>
-                            </div>
-                        </div>
                     }
 
                     @if (EditSelectedProduct != null && EditSelectedProduct.TrackExpiry && editAddItemExpiryDate.HasValue)
@@ -1148,16 +1474,50 @@
                     </button>
                 </div>
 
+                <!-- Invoice Items Summary Chips & Table Filter in Edit -->
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.65rem;">
+                    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; font-size: 0.82rem;">
+                        <span style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.25); border-radius: 0.4rem; padding: 0.3rem 0.65rem; color: var(--accent-indigo); font-weight: 600;">
+                            <i class="fa-solid fa-box me-1"></i> أصناف عادية: <strong>@EditRegularPurchaseItemsCount</strong> صنف (@EditRegularPurchaseItemsTotal.ToString("N2") ج.م)
+                        </span>
+                        <span style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 0.4rem; padding: 0.3rem 0.65rem; color: #10b981; font-weight: 600;">
+                            <i class="fa-solid fa-scale-balanced me-1"></i> أصناف بالوزن: <strong>@EditWeighedPurchaseItemsCount</strong> صنف — <strong>@EditTotalWeighedKg.ToString("0.000") كجم</strong> (@EditWeighedPurchaseItemsTotal.ToString("N2") ج.م)
+                        </span>
+                    </div>
+
+                    <div style="display: flex; gap: 0.25rem; align-items: center;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); margin-left: 0.2rem;">عرض:</span>
+                        <button type="button" 
+                                class="btn btn-sm @(editTableFilter == "all" ? "btn-primary" : "btn-secondary")" 
+                                style="font-size: 0.74rem; padding: 0.15rem 0.5rem;" 
+                                @onclick="@(() => editTableFilter = "all")">
+                            الكل (@editPurchaseItems.Count)
+                        </button>
+                        <button type="button" 
+                                class="btn btn-sm @(editTableFilter == "regular" ? "btn-primary" : "btn-secondary")" 
+                                style="font-size: 0.74rem; padding: 0.15rem 0.5rem;" 
+                                @onclick="@(() => editTableFilter = "regular")">
+                            <i class="fa-solid fa-box me-1"></i> عادية (@EditRegularPurchaseItemsCount)
+                        </button>
+                        <button type="button" 
+                                class="btn btn-sm @(editTableFilter == "weighed" ? "btn-primary" : "btn-secondary")" 
+                                style="font-size: 0.74rem; padding: 0.15rem 0.5rem; @(editTableFilter == "weighed" ? "background-color: #10b981; border-color: #059669;" : "")" 
+                                @onclick="@(() => editTableFilter = "weighed")">
+                            <i class="fa-solid fa-scale-balanced me-1"></i> بالوزن (@EditWeighedPurchaseItemsCount)
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Items Table in Edit -->
                 <div class="table-container" style="min-height: 250px; max-height: 380px; overflow-y: auto; margin-bottom: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px;">
                     <table class="data-table">
                         <thead style="position: sticky; top: 0; background: var(--bg-card); z-index: 2; box-shadow: 0 1px 0 var(--border-color);">
                             <tr>
-                                <th>اسم الصنف</th>
-                                <th style="width: 80px; text-align: center;">الكمية</th>
+                                <th style="min-width: 180px;">اسم الصنف</th>
+                                <th style="min-width: 110px; text-align: center;">الكمية / الوزن</th>
                                 <th>الصلاحية</th>
                                 <th>التشغيلة</th>
-                                <th style="width: 105px; text-align: left;">سعر التكلفة</th>
+                                <th style="width: 115px; text-align: left;">سعر التكلفة</th>
                                 <th style="width: 105px; text-align: left;">الإجمالي</th>
                                 <th style="width: 70px; text-align: center;"></th>
                             </tr>
@@ -1171,30 +1531,65 @@
                                     </td>
                                 </tr>
                             }
+                            else if (!DisplayedEditPurchaseItems.Any())
+                            {
+                                <tr>
+                                    <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                                        لا توجد أصناف مطابقة لفلتر العرض الحالي.
+                                    </td>
+                                </tr>
+                            }
                             else
                             {
-                                @foreach (var item in editPurchaseItems)
+                                @foreach (var item in DisplayedEditPurchaseItems)
                                 {
                                     var prod = availableProducts.FirstOrDefault(p => p.Id == item.ProductId);
+                                    var isWeighed = prod?.IsWeighable == true || (item.Unit != null && (item.Unit.Contains("كجم") || item.Unit.Contains("كيلو")));
                                     var factor = (prod != null && prod.ConversionFactor > 1) ? prod.ConversionFactor : 1;
-                                    bool isCarton = !string.IsNullOrWhiteSpace(item.Unit) &&
+                                    bool isCarton = !isWeighed && !string.IsNullOrWhiteSpace(item.Unit) &&
                                                     (string.Equals(item.Unit.Trim(), "كرتونة", StringComparison.OrdinalIgnoreCase) ||
                                                      (!string.IsNullOrWhiteSpace(prod?.ParentUnit) && string.Equals(item.Unit.Trim(), prod.ParentUnit.Trim(), StringComparison.OrdinalIgnoreCase)));
                                     <tr>
-                                        <td style="font-weight: 600;">@(prod?.NameAr ?? "صنف")</td>
+                                        <td style="font-weight: 600;">
+                                            <div style="display: flex; align-items: center; gap: 0.4rem;">
+                                                @if (isWeighed)
+                                                {
+                                                    <span class="badge" style="background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); font-size: 0.72rem; padding: 0.15rem 0.4rem;">
+                                                        <i class="fa-solid fa-scale-balanced me-1"></i> بالوزن
+                                                    </span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge" style="background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3); font-size: 0.72rem; padding: 0.15rem 0.4rem;">
+                                                        <i class="fa-solid fa-box me-1"></i> عادي
+                                                    </span>
+                                                }
+                                                <span>@(prod?.NameAr ?? "صنف")</span>
+                                            </div>
+                                        </td>
                                         <td style="text-align: center;">
-                                            <input type="number" step="1" min="1" class="form-control" style="width: 75px; padding: 0.2rem 0.4rem; text-align: center; margin: auto;" value="@item.Quantity" @onchange="@(e => UpdateEditItemQty(item, e.Value))" />
-                                            @if (isCarton && factor > 1)
+                                            @if (isWeighed)
                                             {
-                                                <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.2rem;">
-                                                    @(prod?.ParentUnit ?? "كرتونة") (@((item.Quantity * factor).ToString("N0")) @(prod?.BaseUnit ?? "قطعة"))
+                                                <input type="number" step="0.001" min="0.001" class="form-control" style="width: 85px; padding: 0.2rem 0.4rem; text-align: center; margin: auto; font-weight: 700; color: #10b981;" value="@item.Quantity" @onchange="@(e => UpdateEditItemQty(item, e.Value))" />
+                                                <div style="font-size: 0.72rem; color: #10b981; margin-top: 0.2rem; font-weight: 600;">
+                                                    @(prod?.BaseUnit ?? "كجم") (صافي)
                                                 </div>
                                             }
                                             else
                                             {
-                                                <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.2rem;">
-                                                    @(prod?.BaseUnit ?? "قطعة")
-                                                </div>
+                                                <input type="number" step="1" min="1" class="form-control" style="width: 75px; padding: 0.2rem 0.4rem; text-align: center; margin: auto;" value="@item.Quantity" @onchange="@(e => UpdateEditItemQty(item, e.Value))" />
+                                                @if (isCarton && factor > 1)
+                                                {
+                                                    <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.2rem;">
+                                                        @(prod?.ParentUnit ?? "كرتونة") (@((item.Quantity * factor).ToString("N0")) @(prod?.BaseUnit ?? "قطعة"))
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 0.2rem;">
+                                                        @(prod?.BaseUnit ?? "قطعة")
+                                                    </div>
+                                                }
                                             }
                                         </td>
                                         <td style="font-size: 0.82rem; color: @(item.ExpiryDate.HasValue && item.ExpiryDate.Value <= DateTime.Today ? "var(--accent-red)" : "inherit");">
@@ -1203,7 +1598,13 @@
                                         <td style="font-size: 0.82rem;">@(string.IsNullOrWhiteSpace(item.BatchNumber) ? "-" : item.BatchNumber)</td>
                                         <td style="text-align: left;">
                                             <input type="number" step="0.01" min="0" class="form-control" style="width: 85px; padding: 0.2rem 0.4rem; text-align: left;" value="@item.UnitCost" @onchange="@(e => UpdateEditItemCost(item, e.Value))" />
-                                            @if (isCarton && factor > 1)
+                                            @if (isWeighed)
+                                            {
+                                                <div style="font-size: 0.7rem; color: #10b981; margin-top: 0.2rem;">
+                                                    (لكل كجم)
+                                                </div>
+                                            }
+                                            else if (isCarton && factor > 1)
                                             {
                                                 <div style="font-size: 0.7rem; color: var(--accent-emerald); margin-top: 0.2rem;">
                                                     (@((item.UnitCost / factor).ToString("N2")) ج.م للقطعة)
@@ -1922,7 +2323,11 @@
                 purchasePaidAmount,
                 isFullPayment,
                 purchaseItems,
-                productId => availableProducts.FirstOrDefault(p => p.Id == productId)?.NameAr ?? "");
+                productId =>
+                {
+                    var p = availableProducts.FirstOrDefault(x => x.Id == productId);
+                    return (p?.NameAr ?? "", p?.IsWeighable ?? false);
+                });
         }
         else
         {
@@ -1998,18 +2403,32 @@
         editPurchasePaidAmount = 0;
     }
 
+    // Product Type and Table Filters
+    private string purchaseProductTypeFilter = "all"; // "all" | "regular" | "weighed"
+    private string editProductTypeFilter = "all";
+
+    private string purchaseTableFilter = "all"; // "all" | "regular" | "weighed"
+    private string editTableFilter = "all";
+
     private List<ProductDto> FilteredPurchaseProducts
     {
         get
         {
-            if (string.IsNullOrWhiteSpace(searchProductByName))
-                return availableProducts;
+            var query = availableProducts.AsEnumerable();
+            if (purchaseProductTypeFilter == "regular")
+                query = query.Where(p => !p.IsWeighable);
+            else if (purchaseProductTypeFilter == "weighed")
+                query = query.Where(p => p.IsWeighable);
 
-            return availableProducts.Where(p =>
-                (p.NameAr != null && p.NameAr.Contains(searchProductByName, StringComparison.OrdinalIgnoreCase)) ||
-                (p.NameEn != null && p.NameEn.Contains(searchProductByName, StringComparison.OrdinalIgnoreCase)) ||
-                (p.Barcode != null && p.Barcode.Contains(searchProductByName, StringComparison.OrdinalIgnoreCase))
-            ).ToList();
+            if (!string.IsNullOrWhiteSpace(searchProductByName))
+            {
+                query = query.Where(p =>
+                    (p.NameAr != null && p.NameAr.Contains(searchProductByName, StringComparison.OrdinalIgnoreCase)) ||
+                    (p.NameEn != null && p.NameEn.Contains(searchProductByName, StringComparison.OrdinalIgnoreCase)) ||
+                    (p.Barcode != null && p.Barcode.Contains(searchProductByName, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            return query.ToList();
         }
     }
 
@@ -2017,14 +2436,115 @@
     {
         get
         {
-            if (string.IsNullOrWhiteSpace(editSearchProductByName))
-                return availableProducts;
+            var query = availableProducts.AsEnumerable();
+            if (editProductTypeFilter == "regular")
+                query = query.Where(p => !p.IsWeighable);
+            else if (editProductTypeFilter == "weighed")
+                query = query.Where(p => p.IsWeighable);
 
-            return availableProducts.Where(p =>
-                (p.NameAr != null && p.NameAr.Contains(editSearchProductByName, StringComparison.OrdinalIgnoreCase)) ||
-                (p.NameEn != null && p.NameEn.Contains(editSearchProductByName, StringComparison.OrdinalIgnoreCase)) ||
-                (p.Barcode != null && p.Barcode.Contains(editSearchProductByName, StringComparison.OrdinalIgnoreCase))
-            ).ToList();
+            if (!string.IsNullOrWhiteSpace(editSearchProductByName))
+            {
+                query = query.Where(p =>
+                    (p.NameAr != null && p.NameAr.Contains(editSearchProductByName, StringComparison.OrdinalIgnoreCase)) ||
+                    (p.NameEn != null && p.NameEn.Contains(editSearchProductByName, StringComparison.OrdinalIgnoreCase)) ||
+                    (p.Barcode != null && p.Barcode.Contains(editSearchProductByName, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            return query.ToList();
+        }
+    }
+
+    private int RegularPurchaseItemsCount => purchaseItems.Count(i => {
+        var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+        return p == null || !p.IsWeighable;
+    });
+
+    private decimal RegularPurchaseItemsTotal => purchaseItems.Where(i => {
+        var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+        return p == null || !p.IsWeighable;
+    }).Sum(i => i.Quantity * i.UnitCost);
+
+    private int WeighedPurchaseItemsCount => purchaseItems.Count(i => {
+        var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+        return p != null && p.IsWeighable;
+    });
+
+    private decimal TotalWeighedKg => purchaseItems.Where(i => {
+        var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+        return p != null && p.IsWeighable;
+    }).Sum(i => i.Quantity);
+
+    private decimal WeighedPurchaseItemsTotal => purchaseItems.Where(i => {
+        var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+        return p != null && p.IsWeighable;
+    }).Sum(i => i.Quantity * i.UnitCost);
+
+    private IEnumerable<CreatePurchaseItemRequest> DisplayedPurchaseItems
+    {
+        get
+        {
+            if (purchaseTableFilter == "regular")
+            {
+                return purchaseItems.Where(i => {
+                    var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+                    return p == null || !p.IsWeighable;
+                });
+            }
+            if (purchaseTableFilter == "weighed")
+            {
+                return purchaseItems.Where(i => {
+                    var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+                    return p != null && p.IsWeighable;
+                });
+            }
+            return purchaseItems;
+        }
+    }
+
+    private int EditRegularPurchaseItemsCount => editPurchaseItems.Count(i => {
+        var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+        return p == null || !p.IsWeighable;
+    });
+
+    private decimal EditRegularPurchaseItemsTotal => editPurchaseItems.Where(i => {
+        var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+        return p == null || !p.IsWeighable;
+    }).Sum(i => i.Quantity * i.UnitCost);
+
+    private int EditWeighedPurchaseItemsCount => editPurchaseItems.Count(i => {
+        var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+        return p != null && p.IsWeighable;
+    });
+
+    private decimal EditTotalWeighedKg => editPurchaseItems.Where(i => {
+        var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+        return p != null && p.IsWeighable;
+    }).Sum(i => i.Quantity);
+
+    private decimal EditWeighedPurchaseItemsTotal => editPurchaseItems.Where(i => {
+        var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+        return p != null && p.IsWeighable;
+    }).Sum(i => i.Quantity * i.UnitCost);
+
+    private IEnumerable<CreatePurchaseItemRequest> DisplayedEditPurchaseItems
+    {
+        get
+        {
+            if (editTableFilter == "regular")
+            {
+                return editPurchaseItems.Where(i => {
+                    var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+                    return p == null || !p.IsWeighable;
+                });
+            }
+            if (editTableFilter == "weighed")
+            {
+                return editPurchaseItems.Where(i => {
+                    var p = availableProducts.FirstOrDefault(x => x.Id == i.ProductId);
+                    return p != null && p.IsWeighable;
+                });
+            }
+            return editPurchaseItems;
         }
     }
 
@@ -2418,7 +2938,6 @@
     private void OnEditProductSelected(ChangeEventArgs e)
     {
         editSelectedProductIdString = e.Value?.ToString() ?? string.Empty;
-        editSelectedUnitType = "piece";
         if (Guid.TryParse(editSelectedProductIdString, out var pId))
         {
             var prod = availableProducts.FirstOrDefault(p => p.Id == pId);
@@ -2426,8 +2945,10 @@
             {
                 editCurrentProductPackaging = PackagingUnitHelper.Parse(prod.Description);
                 editAddItemCartonFactor = ResolveProductCartonFactor(prod);
+                editSelectedUnitType = prod.IsWeighable ? "weight" : "piece";
                 editBaseProductPieceCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
                 editAddItemCost = editBaseProductPieceCost;
+                editAddItemQty = prod.IsWeighable ? 1.000m : 1m;
                 if (prod.TrackExpiry)
                 {
                     editAddItemProductionDate ??= editPurchaseDate.Date;
@@ -2446,10 +2967,12 @@
         }
         else
         {
+            editSelectedUnitType = "piece";
             editCurrentProductPackaging = new(1, 1);
             editAddItemCartonFactor = 12;
             editBaseProductPieceCost = 0;
             editAddItemCost = 0;
+            editAddItemQty = 1;
             editAddItemProductionDate = null;
             editAddItemProductionDateStr = string.Empty;
             editAddItemExpiryDate = null;
@@ -2463,7 +2986,28 @@
             var code = editScannedBarcode.Trim();
             editScannedBarcode = string.Empty;
 
-            var prod = availableProducts.FirstOrDefault(p => string.Equals(p.Barcode, code, StringComparison.OrdinalIgnoreCase));
+            ProductDto? prod = null;
+            decimal? parsedWeight = null;
+
+            if (ScaleBarcodeHelper.IsScaleBarcode(code))
+            {
+                var scaleResult = ScaleBarcodeHelper.Parse(code);
+                if (scaleResult.IsScaleBarcode && scaleResult.CandidateCodes != null && scaleResult.CandidateCodes.Any())
+                {
+                    prod = availableProducts.FirstOrDefault(p =>
+                        p.IsWeighable &&
+                        scaleResult.CandidateCodes.Any(c => string.Equals(p.Barcode, c, StringComparison.OrdinalIgnoreCase)));
+                    if (prod != null)
+                    {
+                        parsedWeight = scaleResult.WeightInKg;
+                    }
+                }
+            }
+
+            if (prod is null)
+            {
+                prod = availableProducts.FirstOrDefault(p => string.Equals(p.Barcode, code, StringComparison.OrdinalIgnoreCase));
+            }
             if (prod is null)
             {
                 prod = await ApiClient.GetProductByBarcodeAsync(code);
@@ -2474,9 +3018,18 @@
                 editSelectedProductIdString = prod.Id.ToString();
                 editCurrentProductPackaging = PackagingUnitHelper.Parse(prod.Description);
                 editAddItemCartonFactor = ResolveProductCartonFactor(prod);
-                editSelectedUnitType = "piece";
+                editSelectedUnitType = prod.IsWeighable ? "weight" : "piece";
                 editBaseProductPieceCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
                 editAddItemCost = editBaseProductPieceCost;
+                if (parsedWeight.HasValue && parsedWeight.Value > 0)
+                {
+                    editAddItemQty = parsedWeight.Value;
+                }
+                else
+                {
+                    editAddItemQty = prod.IsWeighable ? 1.000m : 1m;
+                }
+
                 if (prod.TrackExpiry)
                 {
                     editAddItemProductionDate ??= editPurchaseDate.Date;
@@ -2515,7 +3068,9 @@
         }
 
         var prod = availableProducts.FirstOrDefault(p => p.Id == pId);
-        string unitName = editSelectedUnitType == "carton" ? (prod?.ParentUnit ?? "كرتونة") : (prod?.BaseUnit ?? "قطعة");
+        string unitName = prod != null && prod.IsWeighable
+            ? (string.IsNullOrWhiteSpace(prod.BaseUnit) ? "كجم" : prod.BaseUnit)
+            : (editSelectedUnitType == "carton" ? (prod?.ParentUnit ?? "كرتونة") : (prod?.BaseUnit ?? "قطعة"));
 
         editPurchaseItems.Add(new CreatePurchaseItemRequest(
             pId,
@@ -2536,6 +3091,7 @@
         editSelectedProductIdString = string.Empty;
         errorMessage = string.Empty;
     }
+
 
     private void UpdateEditItemQty(CreatePurchaseItemRequest item, object? val)
     {
@@ -2692,7 +3248,6 @@
     private void OnProductSelected(ChangeEventArgs e)
     {
         selectedProductIdString = e.Value?.ToString() ?? string.Empty;
-        selectedUnitType = "piece";
         if (Guid.TryParse(selectedProductIdString, out var pId))
         {
             var prod = availableProducts.FirstOrDefault(p => p.Id == pId);
@@ -2700,8 +3255,10 @@
             {
                 currentProductPackaging = PackagingUnitHelper.Parse(prod.Description);
                 addItemCartonFactor = ResolveProductCartonFactor(prod);
+                selectedUnitType = prod.IsWeighable ? "weight" : "piece";
                 baseProductPieceCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
                 addItemCost = baseProductPieceCost;
+                addItemQty = prod.IsWeighable ? 1.000m : 1m;
                 if (prod.TrackExpiry)
                 {
                     addItemProductionDate ??= purchaseInvoiceDate.Date;
@@ -2720,10 +3277,12 @@
         }
         else
         {
+            selectedUnitType = "piece";
             currentProductPackaging = new(1, 1);
             addItemCartonFactor = 12;
             baseProductPieceCost = 0;
             addItemCost = 0;
+            addItemQty = 1;
             addItemProductionDate = null;
             addItemProductionDateStr = string.Empty;
             addItemExpiryDate = null;
@@ -2737,7 +3296,28 @@
             var code = scannedPurchaseBarcode.Trim();
             scannedPurchaseBarcode = string.Empty;
 
-            var prod = availableProducts.FirstOrDefault(p => string.Equals(p.Barcode, code, StringComparison.OrdinalIgnoreCase));
+            ProductDto? prod = null;
+            decimal? parsedWeight = null;
+
+            if (ScaleBarcodeHelper.IsScaleBarcode(code))
+            {
+                var scaleResult = ScaleBarcodeHelper.Parse(code);
+                if (scaleResult.IsScaleBarcode && scaleResult.CandidateCodes != null && scaleResult.CandidateCodes.Any())
+                {
+                    prod = availableProducts.FirstOrDefault(p =>
+                        p.IsWeighable &&
+                        scaleResult.CandidateCodes.Any(c => string.Equals(p.Barcode, c, StringComparison.OrdinalIgnoreCase)));
+                    if (prod != null)
+                    {
+                        parsedWeight = scaleResult.WeightInKg;
+                    }
+                }
+            }
+
+            if (prod is null)
+            {
+                prod = availableProducts.FirstOrDefault(p => string.Equals(p.Barcode, code, StringComparison.OrdinalIgnoreCase));
+            }
             if (prod is null)
             {
                 prod = await ApiClient.GetProductByBarcodeAsync(code);
@@ -2748,9 +3328,18 @@
                 selectedProductIdString = prod.Id.ToString();
                 currentProductPackaging = PackagingUnitHelper.Parse(prod.Description);
                 addItemCartonFactor = ResolveProductCartonFactor(prod);
-                selectedUnitType = "piece";
+                selectedUnitType = prod.IsWeighable ? "weight" : "piece";
                 baseProductPieceCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
                 addItemCost = baseProductPieceCost;
+                if (parsedWeight.HasValue && parsedWeight.Value > 0)
+                {
+                    addItemQty = parsedWeight.Value;
+                }
+                else
+                {
+                    addItemQty = prod.IsWeighable ? 1.000m : 1m;
+                }
+
                 if (prod.TrackExpiry)
                 {
                     addItemProductionDate ??= purchaseInvoiceDate.Date;
@@ -2785,9 +3374,10 @@
                 selectedProductIdString = matched.Id.ToString();
                 currentProductPackaging = PackagingUnitHelper.Parse(matched.Description);
                 addItemCartonFactor = ResolveProductCartonFactor(matched);
-                selectedUnitType = "piece";
+                selectedUnitType = matched.IsWeighable ? "weight" : "piece";
                 baseProductPieceCost = matched.PurchasePrice > 0 ? matched.PurchasePrice : matched.SellingPrice;
                 addItemCost = baseProductPieceCost;
+                addItemQty = matched.IsWeighable ? 1.000m : 1m;
                 if (matched.TrackExpiry)
                 {
                     addItemProductionDate ??= purchaseInvoiceDate.Date;
@@ -2817,9 +3407,10 @@
                 editSelectedProductIdString = matched.Id.ToString();
                 editCurrentProductPackaging = PackagingUnitHelper.Parse(matched.Description);
                 editAddItemCartonFactor = ResolveProductCartonFactor(matched);
-                editSelectedUnitType = "piece";
+                editSelectedUnitType = matched.IsWeighable ? "weight" : "piece";
                 editBaseProductPieceCost = matched.PurchasePrice > 0 ? matched.PurchasePrice : matched.SellingPrice;
                 editAddItemCost = editBaseProductPieceCost;
+                editAddItemQty = matched.IsWeighable ? 1.000m : 1m;
                 if (matched.TrackExpiry)
                 {
                     editAddItemProductionDate ??= editPurchaseDate.Date;
@@ -2854,7 +3445,9 @@
         }
 
         var prod = availableProducts.FirstOrDefault(p => p.Id == pId);
-        string unitName = selectedUnitType == "carton" ? (prod?.ParentUnit ?? "كرتونة") : (prod?.BaseUnit ?? "قطعة");
+        string unitName = prod != null && prod.IsWeighable
+            ? (string.IsNullOrWhiteSpace(prod.BaseUnit) ? "كجم" : prod.BaseUnit)
+            : (selectedUnitType == "carton" ? (prod?.ParentUnit ?? "كرتونة") : (prod?.BaseUnit ?? "قطعة"));
 
         purchaseItems.Add(new CreatePurchaseItemRequest(
             pId,

@@ -13,5 +13,6 @@ namespace Inventory.Domain.Catalog.Products.Interface
         Task AddRangeAsync(IEnumerable<Product> products, CancellationToken cancellationToken = default);
         void Update(Product product);
         void Remove(Product product);
+        Task<bool> HasProductsWithCategoryIdAsync(Guid categoryId, CancellationToken cancellationToken = default);
     }
 }

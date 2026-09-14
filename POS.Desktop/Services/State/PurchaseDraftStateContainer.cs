@@ -15,11 +15,12 @@ namespace POS.Desktop.Services.State
         public DateTime? ExpiryDate { get; set; }
         public string? BatchNumber { get; set; }
         public string? Unit { get; set; }
+        public bool IsWeighable { get; set; } = false;
 
         public CreatePurchaseItemRequest ToRequest() =>
             new(ProductId, Quantity, UnitCost, Discount, Tax, ExpiryDate, BatchNumber, Unit);
 
-        public static PurchaseDraftItem FromRequest(CreatePurchaseItemRequest req, string productName = "") =>
+        public static PurchaseDraftItem FromRequest(CreatePurchaseItemRequest req, string productName = "", bool isWeighable = false) =>
             new()
             {
                 ProductId = req.ProductId,
@@ -30,7 +31,8 @@ namespace POS.Desktop.Services.State
                 Tax = req.Tax,
                 ExpiryDate = req.ExpiryDate,
                 BatchNumber = req.BatchNumber,
-                Unit = req.Unit
+                Unit = req.Unit,
+                IsWeighable = isWeighable
             };
     }
 
@@ -72,7 +74,7 @@ namespace POS.Desktop.Services.State
             decimal paidAmount,
             bool isFullPayment,
             IEnumerable<CreatePurchaseItemRequest> items,
-            Func<Guid, string>? getProductName = null)
+            Func<Guid, (string Name, bool IsWeighable)>? getProductInfo = null)
         {
             Draft.InvoiceNumber = invoiceNumber;
             Draft.SupplierId = supplierId;
@@ -81,10 +83,27 @@ namespace POS.Desktop.Services.State
             Draft.IsFullPayment = isFullPayment;
             Draft.LastSavedAt = DateTime.Now;
 
-            Draft.Items = items.Select(i => PurchaseDraftItem.FromRequest(i, getProductName?.Invoke(i.ProductId) ?? "")).ToList();
+            Draft.Items = items.Select(i =>
+            {
+                var info = getProductInfo?.Invoke(i.ProductId) ?? ("", false);
+                return PurchaseDraftItem.FromRequest(i, info.Name, info.IsWeighable);
+            }).ToList();
 
             SaveToDisk();
             OnDraftChanged?.Invoke();
+        }
+
+        public void SetDraft(
+            string invoiceNumber,
+            string supplierId,
+            DateTime invoiceDate,
+            decimal paidAmount,
+            bool isFullPayment,
+            IEnumerable<CreatePurchaseItemRequest> items,
+            Func<Guid, string>? getProductName)
+        {
+            SetDraft(invoiceNumber, supplierId, invoiceDate, paidAmount, isFullPayment, items,
+                id => (getProductName?.Invoke(id) ?? "", false));
         }
 
         public void SaveToDisk()
