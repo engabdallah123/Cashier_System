@@ -25,7 +25,7 @@ namespace Purchases.Application.Purchases.Queries.GetPurchases
                     p.SubTotal, p.DiscountAmount, p.TaxAmount, p.TotalAmount,
                     p.PaidAmount, p.RemainingAmount,
                     CASE p.PaymentMethod 
-                        WHEN 1 THEN 'Cash' WHEN 2 THEN 'Card' WHEN 3 THEN 'MobileWallet' WHEN 4 THEN 'Credit' ELSE 'Cash' 
+                        WHEN 1 THEN N'نقداً' WHEN 2 THEN N'بطاقة بنكية' WHEN 3 THEN N'محفظة إلكترونية' WHEN 4 THEN N'آجل' ELSE N'نقداً' 
                     END AS PaymentMethod,
                     CASE p.Status 
                         WHEN 1 THEN 'Draft' WHEN 2 THEN 'Received' WHEN 3 THEN 'Cancelled' ELSE 'Draft' 

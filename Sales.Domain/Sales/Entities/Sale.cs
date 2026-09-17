@@ -134,8 +134,10 @@ namespace Sales.Domain.Sales.Entities
             if (remaining <= 0.001m)
                 return Result<SalePayment>.Failure(new Error("Sale.AlreadyFullyPaid", "الفاتورة مسددة بالكامل بالفعل."));
 
-            if (amount > remaining + 0.01m)
-                return Result<SalePayment>.Failure(new Error("Sale.PaymentExceedsRemaining", $"مبلغ السداد ({amount:N2} ج.م) أكبر من المبلغ المتبقي على الفاتورة ({remaining:N2} ج.م)."));
+            if (amount > remaining)
+            {
+                amount = remaining;
+            }
 
             PaidAmount += amount;
             ChangeAmount = PaidAmount > TotalAmount ? PaidAmount - TotalAmount : 0;

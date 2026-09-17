@@ -778,6 +778,12 @@ body {
     border: 1px solid rgba(99, 102, 241, 0.3);
 }
 
+.badge-amber, .badge-warning {
+    background-color: rgba(245, 158, 11, 0.18);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
 /* Modal Overlay & Modal Cards */
 .modal-overlay {
     position: fixed;

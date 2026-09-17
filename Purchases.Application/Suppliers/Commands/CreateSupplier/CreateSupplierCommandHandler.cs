@@ -18,7 +18,7 @@ namespace Purchases.Application.Suppliers.Commands.CreateSupplier
         {
             var supplierResult = Supplier.Create(
                 request.Name, request.Phone, request.Email,
-                request.Address, request.ContactPerson);
+                request.Address, request.ContactPerson, request.Id);
 
             if (supplierResult.IsFailure)
                 return Result<Guid>.Failure(supplierResult.Error);

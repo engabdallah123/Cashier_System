@@ -15,6 +15,7 @@
 @inject StoreStateContainer StoreState
 @inject IJSRuntime JS
 @inject NavigationManager Nav
+@inject global::POS.Desktop.Services.Sync.ICloudSyncService CloudSync
 
 <div class="pos-layout">
     <!-- Live Floating Alerts Container (Stock Alerts) -->
@@ -1793,6 +1794,13 @@
 
                 // Auto-refresh product stock balances on the same page
                 await LoadCatalogAsync();
+
+                // Trigger instant cloud sync to push updated stock quantities for mobile alerts
+                CloudSync.RecordLocalChange();
+                _ = Task.Run(async () =>
+                {
+                    try { await CloudSync.SyncNowAsync(forceCatalogPush: true); } catch { }
+                });
 
                 // Depleted batches alert modal
                 if (saleResult.DepletedBatches != null && saleResult.DepletedBatches.Count > 0)

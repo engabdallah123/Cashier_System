@@ -9,6 +9,7 @@
 @inject ShiftStateContainer ShiftState
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject global::POS.Desktop.Services.Sync.ICloudSyncService CloudSync
 
 <div>
     <div class="page-header">
@@ -1325,6 +1326,8 @@
             catch { }
             selectedSaleDetail = null;
             returnItems.Clear();
+            CloudSync.RecordLocalChange();
+            _ = Task.Run(async () => await CloudSync.SyncNowAsync(forceCatalogPush: true));
         }
         else
         {

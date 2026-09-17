@@ -4,6 +4,7 @@ using POS.Desktop.Services.Api;
 using POS.Desktop.Services.Auth;
 using POS.Desktop.Services.Printing;
 using POS.Desktop.Services.State;
+using POS.Desktop.Services.Sync;
 using POS.Licensing.Interfaces;
 using POS.Licensing.Services;
 using System.Diagnostics;
@@ -86,8 +87,16 @@ namespace POS.Desktop
             serviceCollection.AddSingleton<PurchaseDraftStateContainer>();
             serviceCollection.AddSingleton<StoreStateContainer>();
             serviceCollection.AddSingleton<CalculatorStateContainer>();
+            serviceCollection.AddSingleton<ICloudSyncService, CloudSyncService>();
 
             Services = serviceCollection.BuildServiceProvider();
+
+            // Eagerly resolve ICloudSyncService so periodic sync starts immediately on app launch
+            try
+            {
+                _ = Services.GetRequiredService<ICloudSyncService>();
+            }
+            catch { }
         }
 
         private static void EnsureBackendApiRunning()

@@ -74,5 +74,18 @@ namespace Inventory.Domain.Batches.ProductBatches
         public bool IsExpiringSoon(int daysThreshold = 30)
             => ExpiryDate.HasValue && !IsExpired()
                && ExpiryDate.Value.Date <= DateTime.UtcNow.Date.AddDays(daysThreshold);
+
+        public Result ReplaceBySupplier(DateTime newExpiryDate, string? newBatchNumber = null)
+        {
+            if (newExpiryDate.Date <= DateTime.UtcNow.Date)
+                return Result.Failure(new Error("Batch.InvalidExpiryDate", "تاريخ الصلاحية الجديد يجب أن يكون تاريخاً مستقبلياً."));
+
+            ExpiryDate = newExpiryDate;
+            if (!string.IsNullOrWhiteSpace(newBatchNumber))
+            {
+                BatchNumber = newBatchNumber.Trim();
+            }
+            return Result.Success();
+        }
     }
 }

@@ -3,6 +3,7 @@
   <Folder Name="/src/Hosts/">
     <Project Path="POS.WebAPI/POS.WebAPI.csproj" />
     <Project Path="POS.Desktop/POS.Desktop.csproj" />
+    <Project Path="POS.CloudAPI/POS.CloudAPI.csproj" />
   </Folder>
   <Folder Name="/src/Modules/" />
   <Folder Name="/src/Modules/Identity/">

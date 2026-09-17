@@ -68,7 +68,7 @@ namespace POS.Desktop.Services.Api
         bool IsActive = true,
         DateTime CreatedAt = default);
 
-    public record CreateCategoryRequest(string NameAr, string? NameEn = null, Guid? ParentCategoryId = null);
+    public record CreateCategoryRequest(string NameAr, string? NameEn = null, Guid? ParentCategoryId = null, Guid? Id = null);
     public record UpdateCategoryRequest(Guid Id, string NameAr, string? NameEn = null, Guid? ParentCategoryId = null);
 
     public record UpdateProductCommandModel(
@@ -279,7 +279,7 @@ namespace POS.Desktop.Services.Api
     }
     public record CreateExpenseRequest(string Title, decimal Amount, Guid CreatedByUserId, string? Description = null, DateTime? ExpenseDate = null, string? Notes = null);
 
-    public record CreateSupplierRequest(string Name, string Phone, string? Email = null, string? Address = null, string? ContactPerson = null);
+    public record CreateSupplierRequest(string Name, string Phone, string? Email = null, string? Address = null, string? ContactPerson = null, Guid? Id = null);
     public record UpdateSupplierRequest(Guid Id, string Name, string Phone, string? Email = null, string? Address = null, string? ContactPerson = null);
 
     public record PurchaseItemDto(Guid Id, Guid ProductId, string? ProductName, decimal Quantity, decimal UnitCost, decimal Discount, decimal Tax, decimal Total, DateTime? ExpiryDate, string? BatchNumber)

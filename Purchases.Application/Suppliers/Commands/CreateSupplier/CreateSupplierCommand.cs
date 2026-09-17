@@ -7,5 +7,6 @@ namespace Purchases.Application.Suppliers.Commands.CreateSupplier
         string Phone,
         string? Email = null,
         string? Address = null,
-        string? ContactPerson = null) : ICommand<Guid>;
+        string? ContactPerson = null,
+        Guid? Id = null) : ICommand<Guid>;
 }

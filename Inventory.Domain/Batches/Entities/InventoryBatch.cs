@@ -172,5 +172,20 @@ namespace Inventory.Domain.Batches.Entities
             UpdatedAt = DateTime.UtcNow;
             return Result.Success();
         }
+
+        public Result ReplaceBySupplier(DateTime newExpiryDate, string? newBatchNumber = null)
+        {
+            if (newExpiryDate.Date <= DateTime.UtcNow.Date)
+                return Result.Failure(new Error("Batch.InvalidExpiryDate", "تاريخ الصلاحية الجديد يجب أن يكون تاريخاً مستقبلياً."));
+
+            ExpiryDate = newExpiryDate;
+            if (!string.IsNullOrWhiteSpace(newBatchNumber))
+            {
+                BatchNumber = newBatchNumber.Trim();
+            }
+
+            UpdatedAt = DateTime.UtcNow;
+            return Result.Success();
+        }
     }
 }

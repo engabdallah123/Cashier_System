@@ -120,6 +120,9 @@
                                         <button type="button" class="btn btn-sm btn-secondary me-1" style="color: var(--accent-emerald); border-color: rgba(16, 185, 129, 0.3); font-size: 0.75rem; padding: 0.25rem 0.5rem;" title="تأكيد أن البضاعة سليمة ولا يوجد هالك" @onclick="() => ResolveNotification(n)">
                                             <i class="fa-solid fa-check me-1"></i> صلاحيةالمخزون تمام 
                                         </button>
+                                        <button type="button" class="btn btn-sm btn-info me-1" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;" title="استبدال البضاعة من المورد بتاريخ إنتاج وصلاحية جديد" @onclick="() => OpenSupplierReplacementModal(n)">
+                                            <i class="fa-solid fa-arrows-rotate me-1"></i> تبديل من المورد
+                                        </button>
                                         <button type="button" class="btn btn-sm btn-secondary me-1" style="font-size: 0.75rem; padding: 0.25rem 0.5rem;" title="تأجيل هذا التنبيه لمدة 24 ساعة" @onclick="() => SnoozeNotification(n)">
                                             <i class="fa-solid fa-clock-rotate-left me-1"></i> Skip (24h)
                                         </button>
@@ -902,6 +905,97 @@
     </div>
 }
 
+<!-- Supplier Replacement Modal (from Expiry Notification) -->
+@if (showSupplierReplacementModal && supplierReplacementTarget != null)
+{
+    <div class="modal-overlay" @onclick="CloseSupplierReplacementModal">
+        <div class="modal-card" style="width: 520px; max-width: 95vw;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title" style="color: var(--accent-blue);">
+                    <i class="fa-solid fa-arrows-rotate me-2"></i>
+                    استبدال بضاعة من المورد (تحديث الصلاحية والتشغيلة)
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseSupplierReplacementModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(supplierReplacementError))
+                {
+                    <div class="alert alert-danger" style="margin-bottom: 1rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @supplierReplacementError
+                    </div>
+                }
+
+                <div style="background: rgba(59, 130, 246, 0.08); border-radius: 0.5rem; padding: 0.85rem; margin-bottom: 1.25rem;">
+                    <div style="font-weight: 700; color: var(--text-primary); font-size: 1.05rem;">
+                        @supplierReplacementTarget.ProductName
+                    </div>
+                    <div style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        رقم التشغيلة الحالية: <code>@(string.IsNullOrWhiteSpace(supplierReplacementTarget.BatchNumber) ? "افتراضي" : supplierReplacementTarget.BatchNumber)</code> |
+                        الكمية المستبدلة: <strong style="color: var(--accent-amber);">@supplierReplacementTarget.RemainingQuantity.ToString("N0")</strong> قطعة
+                    </div>
+                    <div style="font-size: 0.82rem; color: var(--accent-blue); margin-top: 0.25rem;">
+                        <i class="fa-solid fa-info-circle me-1"></i> الاستبدال من المورد لا يسبب أي خسارة مالية ويقوم بتحديث تاريخ الصلاحية ورقم التشغيلة للبضاعة المتبقية.
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 600;">تاريخ الإنتاج الجديد <span style="color: var(--accent-blue);">*</span></label>
+                        <input type="date" class="form-control" style="font-size: 0.95rem; font-weight: 600;"
+                               value="@(newSupplierProductionDate.ToString("yyyy-MM-dd"))"
+                               @onchange="OnSupplierProductionDateChanged" />
+                        <small style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 2px; display: block;">
+                            تاريخ إنتاج البضاعة الموردة
+                        </small>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label" style="font-weight: 600;">تاريخ الانتهاء الجديد <span class="text-red">*</span></label>
+                        <input type="date" class="form-control" style="font-size: 0.95rem; font-weight: 600; color: var(--accent-emerald);"
+                               @bind="newSupplierExpiryDate" />
+                        <small style="font-size: 0.75rem; color: var(--accent-blue); margin-top: 2px; display: block;">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i> محسوب تلقائياً (صلاحية: @supplierTargetProductShelfDays يوم)
+                        </small>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label" style="font-weight: 600;">رقم التشغيلة الجديد (Batch Number)</label>
+                    <input type="text" class="form-control" placeholder="اختياري - مثلاً BATCH-2026-X"
+                           @bind="newSupplierBatchNumber" />
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="font-weight: 600;">ملاحظات الاستبدال</label>
+                    <textarea class="form-control" rows="2" placeholder="ملاحظات حول إذن الاستبدال أو اسم المورد..." @bind="supplierReplacementNotes"></textarea>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="display: flex; justify-content: space-between;">
+                <button type="button" class="btn btn-secondary" @onclick="CloseSupplierReplacementModal" disabled="@isSubmittingSupplierReplacement">
+                    إلغاء
+                </button>
+                <button type="button" class="btn btn-primary" @onclick="ExecuteSupplierReplacement" disabled="@isSubmittingSupplierReplacement">
+                    @if (isSubmittingSupplierReplacement)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        <span>جاري تسجيل الاستبدال...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check me-1"></i>
+                        <span>تأكيد الاستبدال بالصلاحية الجديدة</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+
 
 <style>
     .dashboard-container {
@@ -1470,6 +1564,18 @@
     private bool isSubmittingWaste = false;
     private string? wasteError = null;
 
+    // Supplier Replacement Modal State
+    private bool showSupplierReplacementModal = false;
+    private ExpiryNotificationDto? supplierReplacementTarget;
+    private DateTime newSupplierProductionDate = DateTime.Today;
+    private DateTime newSupplierExpiryDate = DateTime.Today.AddMonths(6);
+    private int supplierTargetProductShelfDays = 180;
+    private string? newSupplierBatchNumber;
+    private string? supplierReplacementNotes;
+    private bool isSubmittingSupplierReplacement = false;
+    private string? supplierReplacementError;
+    private List<ProductDto>? cachedProductsForReplacement;
+
     private void OpenTopProductsModal()
     {
         showTopProductsModal = true;
@@ -1657,6 +1763,94 @@
         finally
         {
             isSubmittingWaste = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenSupplierReplacementModal(ExpiryNotificationDto notification)
+    {
+        supplierReplacementTarget = notification;
+        newSupplierProductionDate = DateTime.Today;
+        newSupplierBatchNumber = string.Empty;
+        supplierReplacementNotes = $"تبديل من المورد للدفعة {notification.BatchNumber}";
+        supplierReplacementError = null;
+
+        supplierTargetProductShelfDays = 180;
+        try
+        {
+            if (cachedProductsForReplacement == null || !cachedProductsForReplacement.Any())
+            {
+                cachedProductsForReplacement = await ApiClient.GetProductsAsync();
+            }
+            var matched = cachedProductsForReplacement?.FirstOrDefault(p => p.Id == notification.ProductId);
+            if (matched != null && matched.ShelfLifeDays > 0)
+            {
+                supplierTargetProductShelfDays = matched.ShelfLifeDays;
+            }
+        }
+        catch { }
+
+        newSupplierExpiryDate = newSupplierProductionDate.AddDays(supplierTargetProductShelfDays);
+        showSupplierReplacementModal = true;
+    }
+
+    private void OnSupplierProductionDateChanged(ChangeEventArgs e)
+    {
+        if (DateTime.TryParse(e.Value?.ToString(), out var dt))
+        {
+            newSupplierProductionDate = dt.Date;
+            newSupplierExpiryDate = newSupplierProductionDate.AddDays(supplierTargetProductShelfDays > 0 ? supplierTargetProductShelfDays : 180);
+        }
+    }
+
+    private void CloseSupplierReplacementModal()
+    {
+        showSupplierReplacementModal = false;
+        supplierReplacementTarget = null;
+        supplierReplacementError = null;
+        isSubmittingSupplierReplacement = false;
+    }
+
+    private async Task ExecuteSupplierReplacement()
+    {
+        if (supplierReplacementTarget == null) return;
+        if (newSupplierExpiryDate <= DateTime.Today)
+        {
+            supplierReplacementError = "تاريخ الصلاحية الجديد يجب أن يكون في المستقبل.";
+            return;
+        }
+
+        isSubmittingSupplierReplacement = true;
+        supplierReplacementError = null;
+        StateHasChanged();
+
+        try
+        {
+            var (success, error) = await ApiClient.ReplaceBatchWithSupplierAsync(
+                supplierReplacementTarget.BatchId,
+                newSupplierExpiryDate,
+                newSupplierBatchNumber,
+                supplierReplacementNotes,
+                supplierReplacementTarget.Id);
+
+            if (success)
+            {
+                await ApiClient.ResolveNotificationAsync(supplierReplacementTarget.Id);
+                CloseSupplierReplacementModal();
+                await LoadDashboardDataAsync();
+            }
+            else
+            {
+                supplierReplacementError = error ?? "تعذر تسجيل تبديل التشغيلة من المورد.";
+            }
+        }
+        catch (Exception ex)
+        {
+            supplierReplacementError = $"حدث خطأ غير متوقع: {ex.Message}";
+        }
+        finally
+        {
+            isSubmittingSupplierReplacement = false;
             StateHasChanged();
         }
     }

@@ -2,9 +2,12 @@
 @using Microsoft.AspNetCore.Authorization
 @using global::POS.Desktop.Services.Api
 @using global::POS.Desktop.Services.Auth
+@using global::POS.Desktop.Services.Sync
 @attribute [Authorize]
 @inject PosApiClient ApiClient
 @inject CustomAuthStateProvider AuthState
+@inject ICloudSyncService CloudSync
+@implements IDisposable
 
 <div>
     <div class="page-header">
@@ -12,12 +15,17 @@
             <h2 class="page-title">إدارة التصنيفات</h2>
             <p class="page-subtitle">تنظيم المنتجات في تصنيفات رئيسية وفرعية</p>
         </div>
-        @if (CanManageCategories)
-        {
-            <button class="btn btn-primary" @onclick="OpenAddModal">
-                <i class="fa-solid fa-plus me-1"></i> إضافة تصنيف جديد
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button class="btn btn-secondary" @onclick="LoadCategories" title="تحديث القائمة يدوياً">
+                <i class="fa-solid fa-rotate @(CloudSync.IsSyncing ? "fa-spin" : "") me-1"></i> تحديث
             </button>
-        }
+            @if (CanManageCategories)
+            {
+                <button class="btn btn-primary" @onclick="OpenAddModal">
+                    <i class="fa-solid fa-plus me-1"></i> إضافة تصنيف جديد
+                </button>
+            }
+        </div>
     </div>
 
     <div style="display: flex; gap: 1rem; margin-bottom: 1.25rem; align-items: center;">
@@ -260,7 +268,22 @@
 
     protected override async Task OnInitializedAsync()
     {
+        CloudSync.OnSyncStateChanged += HandleSyncStateChanged;
         await LoadCategories();
+    }
+
+    private async void HandleSyncStateChanged()
+    {
+        await InvokeAsync(async () =>
+        {
+            await LoadCategories();
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        CloudSync.OnSyncStateChanged -= HandleSyncStateChanged;
     }
 
     private async Task LoadCategories()
@@ -349,6 +372,8 @@
             {
                 CloseModals();
                 await LoadCategories();
+                CloudSync.RecordLocalChange();
+                _ = CloudSync.SyncNowAsync(forceCatalogPush: true);
             }
             else
             {
@@ -365,6 +390,8 @@
             {
                 CloseModals();
                 await LoadCategories();
+                CloudSync.RecordLocalChange();
+                _ = CloudSync.SyncNowAsync(forceCatalogPush: true);
             }
             else
             {
@@ -386,6 +413,8 @@
         {
             CloseModals();
             await LoadCategories();
+            CloudSync.RecordLocalChange();
+            _ = CloudSync.SyncNowAsync(forceCatalogPush: true);
         }
         else
         {

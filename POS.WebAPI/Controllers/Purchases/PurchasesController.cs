@@ -66,13 +66,43 @@ namespace POS.WebAPI.Controllers.Purchases
         }
 
         [HttpPost("{id:guid}/pay")]
-        public async Task<IActionResult> Pay(Guid id, [FromBody] decimal amount, CancellationToken ct)
+        public async Task<IActionResult> Pay(Guid id, [FromBody] System.Text.Json.JsonElement body, CancellationToken ct)
         {
-            var result = await _sender.Send(new PayPurchaseInvoiceCommand(id, amount), ct);
-            if (result.IsFailure)
-                return BadRequest(result.Error);
+            try
+            {
+                decimal amount = 0;
+                if (body.ValueKind == System.Text.Json.JsonValueKind.Number)
+                {
+                    amount = body.GetDecimal();
+                }
+                else if (body.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    if (body.TryGetProperty("amount", out var p) || body.TryGetProperty("Amount", out p))
+                    {
+                        if (p.ValueKind == System.Text.Json.JsonValueKind.Number)
+                            amount = p.GetDecimal();
+                        else if (p.ValueKind == System.Text.Json.JsonValueKind.String && decimal.TryParse(p.GetString(), out var sAmt))
+                            amount = sAmt;
+                    }
+                }
+                else if (body.ValueKind == System.Text.Json.JsonValueKind.String && decimal.TryParse(body.GetString(), out var strAmt))
+                {
+                    amount = strAmt;
+                }
 
-            return NoContent();
+                if (amount <= 0)
+                    return BadRequest(new { code = "Purchase.InvalidAmount", message = "مبلغ السداد يجب أن يكون أكبر من صفر." });
+
+                var result = await _sender.Send(new PayPurchaseInvoiceCommand(id, amount), ct);
+                if (result.IsFailure)
+                    return BadRequest(result.Error);
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message, stack = ex.ToString() });
+            }
         }
 
         [HttpGet]

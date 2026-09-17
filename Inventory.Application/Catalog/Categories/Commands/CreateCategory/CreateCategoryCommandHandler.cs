@@ -16,7 +16,7 @@ namespace Inventory.Application.Catalog.Categories.Commands.CreateCategory
 
         public async Task<Result<Guid>> Handle(CreateCategoryCommand request, CancellationToken cancellationToken)
         {
-            var categoryResult = Category.Create(request.NameAr, request.NameEn, request.ParentCategoryId);
+            var categoryResult = Category.Create(request.NameAr, request.NameEn, request.ParentCategoryId, request.Id);
             if (categoryResult.IsFailure)
                 return Result<Guid>.Failure(categoryResult.Error);
 

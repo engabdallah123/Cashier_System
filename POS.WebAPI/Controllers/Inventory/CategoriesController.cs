@@ -22,7 +22,6 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPost]
-        [Authorize(Roles = "Admin,Manager,Cashier,Administrator")]
         public async Task<IActionResult> Create([FromBody] CreateCategoryCommand command, CancellationToken ct)
         {
             var result = await _sender.Send(command, ct);

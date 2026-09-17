@@ -1526,6 +1526,23 @@ namespace POS.Desktop.Services.Api
             }
         }
 
+        public async Task<(bool Success, string? Error)> ReplaceBatchWithSupplierAsync(Guid batchId, DateTime newExpiryDate, string? newBatchNumber = null, string? notes = null, Guid? relatedNotificationId = null)
+        {
+            try
+            {
+                var req = new { NewExpiryDate = newExpiryDate, NewBatchNumber = newBatchNumber, Notes = notes, RelatedNotificationId = relatedNotificationId };
+                var res = await _http.PostAsJsonAsync($"api/inventory/batches/{batchId}/replace-supplier", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+
+                var body = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(body, "فشل استبدال التشغيلة من المورد."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
         // Waste
         public async Task<(bool Success, Guid? Id, string? Error)> RecordWasteAsync(RecordWasteRequest req)
         {

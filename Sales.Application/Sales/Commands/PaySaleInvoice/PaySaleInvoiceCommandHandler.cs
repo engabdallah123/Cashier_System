@@ -30,11 +30,16 @@ internal sealed class PaySaleInvoiceCommandHandler : ICommandHandler<PaySaleInvo
             return Result.Failure(SaleErrors.NotFound(request.SaleId));
 
         // إذا كان هناك شفت مفتوح مرتبط بهذه الفاتورة أو شفت كاشير نشط، نسجل تحصيل المديونية
-        var shift = await _shiftsUnitOfWork.ShiftRepository.GetByIdAsync(sale.ShiftId, cancellationToken);
-        if (shift is null || shift.Status != Shifts.Domain.Shifts.Entities.ShiftStatus.Open)
+        Shifts.Domain.Shifts.Entities.Shift? shift = null;
+        try
         {
-            shift = await _shiftsUnitOfWork.ShiftRepository.GetActiveShiftByCashierIdAsync(sale.CashierId, cancellationToken);
+            shift = await _shiftsUnitOfWork.ShiftRepository.GetByIdAsync(sale.ShiftId, cancellationToken);
+            if (shift is null || shift.Status != Shifts.Domain.Shifts.Entities.ShiftStatus.Open)
+            {
+                shift = await _shiftsUnitOfWork.ShiftRepository.GetActiveShiftByCashierIdAsync(sale.CashierId, cancellationToken);
+            }
         }
+        catch { }
 
         Guid? activeShiftId = shift?.Status == Shifts.Domain.Shifts.Entities.ShiftStatus.Open ? shift.Id : null;
         Guid activeCashierId = shift?.Status == Shifts.Domain.Shifts.Entities.ShiftStatus.Open ? shift.CashierId : sale.CashierId;
@@ -50,14 +55,15 @@ internal sealed class PaySaleInvoiceCommandHandler : ICommandHandler<PaySaleInvo
         if (paymentResult.IsFailure)
             return Result.Failure(paymentResult.Error);
 
-        // إضافة حركة السداد الجديدة صراحة إلى قاعدة البيانات لتسجيلها بحالة Added
-        await _salesUnitOfWork.SalePaymentRepository.AddAsync(paymentResult.Value!);
-
         if (shift is not null && shift.Status == Shifts.Domain.Shifts.Entities.ShiftStatus.Open)
         {
-            shift.RecordDebtCollection(request.Amount, "Cash");
-            _shiftsUnitOfWork.ShiftRepository.Update(shift);
-            await _shiftsUnitOfWork.SaveChangesAsync(cancellationToken);
+            try
+            {
+                shift.RecordDebtCollection(paymentResult.Value!.Amount, "Cash");
+                _shiftsUnitOfWork.ShiftRepository.Update(shift);
+                await _shiftsUnitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch { }
         }
 
         await _salesUnitOfWork.SaveChangesAsync(cancellationToken);

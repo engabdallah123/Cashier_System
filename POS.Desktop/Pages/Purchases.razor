@@ -9,6 +9,7 @@
 @inject CustomAuthStateProvider AuthState
 @inject PurchaseDraftStateContainer DraftState
 @inject IJSRuntime JS
+@inject global::POS.Desktop.Services.Sync.ICloudSyncService CloudSync
 @implements IDisposable
 
 <div>
@@ -40,6 +41,10 @@
             <p class="page-subtitle">تسجيل فواتير توريد البضائع وإدارة بيانات الموردين</p>
         </div>
         <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <button class="btn btn-secondary" style="font-weight: 700; display: inline-flex; align-items: center; gap: 0.45rem; background: rgba(56, 189, 248, 0.15); border: 1.5px solid #38bdf8; color: #38bdf8;" @onclick="TriggerCloudSync" disabled="@CloudSync.IsSyncing" title="مزامنة فواتير المشتريات المسجلة من تطبيق الموبايل">
+                <i class="fa-solid fa-cloud-arrow-down @(CloudSync.IsSyncing ? "fa-spin" : "")"></i>
+                <span>@(CloudSync.IsSyncing ? "جارِ المزامنة..." : "مزامنة السحاب ☁️")</span>
+            </button>
             <NavLink href="expiry" class="btn btn-secondary" style="font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem;">
                 <i class="fa-solid fa-clock-rotate-left text-amber"></i>
                 <span>متابعة صلاحية المنتجات</span>
@@ -52,6 +57,20 @@
             </button>
         </div>
     </div>
+
+    <!-- Cloud Sync Status Toast Alert -->
+    @if (showSyncToast)
+    {
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(14, 165, 233, 0.15); border: 1.5px solid #0284c7; color: #bae6fd; border-radius: 0.75rem; padding: 0.75rem 1.25rem; margin-bottom: 1.25rem;">
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+                <i class="fa-solid fa-cloud-arrow-down" style="font-size: 1.2rem; color: #38bdf8;"></i>
+                <span style="font-weight: 600;">@syncToastMessage</span>
+            </div>
+            <button type="button" style="background: none; border: none; color: #bae6fd; cursor: pointer; font-size: 1rem;" @onclick="() => showSyncToast = false">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+    }
 
     <!-- Draft Stock Invoice Recovery Alert Banner -->
     @if (DraftState.HasDraft && !showAddPurchaseModal)
@@ -149,7 +168,15 @@
                         @foreach (var pur in PagedPurchases)
                         {
                             <tr>
-                                <td><code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@pur.InvoiceNumber</code></td>
+                                <td>
+                                    <code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@pur.InvoiceNumber</code>
+                                    @if (pur.Notes?.Contains("وارد من تطبيق الموبايل") == true)
+                                    {
+                                        <span class="badge" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; border: 1px solid rgba(14, 165, 233, 0.4); margin-right: 0.35rem; font-size: 0.72rem;">
+                                            <i class="fa-solid fa-mobile-screen"></i> موبايل
+                                        </span>
+                                    }
+                                </td>
                                 <td>@pur.PurchaseDate.ToString("dd/MM/yyyy HH:mm")</td>
                                 <td style="font-weight: 600;">@pur.SupplierName</td>
                                 <td style="color: var(--accent-amber); font-weight: 700;">@pur.TotalAmount.ToString("N2") ج.م</td>
@@ -2548,9 +2575,13 @@
         }
     }
 
+    private bool showSyncToast = false;
+    private string syncToastMessage = "";
+
     protected override async Task OnInitializedAsync()
     {
         DraftState.OnDraftChanged += OnDraftChangedHandler;
+        CloudSync.OnSyncStateChanged += OnSyncStateChangedHandler;
         await LoadData();
     }
 
@@ -2559,21 +2590,53 @@
         InvokeAsync(StateHasChanged);
     }
 
+    private async void OnSyncStateChangedHandler()
+    {
+        await InvokeAsync(async () =>
+        {
+            await LoadData(silent: true);
+            StateHasChanged();
+        });
+    }
+
     public void Dispose()
     {
         DraftState.OnDraftChanged -= OnDraftChangedHandler;
+        CloudSync.OnSyncStateChanged -= OnSyncStateChangedHandler;
     }
 
-    private async Task LoadData()
+    private async Task TriggerCloudSync()
     {
-        isLoading = true;
-        purchases = await ApiClient.GetPurchasesListAsync();
-        suppliers = await ApiClient.GetSuppliersAsync();
-        availableProducts = await ApiClient.GetProductsAsync();
-        expiringProducts = await ApiClient.GetExpiringProductsAsync();
-        FilterPurchases();
-        FilterSuppliers();
-        isLoading = false;
+        var result = await CloudSync.SyncNowAsync();
+        await LoadData();
+        syncToastMessage = result.Success ? (result.Message ?? "تمت المزامنة بنجاح!") : (result.Error ?? "فشلت المزامنة");
+        showSyncToast = true;
+        StateHasChanged();
+    }
+
+    private async Task LoadData(bool silent = false)
+    {
+        if (!silent) isLoading = true;
+        try
+        {
+            var pTask = ApiClient.GetPurchasesListAsync();
+            var sTask = ApiClient.GetSuppliersAsync();
+            var prTask = ApiClient.GetProductsAsync();
+            var exTask = ApiClient.GetExpiringProductsAsync();
+
+            await Task.WhenAll(pTask, sTask, prTask, exTask);
+
+            purchases = await pTask ?? new();
+            suppliers = await sTask ?? new();
+            availableProducts = await prTask ?? new();
+            expiringProducts = await exTask ?? new();
+            FilterPurchases();
+            FilterSuppliers();
+        }
+        finally
+        {
+            if (!silent) isLoading = false;
+        }
     }
 
     private void FilterPurchases()
@@ -2668,6 +2731,8 @@
         {
             CloseModals();
             await LoadData();
+            CloudSync.RecordLocalChange();
+            _ = Task.Run(async () => await CloudSync.SyncNowAsync(forceCatalogPush: true));
         }
         else
         {
@@ -3503,6 +3568,8 @@
             activeTab = "suppliers";
             searchQuerySuppliers = string.Empty;
             await LoadData();
+            CloudSync.RecordLocalChange();
+            _ = Task.Run(async () => await CloudSync.SyncNowAsync(forceCatalogPush: true));
         }
         else
         {
@@ -3540,7 +3607,7 @@
             DiscountAmount: 0,
             TaxAmount: 0,
             PaidAmount: finalPaid,
-            PaymentMethod: 1, // Cash
+            PaymentMethod: finalPaid < totalAmount ? 4 : 1, // 4: Credit (آجل), 1: Cash (كاش)
             Notes: "فاتورة مشتريات جديدة",
             PurchaseDate: purchaseInvoiceDate);
 
@@ -3553,6 +3620,8 @@
             purchaseItems.Clear();
             CloseModals();
             await LoadData();
+            CloudSync.RecordLocalChange();
+            _ = Task.Run(async () => await CloudSync.SyncNowAsync(forceCatalogPush: true));
         }
         else
         {

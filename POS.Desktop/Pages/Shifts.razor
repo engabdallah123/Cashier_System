@@ -8,6 +8,7 @@
 @inject ShiftStateContainer ShiftState
 @inject CustomAuthStateProvider AuthState
 @inject IJSRuntime JS
+@inject global::POS.Desktop.Services.Sync.ICloudSyncService CloudSync
 
 <div style="max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.75rem;">
     <div>
@@ -588,10 +589,39 @@
 
         try
         {
-            var cmd = new CloseShiftCommand(ShiftState.ShiftId, actualCashInDrawer, closingNotes);
+            var shiftIdToClose = ShiftState.ShiftId;
+            var closedShiftSnapshot = activeShiftDto;
+            var cmd = new CloseShiftCommand(shiftIdToClose, actualCashInDrawer, closingNotes);
             var success = await ApiClient.CloseShiftAsync(cmd);
             if (success)
             {
+                // Push Closed Shift summary to Cloud for Mobile Notification
+                try
+                {
+                    var expectedCash = (closedShiftSnapshot?.OpeningCash ?? 0) + (closedShiftSnapshot?.TotalCash ?? 0);
+                    var diff = actualCashInDrawer - expectedCash;
+                    var shiftReq = new global::POS.Desktop.Services.Sync.PushClosedShiftRequest(
+                        ShiftId: shiftIdToClose != Guid.Empty ? shiftIdToClose : (closedShiftSnapshot?.Id ?? Guid.NewGuid()),
+                        CashierName: closedShiftSnapshot?.CashierName ?? AuthState.UserFullName ?? "كاشير",
+                        OpenedAt: closedShiftSnapshot?.OpenedAt ?? DateTime.UtcNow,
+                        ClosedAt: DateTime.UtcNow,
+                        OpeningCash: closedShiftSnapshot?.OpeningCash ?? 0,
+                        ActualClosingCash: actualCashInDrawer,
+                        SystemCash: expectedCash,
+                        CashDifference: diff,
+                        TotalSales: closedShiftSnapshot?.TotalSales ?? 0,
+                        TotalCash: closedShiftSnapshot?.TotalCash ?? 0,
+                        TotalCard: closedShiftSnapshot?.TotalCard ?? 0,
+                        TotalWallet: closedShiftSnapshot?.TotalWallet ?? 0,
+                        TotalCredit: closedShiftSnapshot?.TotalCredit ?? 0,
+                        TotalInvoices: closedShiftSnapshot?.TotalInvoices ?? 0,
+                        TotalReturns: closedShiftSnapshot?.TotalReturns ?? 0,
+                        ClosingNotes: closingNotes
+                    );
+                    await CloudSync.PushClosedShiftToCloudAsync(shiftReq);
+                }
+                catch { }
+
                 showCloseShiftConfirmModal = false;
                 ShiftState.ClearShift();
                 activeShiftDto = null;

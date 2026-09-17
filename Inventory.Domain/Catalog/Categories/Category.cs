@@ -22,14 +22,15 @@ namespace Inventory.Domain.Catalog.Categories
             CreatedAt = DateTime.UtcNow;
         }
 
-        public static Result<Category> Create(string nameAr, string? nameEn = null, Guid? parentCategoryId = null)
+        public static Result<Category> Create(string nameAr, string? nameEn = null, Guid? parentCategoryId = null, Guid? id = null)
         {
             if (string.IsNullOrWhiteSpace(nameAr))
                 return Result<Category>.Failure(CategoryErrors.NameArRequired);
 
             var en = string.IsNullOrWhiteSpace(nameEn) ? nameAr.Trim() : nameEn.Trim();
 
-            var category = new Category(Guid.NewGuid(), nameAr.Trim(), en, parentCategoryId);
+            var categoryId = id.HasValue && id.Value != Guid.Empty ? id.Value : Guid.NewGuid();
+            var category = new Category(categoryId, nameAr.Trim(), en, parentCategoryId);
             return Result<Category>.Success(category);
         }
 

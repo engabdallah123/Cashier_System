@@ -8,6 +8,8 @@
 @inject IInvoicePrinterService Printer
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject global::POS.Desktop.Services.Sync.ICloudSyncService CloudSync
+@implements IDisposable
 
 <div>
     <div class="page-header">
@@ -15,7 +17,11 @@
             <h2 class="page-title">سجل فواتير المبيعات</h2>
             <p class="page-subtitle">استعراض المبيعات، البحث السريع بالاسكانر والباركود، وعرض تفاصيل الفواتير</p>
         </div>
-        <div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <button type="button" class="btn btn-secondary" style="font-size: 0.85rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem;" @onclick="() => LoadSales()" title="تحديث قائمة الفواتير">
+                <i class="fa-solid fa-arrows-rotate @(isLoading ? "fa-spin" : "") text-blue"></i>
+                <span>تحديث</span>
+            </button>
             <NavLink href="monthly-report" class="btn btn-secondary" style="font-size: 0.85rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem;">
                 <i class="fa-solid fa-calendar-days text-amber"></i>
                 <span>نتيجة المبيعات الشهرية</span>
@@ -153,8 +159,8 @@
                             <td>@sale.SaleDate.ToLocalTime().ToString("dd/MM/yyyy hh:mm tt", ArabicCulture)</td>
                             <td>@(string.IsNullOrWhiteSpace(sale.CashierName) ? "مستخدم كاشير" : sale.CashierName)</td>
                             <td>
-                                <span class="badge @(sale.PaymentMethod == "Cash" ? "badge-green" : "badge-indigo")">
-                                    @(sale.PaymentMethod == "Cash" ? "نقداً (كاش)" : sale.PaymentMethod)
+                                <span class="badge @(sale.PaymentMethod == "Cash" ? "badge-green" : (sale.PaymentMethod == "Credit" || sale.PaymentMethod == "آجل") ? "badge-amber" : "badge-indigo")">
+                                    @(sale.PaymentMethod == "Cash" ? "نقداً (كاش)" : (sale.PaymentMethod == "Credit" || sale.PaymentMethod == "آجل") ? "آجل" : sale.PaymentMethod)
                                 </span>
                             </td>
                             <td style="color: var(--accent-amber);">@sale.DiscountAmount.ToString("N2") ج.م</td>
@@ -233,8 +239,8 @@
                     <div><span style="color: var(--text-secondary);">العميل:</span> <strong style="color: var(--accent-blue);">@(detailedSaleInvoice.CustomerName ?? "عميل نقدي عام")</strong></div>
                     <div>
                         <span style="color: var(--text-secondary);">طريقة الدفع:</span> 
-                        <span class="badge @(detailedSaleInvoice.PaymentMethod == "Cash" ? "badge-green" : "badge-indigo")">
-                            @(detailedSaleInvoice.PaymentMethod == "Cash" ? "نقداً (كاش)" : detailedSaleInvoice.PaymentMethod)
+                        <span class="badge @(detailedSaleInvoice.PaymentMethod == "Cash" ? "badge-green" : (detailedSaleInvoice.PaymentMethod == "Credit" || detailedSaleInvoice.PaymentMethod == "آجل") ? "badge-amber" : "badge-indigo")">
+                            @(detailedSaleInvoice.PaymentMethod == "Cash" ? "نقداً (كاش)" : (detailedSaleInvoice.PaymentMethod == "Credit" || detailedSaleInvoice.PaymentMethod == "آجل") ? "آجل" : detailedSaleInvoice.PaymentMethod)
                         </span>
                     </div>
                     <div>
@@ -397,7 +403,22 @@
 
     protected override async Task OnInitializedAsync()
     {
+        CloudSync.OnSyncStateChanged += HandleSyncStateChanged;
         await LoadSales();
+    }
+
+    private async void HandleSyncStateChanged()
+    {
+        await InvokeAsync(async () =>
+        {
+            await LoadSales(silent: true);
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        CloudSync.OnSyncStateChanged -= HandleSyncStateChanged;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -418,19 +439,25 @@
         }
     }
 
-    private async Task LoadSales()
+    private async Task LoadSales(bool silent = false)
     {
-        isLoading = true;
-        sales = await ApiClient.GetSalesListAsync();
-        
-        if (!string.IsNullOrWhiteSpace(DateQueryParam) && DateTime.TryParse(DateQueryParam, out var parsedDate))
+        if (!silent) isLoading = true;
+        try
         {
-            filterDate = parsedDate.Date;
-            dateInputString = filterDate.Value.ToString("yyyy-MM-dd");
-        }
+            sales = await ApiClient.GetSalesListAsync() ?? new();
+            
+            if (!string.IsNullOrWhiteSpace(DateQueryParam) && DateTime.TryParse(DateQueryParam, out var parsedDate))
+            {
+                filterDate = parsedDate.Date;
+                dateInputString = filterDate.Value.ToString("yyyy-MM-dd");
+            }
 
-        FilterSales();
-        isLoading = false;
+            FilterSales();
+        }
+        finally
+        {
+            if (!silent) isLoading = false;
+        }
     }
 
     private void FilterSales()
@@ -602,3 +629,14 @@
         }
     }
 }
+
+<style>
+    .badge-amber, .badge-warning {
+        background-color: rgba(245, 158, 11, 0.2) !important;
+        color: #f59e0b !important;
+        border: 1px solid rgba(245, 158, 11, 0.5) !important;
+        font-weight: 700 !important;
+        padding: 0.25rem 0.65rem !important;
+        border-radius: 2rem !important;
+    }
+</style>

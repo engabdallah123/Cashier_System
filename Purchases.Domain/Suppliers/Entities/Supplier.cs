@@ -24,7 +24,7 @@ namespace Purchases.Domain.Suppliers.Entities
             IsActive = true;
         }
 
-        public static Result<Supplier> Create(string name, string phone, string? email = null, string? address = null, string? contactPerson = null)
+        public static Result<Supplier> Create(string name, string phone, string? email = null, string? address = null, string? contactPerson = null, Guid? id = null)
         {
             if (string.IsNullOrWhiteSpace(name))
                 return Result<Supplier>.Failure(SupplierErrors.NameRequired);
@@ -32,7 +32,7 @@ namespace Purchases.Domain.Suppliers.Entities
             if (string.IsNullOrWhiteSpace(phone))
                 return Result<Supplier>.Failure(SupplierErrors.PhoneRequired);
 
-            var supplier = new Supplier(Guid.NewGuid(), name.Trim(), phone.Trim(), email?.Trim(), address?.Trim(), contactPerson?.Trim());
+            var supplier = new Supplier(id ?? Guid.NewGuid(), name.Trim(), phone.Trim(), email?.Trim(), address?.Trim(), contactPerson?.Trim());
             return Result<Supplier>.Success(supplier);
         }
 

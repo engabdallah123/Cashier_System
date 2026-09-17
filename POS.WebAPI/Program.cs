@@ -108,6 +108,9 @@ namespace POS.WebAPI
             builder.Services.AddScoped<POS.WebAPI.Services.IBackupService, POS.WebAPI.Services.BackupService>();
             builder.Services.AddHostedService<POS.WebAPI.Services.AutoBackupBackgroundService>();
 
+            // Cloud Synchronization Engine (Syncs Suppliers, Purchases, Stock, Settings, Dashboard with Cloud API)
+            builder.Services.AddHostedService<POS.WebAPI.Services.CloudSyncBackgroundService>();
+
             builder.Services.AddHttpContextAccessor();
             builder.Services.AddControllers();
 

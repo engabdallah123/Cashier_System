@@ -1,4 +1,5 @@
 using Inventory.Application.Batches.ProductBatches.Commands.ReplenishBatch;
+using Inventory.Application.Batches.ProductBatches.Commands.ReplaceSupplierBatch;
 using Inventory.Application.Batches.Queries.GetProductBatches;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -43,7 +44,29 @@ namespace POS.WebAPI.Controllers.Inventory
 
             return Ok();
         }
+
+        [HttpPost("{id:guid}/replace-supplier")]
+        public async Task<IActionResult> ReplaceSupplier([FromRoute] Guid id, [FromBody] ReplaceSupplierBatchApiRequest req, CancellationToken ct)
+        {
+            var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+            Guid? userId = claim != null && Guid.TryParse(claim.Value, out var parsed) ? parsed : null;
+
+            var command = new ReplaceSupplierBatchCommand(
+                id,
+                req.NewExpiryDate,
+                req.NewBatchNumber,
+                req.Notes,
+                req.RelatedNotificationId,
+                userId);
+
+            var result = await _sender.Send(command, ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return Ok(new { success = true, message = "تم استبدال البضاعة من المورد وتحديث تاريخ الصلاحية بنجاح." });
+        }
     }
 
     public sealed record ReplenishBatchApiRequest(decimal Quantity, string? Notes = null);
+    public sealed record ReplaceSupplierBatchApiRequest(DateTime NewExpiryDate, string? NewBatchNumber = null, string? Notes = null, Guid? RelatedNotificationId = null);
 }

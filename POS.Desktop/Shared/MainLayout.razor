@@ -7,6 +7,7 @@
 @inject CalculatorStateContainer CalcState
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject global::POS.Desktop.Services.Sync.ICloudSyncService CloudSync
 
 <style>
     .topbar-btn-price {
@@ -63,7 +64,24 @@
             </div>
 
             <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <!-- Cloud Sync Status Pill Button (Green = Synced, Yellow = Syncing, Slate = Offline, Red = Failed) -->
+                @{
+                    bool isOffline = CloudSync.IsOffline;
+                    bool isSyncing = CloudSync.IsSyncing && !isOffline;
+                    bool isFailed = !isSyncing && !isOffline && (CloudSync.LastSyncSucceeded == false || !CloudSync.IsCloudReachable);
+                    bool isSuccess = !isSyncing && !isFailed && !isOffline;
 
+                    string syncColor = isOffline ? "#94a3b8" : (isSyncing ? "#f59e0b" : (isFailed ? "#ef4444" : "#10b981"));
+                    string syncBg = isOffline ? "rgba(148, 163, 184, 0.12)" : (isSyncing ? "rgba(245, 158, 11, 0.12)" : (isFailed ? "rgba(239, 68, 68, 0.12)" : "rgba(16, 185, 129, 0.12)"));
+                    string syncBorder = isOffline ? "rgba(148, 163, 184, 0.3)" : (isSyncing ? "rgba(245, 158, 11, 0.4)" : (isFailed ? "rgba(239, 68, 68, 0.4)" : "rgba(16, 185, 129, 0.4)"));
+                    string syncIcon = isOffline ? "fa-solid fa-cloud-slash" : (isSyncing ? "fa-solid fa-cloud-arrow-up fa-bounce" : (isFailed ? "fa-solid fa-cloud-xmark" : "fa-solid fa-cloud"));
+                    string syncLabel = isOffline ? "غير متصل بالإنترنت" : (isSyncing ? "مزامنة جارية..." : (isFailed ? "تعذر المزامنة" : "السحابة متزامنة"));
+                    string syncTooltip = isOffline ? "الكمبيوتر غير متصل بالإنترنت، سيتم استئناف المزامنة تلقائياً عند توفر الإنترنت." : (isSyncing ? "جاري مزامنة البيانات مع السحابة والموبايل حالياً..." : (CloudSync.LastSyncStatus ?? (isFailed ? "تعذر الاتصال بالسحابة" : "تمت المزامنة بنجاح")));
+                }
+                <button type="button" class="btn" style="background: @syncBg; border: 1px solid @syncBorder; color: @syncColor; padding: 0.45rem 0.85rem; font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; border-radius: 8px; transition: all 0.2s ease;" @onclick="TriggerHeaderSync" disabled="@(CloudSync.IsSyncing || CloudSync.IsOffline)" title="@syncTooltip">
+                    <i class="@syncIcon" style="color: @syncColor; font-size: 0.95rem;"></i>
+                    <span>@syncLabel</span>
+                </button>
 
                 <!-- Light / Dark Theme Switcher Button -->
                 <button class="btn btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem; cursor: pointer;" @onclick="ToggleTheme" title="تغيير مظهر البرنامج">
@@ -184,6 +202,13 @@
         ShiftState.OnShiftStateChanged += StateHasChanged;
         CalcState.OnStateChanged += StateHasChanged;
         AuthState.AuthenticationStateChanged += OnAuthStateChanged;
+        CloudSync.OnSyncStateChanged += StateHasChanged;
+    }
+
+    private async Task TriggerHeaderSync()
+    {
+        await CloudSync.SyncNowAsync();
+        StateHasChanged();
     }
 
     private async void OnAuthStateChanged(Task<AuthenticationState> task)
@@ -210,5 +235,6 @@
         ShiftState.OnShiftStateChanged -= StateHasChanged;
         CalcState.OnStateChanged -= StateHasChanged;
         AuthState.AuthenticationStateChanged -= OnAuthStateChanged;
+        CloudSync.OnSyncStateChanged -= StateHasChanged;
     }
 }

@@ -160,14 +160,16 @@ namespace Purchases.Domain.Purchases.Entities
             if (amount <= 0)
                 return Result.Failure(PurchaseErrors.PaymentAmountInvalid);
 
-            if (RemainingAmount <= 0)
+            if (RemainingAmount <= 0.001m)
                 return Result.Failure(PurchaseErrors.PurchaseAlreadyFullyPaid);
 
             if (amount > RemainingAmount)
-                return Result.Failure(PurchaseErrors.PaymentExceedsRemaining);
+            {
+                amount = RemainingAmount;
+            }
 
             PaidAmount += amount;
-            RemainingAmount = TotalAmount - PaidAmount;
+            RemainingAmount = Math.Max(0, TotalAmount - PaidAmount);
             return Result.Success();
         }
 

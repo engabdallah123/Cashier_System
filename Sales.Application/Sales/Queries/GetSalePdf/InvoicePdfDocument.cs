@@ -191,9 +191,18 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
                         });
                     }
 
+                    string paymentMethodLabel = _receipt.PaymentMethod?.Trim() switch
+                    {
+                        "Credit" or "credit" or "آجل" or "اجل" => "آجل",
+                        "Cash" or "cash" or "كاش" => "نقداً (كاش)",
+                        "Card" or "card" or "Visa" or "visa" => "بطاقة بنكية",
+                        "MobileWallet" or "Wallet" => "محفظة إلكترونية",
+                        _ => string.IsNullOrWhiteSpace(_receipt.PaymentMethod) ? "نقداً (كاش)" : _receipt.PaymentMethod
+                    };
+
                     column.Item().Row(r =>
                     {
-                        r.RelativeItem().AlignRight().Text(FormatRtl($"الدفع - {_receipt.PaymentMethod}")).FontSize(8.5f).SemiBold();
+                        r.RelativeItem().AlignRight().Text(FormatRtl($"طريقة الدفع: {paymentMethodLabel}")).FontSize(8.5f).SemiBold();
                         r.ConstantItem(75).AlignRight().Text($"{(_receipt.PaidAmount > 0 ? _receipt.PaidAmount : _receipt.TotalAmount):N2} {_receipt.Currency}").FontSize(8.5f).SemiBold();
                     });
 

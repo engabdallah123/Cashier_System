@@ -3,12 +3,20 @@
 @using global::POS.Desktop.Services.Api
 @attribute [Authorize]
 @inject PosApiClient ApiClient
+@inject global::POS.Desktop.Services.Sync.ICloudSyncService CloudSync
+@implements IDisposable
 
 <div>
     <div class="page-header">
         <div>
             <h2 class="page-title">إدارة الديون والفواتير غير المسددة</h2>
             <p class="page-subtitle">نظام وصول سريع وفلترة ذكية لديون العملاء ومستحقات الموردين مع إمكانية التحصيل والسداد الفوري</p>
+        </div>
+        <div>
+            <button type="button" class="btn btn-secondary" style="font-size: 0.85rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.4rem;" @onclick="HandleManualRefresh" title="تحديث بيانات ومزامنة الديون">
+                <i class="fa-solid fa-arrows-rotate @(isLoading || CloudSync.IsSyncing ? "fa-spin" : "") text-blue"></i>
+                <span>تحديث ومزامنة</span>
+            </button>
         </div>
     </div>
 
@@ -356,7 +364,7 @@
                     <div><span style="color: var(--text-secondary);">تاريخ الفاتورة:</span> <strong>@detailedSaleInvoice.SaleDate.ToString("dd/MM/yyyy HH:mm")</strong></div>
                     <div><span style="color: var(--text-secondary);">العميل:</span> <strong style="color: var(--accent-blue);">@(detailedSaleInvoice.CustomerName ?? "عميل عام")</strong></div>
                     <div><span style="color: var(--text-secondary);">الكاشير:</span> <strong>@(detailedSaleInvoice.CashierName ?? "-")</strong></div>
-                    <div><span style="color: var(--text-secondary);">طريقة الدفع:</span> <span class="badge badge-secondary">@detailedSaleInvoice.PaymentMethod</span></div>
+                    <div><span style="color: var(--text-secondary);">طريقة الدفع:</span> <span class="badge @(detailedSaleInvoice.PaymentMethod == "Credit" || detailedSaleInvoice.PaymentMethod == "آجل" ? "badge-amber" : "badge-secondary")">@(detailedSaleInvoice.PaymentMethod == "Credit" || detailedSaleInvoice.PaymentMethod == "آجل" ? "آجل" : detailedSaleInvoice.PaymentMethod == "Cash" ? "كاش" : detailedSaleInvoice.PaymentMethod)</span></div>
                     <div><span style="color: var(--text-secondary);">حالة الفاتورة:</span> <span class="badge badge-amber">@detailedSaleInvoice.Status</span></div>
                 </div>
 
@@ -606,26 +614,48 @@
 
     protected override async Task OnInitializedAsync()
     {
+        CloudSync.OnSyncStateChanged += HandleSyncStateChanged;
         await LoadDebts();
     }
 
-    private async Task LoadDebts()
+    private async void HandleSyncStateChanged()
+    {
+        await InvokeAsync(async () =>
+        {
+            await LoadDebts(silent: true);
+            StateHasChanged();
+        });
+    }
+
+    public void Dispose()
+    {
+        CloudSync.OnSyncStateChanged -= HandleSyncStateChanged;
+    }
+
+    private async Task HandleManualRefresh()
     {
         isLoading = true;
-        errorMessage = null;
+        _ = Task.Run(async () => await CloudSync.SyncNowAsync());
+        await LoadDebts();
+    }
+
+    private async Task LoadDebts(bool silent = false)
+    {
+        if (!silent) isLoading = true;
+        if (!silent) errorMessage = null;
         try
         {
-            customerDebts = await ApiClient.GetCustomerDebtsAsync();
-            supplierDebts = await ApiClient.GetSupplierDebtsAsync();
+            customerDebts = await ApiClient.GetCustomerDebtsAsync() ?? new();
+            supplierDebts = await ApiClient.GetSupplierDebtsAsync() ?? new();
             ApplyFilter();
         }
         catch (Exception ex)
         {
-            errorMessage = $"خطأ في تحميل الديون: {ex.Message}";
+            if (!silent) errorMessage = $"خطأ في تحميل الديون: {ex.Message}";
         }
         finally
         {
-            isLoading = false;
+            if (!silent) isLoading = false;
         }
     }
 
@@ -716,6 +746,8 @@
             successMessage = $"تم تسجيل تحصيل مبلغ {customerPayAmount:N2} ج.م من العميل ({selectedCustomerDebtToPay.CustomerName}) بنجاح.";
             selectedCustomerDebtToPay = null;
             await LoadDebts();
+            CloudSync.RecordLocalChange();
+            _ = Task.Run(async () => await CloudSync.SyncNowAsync());
         }
         else
         {
@@ -742,6 +774,8 @@
             successMessage = $"تم سداد مبلغ {payAmount:N2} ج.م للفاتورة {selectedDebtToPay.InvoiceNumber} بنجاح.";
             selectedDebtToPay = null;
             await LoadDebts();
+            CloudSync.RecordLocalChange();
+            _ = Task.Run(async () => await CloudSync.SyncNowAsync(forceCatalogPush: true));
         }
         else
         {
