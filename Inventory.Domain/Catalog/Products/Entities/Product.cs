@@ -84,7 +84,7 @@ namespace Inventory.Domain.Catalog.Products.Entities
             int shelfLifeDays = 0, int expiryAlertDays = 3,
             decimal reorderLevel = 5, decimal maxStockLevel = 100,
             bool isWeighable = false, bool isActive = true, bool trackExpiry = false,
-            decimal taxRate = 0, string? imageUrl = null)
+            decimal taxRate = 0, string? imageUrl = null, Guid? id = null)
         {
             if (string.IsNullOrWhiteSpace(barcode))
                 return Result<Product>.Failure(ProductErrors.BarcodeRequired);
@@ -105,7 +105,8 @@ namespace Inventory.Domain.Catalog.Products.Entities
                 return Result<Product>.Failure(ProductErrors.InvalidSellingPrice);
 
             var product = new Product(
-                Guid.NewGuid(), barcode.Trim(), trimmedAr, trimmedEn, description?.Trim(),
+                id.HasValue && id.Value != Guid.Empty ? id.Value : Guid.NewGuid(),
+                barcode.Trim(), trimmedAr, trimmedEn, description?.Trim(),
                 categoryId, unitId, supplierId,
                 baseUnit, parentUnit, conversionFactor,
                 shelfLifeDays, expiryAlertDays,

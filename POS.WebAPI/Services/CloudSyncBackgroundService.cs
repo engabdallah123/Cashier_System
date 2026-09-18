@@ -219,6 +219,13 @@ namespace POS.WebAPI.Services
                 var affectedProductIds = new HashSet<Guid>();
                 var affectedSupplierIds = new HashSet<Guid>();
 
+                var localProducts = await inventoryDb.Products.AsNoTracking().ToListAsync(ct);
+                var localById = localProducts.ToDictionary(p => p.Id);
+                var localByBarcode = localProducts
+                    .Where(p => !string.IsNullOrWhiteSpace(p.Barcode))
+                    .GroupBy(p => p.Barcode.Trim().ToLower())
+                    .ToDictionary(g => g.Key, g => g.First());
+
                 foreach (var cloudPurchase in pendingPurchases)
                 {
                     if (_knownInvoiceNumbers.Contains(cloudPurchase.InvoiceNumber.Trim()))
@@ -227,16 +234,28 @@ namespace POS.WebAPI.Services
                         continue;
                     }
 
-                    var items = cloudPurchase.Items.Select(i => new CreatePurchaseItemRequest(
-                        i.ProductId,
-                        i.Quantity,
-                        i.UnitCost,
-                        i.Discount,
-                        i.Tax,
-                        i.ExpiryDate,
-                        i.BatchNumber,
-                        i.Unit
-                    )).ToList();
+                    var items = cloudPurchase.Items.Select(i =>
+                    {
+                        Guid resolvedProductId = i.ProductId;
+                        if (!localById.ContainsKey(resolvedProductId))
+                        {
+                            if (!string.IsNullOrWhiteSpace(i.Barcode) && localByBarcode.TryGetValue(i.Barcode.Trim().ToLower(), out var pMatch))
+                            {
+                                resolvedProductId = pMatch.Id;
+                            }
+                        }
+
+                        return new CreatePurchaseItemRequest(
+                            resolvedProductId,
+                            i.Quantity,
+                            i.UnitCost,
+                            i.Discount,
+                            i.Tax,
+                            i.ExpiryDate,
+                            i.BatchNumber,
+                            i.Unit
+                        );
+                    }).ToList();
 
                     var cmd = new CreatePurchaseCommand(
                         cloudPurchase.InvoiceNumber,
@@ -259,7 +278,7 @@ namespace POS.WebAPI.Services
                         _knownInvoiceNumbers.Add(cloudPurchase.InvoiceNumber.Trim());
                         imported++;
 
-                        foreach (var item in cloudPurchase.Items)
+                        foreach (var item in items)
                         {
                             affectedProductIds.Add(item.ProductId);
                         }
@@ -335,8 +354,22 @@ namespace POS.WebAPI.Services
                 var defaultCatId = await inventoryDb.Categories.Select(c => c.Id).FirstOrDefaultAsync(ct);
                 var defaultUnitId = await inventoryDb.Units.Select(u => u.Id).FirstOrDefaultAsync(ct);
 
+                var localProducts = await inventoryDb.Products.AsNoTracking().ToListAsync(ct);
+                var localById = localProducts.ToDictionary(p => p.Id);
+                var localByBarcode = localProducts
+                    .Where(p => !string.IsNullOrWhiteSpace(p.Barcode))
+                    .GroupBy(p => p.Barcode.Trim().ToLower())
+                    .ToDictionary(g => g.Key, g => g.First());
+
                 foreach (var prod in pendingProducts)
                 {
+                    var barcodeClean = prod.Barcode.Trim().ToLower();
+                    if (localById.ContainsKey(prod.Id) || localByBarcode.ContainsKey(barcodeClean))
+                    {
+                        await _cloudHttp.PostAsync($"api/sync/products/{prod.Id}/acknowledge", null, ct);
+                        continue;
+                    }
+
                     var cmd = new CreateProductCommand(
                         prod.Barcode,
                         prod.NameAr,
@@ -359,7 +392,9 @@ namespace POS.WebAPI.Services
                         true,
                         prod.TrackExpiry,
                         0,
-                        null
+                        null,
+                        prod.Id,
+                        prod.StockQuantity
                     );
 
                     var res = await mediator.Send(cmd, ct);
@@ -862,7 +897,16 @@ namespace POS.WebAPI.Services
                     else
                     {
                         _logger.LogWarning("[CloudSync] Failed to apply {DebtType} debt payment {RefId}: {Error}", payment.DebtType, payment.ReferenceId, err);
-                        if (err != null && (err.Contains("مسددة بالكامل") || err.Contains("AlreadyFullyPaid") || err.Contains("NotFound")))
+                        // Acknowledge permanent failures to prevent infinite retry loops
+                        bool isPermanentError = err != null && (
+                            err.Contains("مسددة بالكامل") ||
+                            err.Contains("AlreadyFullyPaid") ||
+                            err.Contains("NotFound") ||
+                            err.Contains("InvalidPaymentAmount") ||
+                            err.Contains("أكبر من") ||
+                            err.Contains("يجب أن يكون"));
+
+                        if (isPermanentError)
                         {
                             await _cloudHttp.PostAsync($"api/sync/debts/{payment.Id}/acknowledge", null, ct);
                             count++;
@@ -1021,7 +1065,7 @@ namespace POS.WebAPI.Services
     public record PendingSupplierSyncDto(Guid Id, string Name, string? Phone, string? Email, string? Address, string? ContactPerson, decimal Balance = 0);
     public record PendingPurchaseItemSyncDto(Guid Id, Guid ProductId, string ProductName, string Barcode, decimal Quantity, decimal UnitCost, decimal Discount, decimal Tax, decimal Total, DateTime? ExpiryDate, string? BatchNumber, string? Unit);
     public record PendingPurchaseSyncDto(Guid Id, string InvoiceNumber, string? InternalNumber, Guid SupplierId, string SupplierName, DateTime PurchaseDate, decimal SubTotal, decimal DiscountAmount, decimal TaxAmount, decimal TotalAmount, decimal PaidAmount, decimal RemainingAmount, int PaymentMethod, string? Notes, DateTime CreatedAt, List<PendingPurchaseItemSyncDto> Items);
-    public record PendingProductSyncDto(Guid Id, string Barcode, string NameAr, string? NameEn, string BaseUnit, string? ParentUnit, int ConversionFactor, decimal PurchasePrice, decimal SellingPrice, decimal WholesalePrice, int ShelfLifeDays, int ExpiryAlertDays, decimal ReorderLevel, bool IsWeighable, bool TrackExpiry, Guid? CategoryId);
+    public record PendingProductSyncDto(Guid Id, string Barcode, string NameAr, string? NameEn, string BaseUnit, string? ParentUnit, int ConversionFactor, decimal PurchasePrice, decimal SellingPrice, decimal WholesalePrice, int ShelfLifeDays, int ExpiryAlertDays, decimal ReorderLevel, bool IsWeighable, bool TrackExpiry, Guid? CategoryId, decimal StockQuantity = 0);
     public record StockUpdateSyncItem(Guid ProductId, decimal NewStockQuantity);
     public record SupplierBalanceSyncItem(Guid SupplierId, decimal NewBalance);
     public record PendingExpenseSyncDto(Guid Id, string Title, decimal Amount, string? Category, DateTime Date, string? Notes);

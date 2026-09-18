@@ -25,7 +25,10 @@ internal sealed class PaySaleInvoiceCommandHandler : ICommandHandler<PaySaleInvo
 
     public async Task<Result> Handle(PaySaleInvoiceCommand request, CancellationToken cancellationToken)
     {
-        var sale = await _salesUnitOfWork.SaleRepository.GetByIdAsync(request.SaleId);
+        // تحميل الفاتورة مع الدفعات السابقة لضمان حساب المبلغ المتبقي بشكل صحيح
+        var sale = await _salesUnitOfWork.SaleRepository.FindAsync(
+            s => s.Id == request.SaleId,
+            new[] { "Payments" });
         if (sale is null)
             return Result.Failure(SaleErrors.NotFound(request.SaleId));
 
@@ -54,6 +57,25 @@ internal sealed class PaySaleInvoiceCommandHandler : ICommandHandler<PaySaleInvo
 
         if (paymentResult.IsFailure)
             return Result.Failure(paymentResult.Error);
+
+        // إضافة الدفعة صراحةً ككيان جديد (Added) لضمان تنفيذ INSERT في قاعدة البيانات بدلاً من التحديث الخاطئ
+        await _salesUnitOfWork.SalePaymentRepository.AddAsync(paymentResult.Value!);
+        _salesUnitOfWork.SaleRepository.Update(sale);
+
+        // تحديث رصيد العميل إذا كانت الفاتورة مرتبطة بعميل
+        if (sale.CustomerId.HasValue && sale.CustomerId.Value != Guid.Empty)
+        {
+            try
+            {
+                var customer = await _salesUnitOfWork.CustomerRepository.GetByIdAsync(sale.CustomerId.Value);
+                if (customer != null)
+                {
+                    customer.AdjustBalance(-paymentResult.Value!.Amount);
+                    _salesUnitOfWork.CustomerRepository.Update(customer);
+                }
+            }
+            catch { }
+        }
 
         if (shift is not null && shift.Status == Shifts.Domain.Shifts.Entities.ShiftStatus.Open)
         {

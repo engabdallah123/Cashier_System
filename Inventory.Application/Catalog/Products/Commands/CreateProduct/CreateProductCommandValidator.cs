@@ -14,6 +14,7 @@ namespace Inventory.Application.Catalog.Products.Commands.CreateProduct
             RuleFor(x => x.UnitId).NotEmpty().WithMessage("معرف الوحدة مطلوب.");
             RuleFor(x => x.PurchasePrice).GreaterThanOrEqualTo(0).WithMessage("سعر الشراء لا يمكن أن يكون سالباً.");
             RuleFor(x => x.SellingPrice).GreaterThanOrEqualTo(0).WithMessage("سعر البيع لا يمكن أن يكون سالباً.");
+            RuleFor(x => x.InitialStock).GreaterThanOrEqualTo(0).WithMessage("الرصيد الافتتاحي لا يمكن أن يكون سالباً.");
         }
     }
 }

@@ -647,16 +647,43 @@ namespace POS.CloudAPI.Controllers
                         updatedSuppliers++;
                     }
                 }
+
+                // Deactivate suppliers deleted on Desktop
+                var pushedSupIds = req.Suppliers.Select(s => s.Id).ToHashSet();
+                foreach (var cs in existingSuppliersList)
+                {
+                    if (cs.IsActive && cs.SyncStatus != SyncStatus.PendingSync && !pushedSupIds.Contains(cs.Id))
+                    {
+                        cs.IsActive = false;
+                        cs.UpdatedAt = DateTime.UtcNow;
+                        updatedSuppliers++;
+                    }
+                }
             }
 
             // 2. Sync Products
             if (req.Products != null && req.Products.Any())
             {
-                var existingProducts = await _db.Products.Where(p => p.TenantId == tenant.Id).ToDictionaryAsync(p => p.Id);
+                var existingProductsList = await _db.Products.Where(p => p.TenantId == tenant.Id).ToListAsync();
+                var existingById = existingProductsList.ToDictionary(p => p.Id);
+                var existingByBarcode = existingProductsList
+                    .Where(p => !string.IsNullOrWhiteSpace(p.Barcode))
+                    .GroupBy(p => p.Barcode.Trim().ToLower())
+                    .ToDictionary(g => g.Key, g => g.First());
 
                 foreach (var prodReq in req.Products)
                 {
-                    if (existingProducts.TryGetValue(prodReq.Id, out var existing))
+                    CloudProduct? existing = null;
+                    if (existingById.TryGetValue(prodReq.Id, out var byId))
+                    {
+                        existing = byId;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(prodReq.Barcode) && existingByBarcode.TryGetValue(prodReq.Barcode.Trim().ToLower(), out var byBarcode))
+                    {
+                        existing = byBarcode;
+                    }
+
+                    if (existing != null)
                     {
                         bool changed = false;
                         if (existing.Barcode != prodReq.Barcode) { existing.Barcode = prodReq.Barcode; changed = true; }
@@ -676,18 +703,37 @@ namespace POS.CloudAPI.Controllers
                         if (existing.ShelfLifeDays != prodReq.ShelfLifeDays) { existing.ShelfLifeDays = prodReq.ShelfLifeDays; changed = true; }
                         if (existing.ExpiryAlertDays != prodReq.ExpiryAlertDays) { existing.ExpiryAlertDays = prodReq.ExpiryAlertDays; changed = true; }
                         if (existing.ReorderLevel != prodReq.ReorderLevel) { existing.ReorderLevel = prodReq.ReorderLevel; changed = true; }
+                        if (!existing.IsActive) { existing.IsActive = true; changed = true; }
+                        existing.SyncStatus = SyncStatus.Synced;
 
                         if (changed)
                         {
                             existing.UpdatedAt = DateTime.UtcNow;
                             updatedProducts++;
                         }
+
+                        // Deduplicate: If there are other stale records with the same barcode for this tenant, remove them!
+                        if (!string.IsNullOrWhiteSpace(prodReq.Barcode))
+                        {
+                            var duplicates = existingProductsList
+                                .Where(p => p.Id != existing.Id && p.Barcode.Trim().Equals(prodReq.Barcode.Trim(), StringComparison.OrdinalIgnoreCase))
+                                .ToList();
+                            if (duplicates.Any())
+                            {
+                                _db.Products.RemoveRange(duplicates);
+                                foreach (var dup in duplicates)
+                                {
+                                    existingProductsList.Remove(dup);
+                                    existingById.Remove(dup.Id);
+                                }
+                            }
+                        }
                     }
                     else
                     {
-                        _db.Products.Add(new CloudProduct
+                        var newProd = new CloudProduct
                         {
-                            Id = prodReq.Id,
+                            Id = prodReq.Id != Guid.Empty ? prodReq.Id : Guid.NewGuid(),
                             TenantId = tenant.Id,
                             Barcode = prodReq.Barcode,
                             NameAr = prodReq.NameAr,
@@ -709,8 +755,38 @@ namespace POS.CloudAPI.Controllers
                             IsActive = true,
                             SyncStatus = SyncStatus.Synced,
                             UpdatedAt = DateTime.UtcNow
-                        });
+                        };
+                        _db.Products.Add(newProd);
+                        existingProductsList.Add(newProd);
+                        existingById[newProd.Id] = newProd;
+                        if (!string.IsNullOrWhiteSpace(newProd.Barcode))
+                        {
+                            existingByBarcode[newProd.Barcode.Trim().ToLower()] = newProd;
+                        }
                         updatedProducts++;
+                    }
+                }
+
+                // Deactivate products on Cloud that were deleted on Desktop
+                var pushedIds = req.Products.Select(p => p.Id).ToHashSet();
+                var pushedBarcodes = req.Products
+                    .Where(p => !string.IsNullOrWhiteSpace(p.Barcode))
+                    .Select(p => p.Barcode.Trim().ToLower())
+                    .ToHashSet();
+
+                foreach (var cp in existingProductsList)
+                {
+                    if (cp.IsActive && cp.SyncStatus != SyncStatus.PendingSync)
+                    {
+                        bool inPushedById = pushedIds.Contains(cp.Id);
+                        bool inPushedByBarcode = !string.IsNullOrWhiteSpace(cp.Barcode) && pushedBarcodes.Contains(cp.Barcode.Trim().ToLower());
+
+                        if (!inPushedById && !inPushedByBarcode)
+                        {
+                            cp.IsActive = false;
+                            cp.UpdatedAt = DateTime.UtcNow;
+                            updatedProducts++;
+                        }
                     }
                 }
             }
@@ -719,15 +795,17 @@ namespace POS.CloudAPI.Controllers
             int updatedCategories = 0;
             if (req.Categories != null && req.Categories.Any())
             {
-                var existingCats = await _db.Categories.Where(c => c.TenantId == tenant.Id).ToDictionaryAsync(c => c.Id);
+                var existingCatsList = await _db.Categories.Where(c => c.TenantId == tenant.Id).ToListAsync();
+                var existingCats = existingCatsList.ToDictionary(c => c.Id);
                 foreach (var catReq in req.Categories)
                 {
                     if (existingCats.TryGetValue(catReq.Id, out var existing))
                     {
-                        if (existing.NameAr != catReq.NameAr || existing.NameEn != catReq.NameEn)
+                        if (existing.NameAr != catReq.NameAr || existing.NameEn != catReq.NameEn || !existing.IsActive)
                         {
                             existing.NameAr = catReq.NameAr;
                             existing.NameEn = catReq.NameEn;
+                            existing.IsActive = true;
                             existing.UpdatedAt = DateTime.UtcNow;
                             updatedCategories++;
                         }
@@ -744,6 +822,18 @@ namespace POS.CloudAPI.Controllers
                             SyncStatus = SyncStatus.Synced,
                             CreatedAt = DateTime.UtcNow
                         });
+                        updatedCategories++;
+                    }
+                }
+
+                // Deactivate categories deleted on Desktop
+                var pushedCatIds = req.Categories.Select(c => c.Id).ToHashSet();
+                foreach (var cc in existingCatsList)
+                {
+                    if (cc.IsActive && cc.SyncStatus != SyncStatus.PendingSync && !pushedCatIds.Contains(cc.Id))
+                    {
+                        cc.IsActive = false;
+                        cc.UpdatedAt = DateTime.UtcNow;
                         updatedCategories++;
                     }
                 }

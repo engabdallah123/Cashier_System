@@ -470,6 +470,70 @@
                     </div>
                 </div>
 
+                @if (showAddModal)
+                {
+                    <!-- Initial / Opening Stock Section (الرصيد الافتتاحي في المخزون) -->
+                    <div style="background: rgba(59, 130, 246, 0.05); border: 1.5px solid rgba(59, 130, 246, 0.3); border-radius: 0.75rem; padding: 0.9rem 1rem; margin-bottom: 1.1rem;">
+                        <div style="font-weight: 700; font-size: 0.9rem; color: var(--accent-blue); display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; flex-wrap: wrap; gap: 0.4rem;">
+                            <div style="display: flex; align-items: center; gap: 0.45rem;">
+                                <i class="fa-solid fa-boxes-packing"></i>
+                                <span>الرصيد الافتتاحي في المخزون (الكمية الموجودة حالياً بالرف / المخزن)</span>
+                            </div>
+                            <span style="font-size: 0.76rem; font-weight: 600; color: var(--accent-blue); background: rgba(59, 130, 246, 0.12); padding: 0.2rem 0.6rem; border-radius: 0.4rem;">
+                                تسوية أول المدة
+                            </span>
+                        </div>
+
+                        @if (newProduct.IsWeighable)
+                        {
+                            <div class="grid-2" style="align-items: center;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.82rem; font-weight: 600;">الوزن المتوفر حالياً بالمحل (@(newProduct.BaseUnit ?? "كيلوجرام"))</label>
+                                    <input type="number" step="0.001" min="0" class="form-control" @bind="newProduct.InitialStock" placeholder="0.000" style="font-size: 1.1rem; font-weight: 700; color: var(--accent-emerald); background: var(--bg-secondary); border-color: rgba(16, 185, 129, 0.4);" />
+                                </div>
+                                <div style="font-size: 0.82rem; color: var(--text-secondary); background: var(--bg-primary); padding: 0.6rem 0.85rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
+                                    <i class="fa-solid fa-scale-balanced text-emerald me-1"></i>
+                                    سيتم تسجيل رصيد المخزون الأولي بوزن <strong>@newProduct.InitialStock.ToString("N3")</strong> @(newProduct.BaseUnit ?? "كيلوجرام").
+                                </div>
+                            </div>
+                        }
+                        else if (newProduct.ConversionFactor > 1)
+                        {
+                            <div class="grid-3" style="margin-bottom: 0.5rem;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.82rem; font-weight: 600;">عدد الكراتين (@(string.IsNullOrWhiteSpace(newProduct.ParentUnit) ? "كرتونة" : newProduct.ParentUnit))</label>
+                                    <input type="number" min="0" class="form-control" @bind="initialCartons" @bind:after="OnInitialCartonsChanged" placeholder="0" style="font-size: 1.05rem; font-weight: 700;" />
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.82rem; font-weight: 600;">قطع فردية / متبقية (@(string.IsNullOrWhiteSpace(newProduct.BaseUnit) ? "قطعة" : newProduct.BaseUnit))</label>
+                                    <input type="number" min="0" class="form-control" @bind="initialPieces" @bind:after="OnInitialPiecesChanged" placeholder="0" style="font-size: 1.05rem; font-weight: 700;" />
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.82rem; font-weight: 600;">إجمالي المخزون الأساسي (@(string.IsNullOrWhiteSpace(newProduct.BaseUnit) ? "قطعة" : newProduct.BaseUnit))</label>
+                                    <input type="number" min="0" class="form-control" @bind="newProduct.InitialStock" @bind:after="OnInitialStockDirectChanged" placeholder="0" style="font-size: 1.05rem; font-weight: 700; color: var(--accent-blue); background: var(--bg-secondary); border-color: rgba(59, 130, 246, 0.4);" />
+                                </div>
+                            </div>
+                            <div style="font-size: 0.8rem; color: var(--accent-blue); background: rgba(59, 130, 246, 0.08); padding: 0.45rem 0.75rem; border-radius: 0.4rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.35rem;">
+                                <span><i class="fa-solid fa-check-circle me-1"></i> إجمالي الرصيد الأولي: <strong>@newProduct.InitialStock.ToString("N0")</strong> @(string.IsNullOrWhiteSpace(newProduct.BaseUnit) ? "قطعة" : newProduct.BaseUnit)</span>
+                                <span style="color: var(--text-secondary);">(يعادل: @initialCartons @(string.IsNullOrWhiteSpace(newProduct.ParentUnit) ? "كرتونة" : newProduct.ParentUnit) + @initialPieces @(string.IsNullOrWhiteSpace(newProduct.BaseUnit) ? "قطعة" : newProduct.BaseUnit))</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="grid-2" style="align-items: center;">
+                                <div class="form-group" style="margin-bottom: 0;">
+                                    <label style="font-size: 0.82rem; font-weight: 600;">الكمية المتوفرة حالياً بالمحل (@(string.IsNullOrWhiteSpace(newProduct.BaseUnit) ? "قطعة" : newProduct.BaseUnit))</label>
+                                    <input type="number" min="0" class="form-control" @bind="newProduct.InitialStock" placeholder="0" style="font-size: 1.1rem; font-weight: 700; color: var(--accent-blue); background: var(--bg-secondary); border-color: rgba(59, 130, 246, 0.4);" />
+                                </div>
+                                <div style="font-size: 0.82rem; color: var(--text-secondary); background: var(--bg-primary); padding: 0.6rem 0.85rem; border-radius: 0.5rem; border: 1px solid var(--border-color);">
+                                    <i class="fa-solid fa-circle-info text-blue me-1"></i>
+                                    سيتم إيداع هذه الكمية كرصيد أولي للصنف لبدء البيع والخصم منها فوراً.
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
                 <div class="form-group">
                     <label>الوصف والملاحظات</label>
                     <textarea class="form-control" rows="2" @bind="newProduct.Description" placeholder="ملاحظات اختيارية..."></textarea>
@@ -950,6 +1014,35 @@
     }
 
     private CreateProductFormModel newProduct = new();
+    private int initialCartons = 0;
+    private decimal initialPieces = 0;
+
+    private void OnInitialCartonsChanged()
+    {
+        int factor = newProduct.ConversionFactor > 0 ? newProduct.ConversionFactor : 1;
+        newProduct.InitialStock = (initialCartons * factor) + initialPieces;
+    }
+
+    private void OnInitialPiecesChanged()
+    {
+        int factor = newProduct.ConversionFactor > 0 ? newProduct.ConversionFactor : 1;
+        newProduct.InitialStock = (initialCartons * factor) + initialPieces;
+    }
+
+    private void OnInitialStockDirectChanged()
+    {
+        int factor = newProduct.ConversionFactor > 0 ? newProduct.ConversionFactor : 1;
+        if (factor > 1)
+        {
+            initialCartons = (int)(newProduct.InitialStock / factor);
+            initialPieces = newProduct.InitialStock % factor;
+        }
+        else
+        {
+            initialCartons = 0;
+            initialPieces = newProduct.InitialStock;
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -1201,8 +1294,11 @@
             ParentUnit = "كرتونة",
             ConversionFactor = 1,
             ShelfLifeDays = 30,
-            ExpiryAlertDays = 3
+            ExpiryAlertDays = 3,
+            InitialStock = 0
         };
+        initialCartons = 0;
+        initialPieces = 0;
         GenerateBarcode();
         categoryIdString = categories.FirstOrDefault()?.Id.ToString() ?? string.Empty;
         unitIdString = units.FirstOrDefault()?.Id.ToString() ?? string.Empty;

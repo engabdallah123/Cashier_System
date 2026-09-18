@@ -119,6 +119,8 @@ namespace POS.Desktop.Services.Api
         public bool IsActive { get; set; } = true;
         public bool TrackExpiry { get; set; }
         public decimal TaxRate { get; set; }
+        public Guid? Id { get; set; }
+        public decimal InitialStock { get; set; } = 0;
     }
     public record UnitDto(Guid Id, string NameAr, string NameEn, string Symbol);
     public record SupplierDto(Guid Id, string Name, string Phone, string? Email, string? Address, string? ContactPerson);

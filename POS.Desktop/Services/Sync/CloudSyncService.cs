@@ -81,7 +81,7 @@ namespace POS.Desktop.Services.Sync
                 }
             }
             catch { }
-            return "http://poscashier.runasp.net/";
+            return "https://poscashier.runasp.net/";
         }
 
         public static void SaveCloudBaseUrl(string url)
@@ -345,6 +345,13 @@ namespace POS.Desktop.Services.Sync
 
                 var adminUserId = _authState.UserId != Guid.Empty ? _authState.UserId : Guid.Parse("2bc4e49b-fe29-4c7b-9eed-649de1c32cef");
 
+                var localProducts = await _posApi.GetProductsAsync();
+                var localById = localProducts?.ToDictionary(p => p.Id) ?? new();
+                var localByBarcode = localProducts?
+                    .Where(p => !string.IsNullOrWhiteSpace(p.Barcode))
+                    .GroupBy(p => p.Barcode.Trim().ToLower())
+                    .ToDictionary(g => g.Key, g => g.First()) ?? new();
+
                 var affectedProductIds = new HashSet<Guid>();
                 var affectedSupplierIds = new HashSet<Guid>();
 
@@ -357,17 +364,29 @@ namespace POS.Desktop.Services.Sync
                         continue;
                     }
 
-                    // 2. Map Cloud Purchase to local CreatePurchaseRequest
-                    var localItems = cloudPurchase.Items.Select(i => new CreatePurchaseItemRequest(
-                        ProductId: i.ProductId,
-                        Quantity: i.Quantity,
-                        UnitCost: i.UnitCost,
-                        Discount: i.Discount,
-                        Tax: i.Tax,
-                        ExpiryDate: i.ExpiryDate,
-                        BatchNumber: i.BatchNumber,
-                        Unit: i.Unit
-                    )).ToList();
+                    // 2. Map Cloud Purchase to local CreatePurchaseRequest (resolving ProductId by Id or Barcode fallback)
+                    var localItems = cloudPurchase.Items.Select(i =>
+                    {
+                        Guid resolvedProductId = i.ProductId;
+                        if (!localById.ContainsKey(resolvedProductId))
+                        {
+                            if (!string.IsNullOrWhiteSpace(i.Barcode) && localByBarcode.TryGetValue(i.Barcode.Trim().ToLower(), out var pMatch))
+                            {
+                                resolvedProductId = pMatch.Id;
+                            }
+                        }
+
+                        return new CreatePurchaseItemRequest(
+                            ProductId: resolvedProductId,
+                            Quantity: i.Quantity,
+                            UnitCost: i.UnitCost,
+                            Discount: i.Discount,
+                            Tax: i.Tax,
+                            ExpiryDate: i.ExpiryDate,
+                            BatchNumber: i.BatchNumber,
+                            Unit: i.Unit
+                        );
+                    }).ToList();
 
                     var localReq = new CreatePurchaseRequest(
                         InvoiceNumber: cloudPurchase.InvoiceNumber,
@@ -393,7 +412,7 @@ namespace POS.Desktop.Services.Sync
                         _knownInvoiceNumbers.Add(cloudPurchase.InvoiceNumber.Trim());
                         importedCount++;
 
-                        foreach (var item in cloudPurchase.Items)
+                        foreach (var item in localItems)
                         {
                             affectedProductIds.Add(item.ProductId);
                         }
@@ -479,10 +498,25 @@ namespace POS.Desktop.Services.Sync
                 var defaultCatId = categories.FirstOrDefault()?.Id ?? Guid.Empty;
                 var defaultUnitId = units.FirstOrDefault()?.Id ?? Guid.Empty;
 
+                var localProducts = await _posApi.GetProductsAsync();
+                var localById = localProducts?.ToDictionary(p => p.Id) ?? new();
+                var localByBarcode = localProducts?
+                    .Where(p => !string.IsNullOrWhiteSpace(p.Barcode))
+                    .GroupBy(p => p.Barcode.Trim().ToLower())
+                    .ToDictionary(g => g.Key, g => g.First()) ?? new();
+
                 foreach (var prod in pendingProducts)
                 {
+                    var barcodeClean = prod.Barcode.Trim().ToLower();
+                    if (localById.ContainsKey(prod.Id) || localByBarcode.ContainsKey(barcodeClean))
+                    {
+                        await _cloudHttp.PostAsync($"api/sync/products/{prod.Id}/acknowledge", null);
+                        continue;
+                    }
+
                     var formModel = new CreateProductFormModel
                     {
+                        Id = prod.Id,
                         Barcode = prod.Barcode,
                         NameAr = prod.NameAr,
                         NameEn = prod.NameEn ?? string.Empty,
@@ -498,7 +532,8 @@ namespace POS.Desktop.Services.Sync
                         IsWeighable = prod.IsWeighable,
                         TrackExpiry = prod.TrackExpiry,
                         CategoryId = prod.CategoryId ?? defaultCatId,
-                        UnitId = defaultUnitId
+                        UnitId = defaultUnitId,
+                        InitialStock = prod.StockQuantity
                     };
 
                     var (productId, error) = await _posApi.CreateProductAsync(formModel);
@@ -544,8 +579,19 @@ namespace POS.Desktop.Services.Sync
                     else
                     {
                         Console.WriteLine($"[CloudSync] Failed to apply {payment.DebtType} debt payment {payment.ReferenceId}: {err}");
-                        // If invoice is already fully paid or not found/settled, acknowledge to clear pending queue
-                        if (err != null && (err.Contains("مسددة بالكامل") || err.Contains("AlreadyFullyPaid") || err.Contains("NotFound")))
+                        // Acknowledge permanent failures to prevent infinite retry loops
+                        // that cause stale debt snapshots to overwrite mobile payments.
+                        // Permanent errors: already paid, not found, invalid amount, or any
+                        // application-level error (not a transient network error).
+                        bool isPermanentError = err != null && (
+                            err.Contains("مسددة بالكامل") ||
+                            err.Contains("AlreadyFullyPaid") ||
+                            err.Contains("NotFound") ||
+                            err.Contains("InvalidPaymentAmount") ||
+                            err.Contains("أكبر من") ||
+                            err.Contains("يجب أن يكون"));
+
+                        if (isPermanentError)
                         {
                             await _cloudHttp.PostAsync($"api/sync/debts/{payment.Id}/acknowledge", null);
                             count++;

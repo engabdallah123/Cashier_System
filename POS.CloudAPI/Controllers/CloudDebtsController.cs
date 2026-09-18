@@ -107,11 +107,13 @@ namespace POS.CloudAPI.Controllers
             if (req.Amount <= 0)
                 return BadRequest(new { message = "مبلغ السداد يجب أن يكون أكبر من الصفر." });
 
+            var normalizedType = string.Equals(req.DebtType, "Supplier", StringComparison.OrdinalIgnoreCase) ? "Supplier" : "Customer";
+
             var payment = new CloudDebtPayment
             {
                 Id = Guid.NewGuid(),
                 TenantId = tenantId,
-                DebtType = req.DebtType,
+                DebtType = normalizedType,
                 ReferenceId = req.ReferenceId,
                 Amount = req.Amount,
                 Notes = req.Notes,
@@ -124,7 +126,7 @@ namespace POS.CloudAPI.Controllers
             // Optimistically decrease remaining amount on CloudDebtItem if found
             var debtItem = await _db.DebtItems.FirstOrDefaultAsync(d =>
                 d.TenantId == tenantId &&
-                d.Type == req.DebtType &&
+                d.Type.ToLower() == normalizedType.ToLower() &&
                 d.ReferenceId == req.ReferenceId);
 
             if (debtItem != null)

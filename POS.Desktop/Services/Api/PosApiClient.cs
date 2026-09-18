@@ -231,6 +231,9 @@ namespace POS.Desktop.Services.Api
                 content.Add(new StringContent(model.IsWeighable.ToString()), nameof(model.IsWeighable));
                 content.Add(new StringContent(model.IsActive.ToString()), nameof(model.IsActive));
                 content.Add(new StringContent(model.TrackExpiry.ToString()), nameof(model.TrackExpiry));
+                content.Add(new StringContent(model.InitialStock.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.InitialStock));
+                if (model.Id.HasValue && model.Id.Value != Guid.Empty)
+                    content.Add(new StringContent(model.Id.Value.ToString()), nameof(model.Id));
 
                 if (imageBytes != null && imageBytes.Length > 0)
                 {
@@ -611,6 +614,12 @@ namespace POS.Desktop.Services.Api
 
                 if (root.TryGetProperty("Message", out var msgPascal) && !string.IsNullOrWhiteSpace(msgPascal.GetString()))
                     return msgPascal.GetString()!;
+
+                if (root.TryGetProperty("error", out var errorProp) && !string.IsNullOrWhiteSpace(errorProp.GetString()))
+                    return errorProp.GetString()!;
+
+                if (root.TryGetProperty("Error", out var errorPascal) && !string.IsNullOrWhiteSpace(errorPascal.GetString()))
+                    return errorPascal.GetString()!;
 
                 if (root.TryGetProperty("errors", out var errorsProp))
                 {

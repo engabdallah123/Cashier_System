@@ -147,26 +147,46 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                 var h = GetCellValue(headerRow.Cell(col)).Trim().ToLowerInvariant();
                 if (string.IsNullOrEmpty(h)) continue;
 
-                if (!colMap.ContainsKey("barcode") && (h.Contains("باركود") || h.Contains("barcode"))) colMap["barcode"] = col;
-                else if (!colMap.ContainsKey("nameAr") && (h.Contains("عربي") || h.Contains("namear") || (h.Contains("اسم") && !h.Contains("انجليز") && !h.Contains("إنجليز")))) colMap["nameAr"] = col;
-                else if (!colMap.ContainsKey("nameEn") && (h.Contains("انجليز") || h.Contains("إنجليز") || h.Contains("nameen") || h.Contains("english"))) colMap["nameEn"] = col;
-                else if (!colMap.ContainsKey("category") && (h.Contains("تصنيف") || h.Contains("فئة") || h.Contains("category"))) colMap["category"] = col;
-                else if (!colMap.ContainsKey("parentUnit") && (h.Contains("كبرى") || h.Contains("تعبئة") || h.Contains("تعبئه") || h.Contains("كرتون") || h.Contains("باكت") || h.Contains("parentunit"))) colMap["parentUnit"] = col;
-                else if (!colMap.ContainsKey("baseUnit") && (h.Contains("صغرى") || h.Contains("اساسية") || h.Contains("أساسية") || h.Contains("وحدة") || h.Contains("unit") || h.Contains("baseunit"))) colMap["baseUnit"] = col;
-                else if (!colMap.ContainsKey("conversionFactor") && (h.Contains("معامل") || h.Contains("تحويل") || h.Contains("قطع") || h.Contains("factor"))) colMap["conversionFactor"] = col;
-                else if (!colMap.ContainsKey("purchasePrice") && (h.Contains("شراء") || h.Contains("تكلفة") || h.Contains("تكلفه") || h.Contains("cost") || h.Contains("purchase"))) colMap["purchasePrice"] = col;
-                else if (!colMap.ContainsKey("wholesalePrice") && (h.Contains("جملة") || h.Contains("جمله") || h.Contains("wholesale"))) colMap["wholesalePrice"] = col;
-                else if (!colMap.ContainsKey("sellingPrice") && (h.Contains("بيع") || h.Contains("قطاعي") || h.Contains("price") || h.Contains("selling"))) colMap["sellingPrice"] = col;
-                else if (!colMap.ContainsKey("initialStock") && (h.Contains("أولي") || h.Contains("اولي") || h.Contains("مخزون") || h.Contains("رصيد") || h.Contains("stock") || h.Contains("qty"))) colMap["initialStock"] = col;
-                else if (!colMap.ContainsKey("reorderLevel") && (h.Contains("طلب") || h.Contains("reorder"))) colMap["reorderLevel"] = col;
-                else if (!colMap.ContainsKey("maxStockLevel") && (h.Contains("أقصى") || h.Contains("اقصى") || h.Contains("max"))) colMap["maxStockLevel"] = col;
-                else if (!colMap.ContainsKey("taxRate") && (h.Contains("ضريب") || h.Contains("tax"))) colMap["taxRate"] = col;
-                else if (!colMap.ContainsKey("isWeighable") && (h.Contains("وزن") || h.Contains("ميزان") || h.Contains("weigh"))) colMap["isWeighable"] = col;
-                else if (!colMap.ContainsKey("shelfLifeDays") && (h.Contains("مدة") || h.Contains("مده") || h.Contains("ايام") || h.Contains("أيام") || h.Contains("days"))) colMap["shelfLifeDays"] = col;
-                else if (!colMap.ContainsKey("trackExpiry") && (h.Contains("صلاحية") || h.Contains("صلاحيه") || h.Contains("انتهاء") || h.Contains("expiry"))) colMap["trackExpiry"] = col;
-                else if (!colMap.ContainsKey("expiryAlertDays") && (h.Contains("تنبيه") || h.Contains("alert"))) colMap["expiryAlertDays"] = col;
-                else if (!colMap.ContainsKey("imageUrl") && (h.Contains("صورة") || h.Contains("صوره") || h.Contains("image") || h.Contains("url") || h.Contains("رابط"))) colMap["imageUrl"] = col;
-                else if (!colMap.ContainsKey("description") && (h.Contains("وصف") || h.Contains("description") || h.Contains("تفاصيل"))) colMap["description"] = col;
+                if (!colMap.ContainsKey("barcode") && (h.Contains("باركود") || h.Contains("barcode"))) 
+                    colMap["barcode"] = col;
+                else if (!colMap.ContainsKey("nameEn") && (h.Contains("انجليز") || h.Contains("إنجليز") || h.Contains("english") || h.Contains("nameen"))) 
+                    colMap["nameEn"] = col;
+                else if (!colMap.ContainsKey("nameAr") && (h.Contains("عربي") || h.Contains("اسم") || h.Contains("namear") || h.Contains("productname") || h.Contains("product"))) 
+                    colMap["nameAr"] = col;
+                else if (!colMap.ContainsKey("category") && (h.Contains("تصنيف") || h.Contains("فئة") || h.Contains("فئه") || h.Contains("category"))) 
+                    colMap["category"] = col;
+                else if (!colMap.ContainsKey("parentUnit") && (h.Contains("كبرى") || h.Contains("تعبئة") || h.Contains("تعبئه") || h.Contains("parentunit") || (h.Contains("كرتون") && !h.Contains("معامل")))) 
+                    colMap["parentUnit"] = col;
+                else if (!colMap.ContainsKey("baseUnit") && (h.Contains("صغرى") || h.Contains("اساسية") || h.Contains("أساسية") || h.Contains("baseunit") || (h.Contains("وحدة") && !h.Contains("كبرى")))) 
+                    colMap["baseUnit"] = col;
+                else if (!colMap.ContainsKey("conversionFactor") && (h.Contains("معامل") || h.Contains("تحويل") || h.Contains("conversion") || h.Contains("factor"))) 
+                    colMap["conversionFactor"] = col;
+                else if (!colMap.ContainsKey("purchasePrice") && (h.Contains("شراء") || h.Contains("تكلفة") || h.Contains("تكلفه") || h.Contains("cost") || h.Contains("purchase"))) 
+                    colMap["purchasePrice"] = col;
+                else if (!colMap.ContainsKey("wholesalePrice") && (h.Contains("جملة") || h.Contains("جمله") || h.Contains("wholesale"))) 
+                    colMap["wholesalePrice"] = col;
+                else if (!colMap.ContainsKey("sellingPrice") && (h.Contains("قطاعي") || (h.Contains("بيع") && !h.Contains("جملة")) || h.Contains("selling") || h.Contains("price"))) 
+                    colMap["sellingPrice"] = col;
+                else if (!colMap.ContainsKey("reorderLevel") && (h.Contains("إعادة") || h.Contains("اعادة") || h.Contains("طلب") || h.Contains("reorder"))) 
+                    colMap["reorderLevel"] = col;
+                else if (!colMap.ContainsKey("maxStockLevel") && (h.Contains("أقصى") || h.Contains("اقصى") || h.Contains("max"))) 
+                    colMap["maxStockLevel"] = col;
+                else if (!colMap.ContainsKey("initialStock") && (h.Contains("أولي") || h.Contains("اولي") || h.Contains("رصيد") || h.Contains("مخزون") || h.Contains("stock") || h.Contains("qty") || h.Contains("quantity"))) 
+                    colMap["initialStock"] = col;
+                else if (!colMap.ContainsKey("taxRate") && (h.Contains("ضريب") || h.Contains("tax"))) 
+                    colMap["taxRate"] = col;
+                else if (!colMap.ContainsKey("isWeighable") && (h.Contains("وزن") || h.Contains("ميزان") || h.Contains("weigh"))) 
+                    colMap["isWeighable"] = col;
+                else if (!colMap.ContainsKey("expiryAlertDays") && (h.Contains("تنبيه") || h.Contains("alert"))) 
+                    colMap["expiryAlertDays"] = col;
+                else if (!colMap.ContainsKey("shelfLifeDays") && (h.Contains("مدة") || h.Contains("مده") || (h.Contains("صلاحية") && (h.Contains("يوم") || h.Contains("أيام") || h.Contains("ايام"))) || h.Contains("shelflife"))) 
+                    colMap["shelfLifeDays"] = col;
+                else if (!colMap.ContainsKey("trackExpiry") && (h.Contains("صلاحية") || h.Contains("صلاحيه") || h.Contains("انتهاء") || h.Contains("expiry") || h.Contains("track"))) 
+                    colMap["trackExpiry"] = col;
+                else if (!colMap.ContainsKey("imageUrl") && (h.Contains("صورة") || h.Contains("صوره") || h.Contains("image") || h.Contains("url") || h.Contains("رابط"))) 
+                    colMap["imageUrl"] = col;
+                else if (!colMap.ContainsKey("description") && (h.Contains("وصف") || h.Contains("description") || h.Contains("تفاصيل") || h.Contains("ملاحظات"))) 
+                    colMap["description"] = col;
             }
 
             int GetCol(string key, int fallback) => colMap.TryGetValue(key, out int col) ? col : fallback;
@@ -191,29 +211,30 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                 string baseUnit = colMap.ContainsKey("baseUnit") ? GetCellValue(row.Cell(colMap["baseUnit"])) : GetCellValue(row.Cell(5));
                 if (string.IsNullOrWhiteSpace(baseUnit)) baseUnit = "قطعة";
 
-                string parentUnit = colMap.ContainsKey("parentUnit") ? GetCellValue(row.Cell(colMap["parentUnit"])) : "كرتونة";
-                if (string.IsNullOrWhiteSpace(parentUnit)) parentUnit = "كرتونة";
+                bool isWeighable = colMap.ContainsKey("isWeighable") ? ParseBool(GetCellValue(row.Cell(colMap["isWeighable"]))) : ParseBool(GetCellValue(row.Cell(15)));
+
+                string parentUnit = colMap.ContainsKey("parentUnit") ? GetCellValue(row.Cell(colMap["parentUnit"])) : GetCellValue(row.Cell(6));
+                if (string.IsNullOrWhiteSpace(parentUnit)) parentUnit = isWeighable ? null : "كرتونة";
 
                 int conversionFactor = colMap.ContainsKey("conversionFactor")
                     ? (int)ParseDecimal(GetCellValue(row.Cell(colMap["conversionFactor"])), 1)
-                    : 1;
+                    : (int)ParseDecimal(GetCellValue(row.Cell(7)), 1);
                 if (conversionFactor < 1) conversionFactor = 1;
 
-                decimal purchasePrice = colMap.ContainsKey("purchasePrice") ? ParseDecimal(GetCellValue(row.Cell(colMap["purchasePrice"])), 0) : ParseDecimal(GetCellValue(row.Cell(6)), 0);
-                decimal sellingPrice = colMap.ContainsKey("sellingPrice") ? ParseDecimal(GetCellValue(row.Cell(colMap["sellingPrice"])), 0) : ParseDecimal(GetCellValue(row.Cell(7)), 0);
-                decimal wholesalePrice = colMap.ContainsKey("wholesalePrice") ? ParseDecimal(GetCellValue(row.Cell(colMap["wholesalePrice"])), 0) : ParseDecimal(GetCellValue(row.Cell(8)), 0);
-                decimal initialStock = colMap.ContainsKey("initialStock") ? ParseDecimal(GetCellValue(row.Cell(colMap["initialStock"])), 0) : ParseDecimal(GetCellValue(row.Cell(9)), 0);
-                decimal reorderLevel = colMap.ContainsKey("reorderLevel") ? ParseDecimal(GetCellValue(row.Cell(colMap["reorderLevel"])), 5) : ParseDecimal(GetCellValue(row.Cell(10)), 5);
-                decimal maxStockLevel = colMap.ContainsKey("maxStockLevel") ? ParseDecimal(GetCellValue(row.Cell(colMap["maxStockLevel"])), 100) : ParseDecimal(GetCellValue(row.Cell(11)), 100);
-                decimal taxRate = colMap.ContainsKey("taxRate") ? ParseDecimal(GetCellValue(row.Cell(colMap["taxRate"])), 0) : ParseDecimal(GetCellValue(row.Cell(12)), 0);
+                decimal purchasePrice = colMap.ContainsKey("purchasePrice") ? ParseDecimal(GetCellValue(row.Cell(colMap["purchasePrice"])), 0) : ParseDecimal(GetCellValue(row.Cell(8)), 0);
+                decimal sellingPrice = colMap.ContainsKey("sellingPrice") ? ParseDecimal(GetCellValue(row.Cell(colMap["sellingPrice"])), 0) : ParseDecimal(GetCellValue(row.Cell(9)), 0);
+                decimal wholesalePrice = colMap.ContainsKey("wholesalePrice") ? ParseDecimal(GetCellValue(row.Cell(colMap["wholesalePrice"])), 0) : ParseDecimal(GetCellValue(row.Cell(10)), 0);
+                decimal initialStock = colMap.ContainsKey("initialStock") ? ParseDecimal(GetCellValue(row.Cell(colMap["initialStock"])), 0) : ParseDecimal(GetCellValue(row.Cell(11)), 0);
+                decimal reorderLevel = colMap.ContainsKey("reorderLevel") ? ParseDecimal(GetCellValue(row.Cell(colMap["reorderLevel"])), 5) : ParseDecimal(GetCellValue(row.Cell(12)), 5);
+                decimal maxStockLevel = colMap.ContainsKey("maxStockLevel") ? ParseDecimal(GetCellValue(row.Cell(colMap["maxStockLevel"])), 100) : ParseDecimal(GetCellValue(row.Cell(13)), 100);
+                decimal taxRate = colMap.ContainsKey("taxRate") ? ParseDecimal(GetCellValue(row.Cell(colMap["taxRate"])), 0) : ParseDecimal(GetCellValue(row.Cell(14)), 0);
 
-                bool isWeighable = colMap.ContainsKey("isWeighable") ? ParseBool(GetCellValue(row.Cell(colMap["isWeighable"]))) : ParseBool(GetCellValue(row.Cell(13)));
-                bool trackExpiry = colMap.ContainsKey("trackExpiry") ? ParseBool(GetCellValue(row.Cell(colMap["trackExpiry"]))) : ParseBool(GetCellValue(row.Cell(14)));
-                int shelfLifeDays = colMap.ContainsKey("shelfLifeDays") ? (int)ParseDecimal(GetCellValue(row.Cell(colMap["shelfLifeDays"])), 0) : 0;
-                int expiryAlertDays = colMap.ContainsKey("expiryAlertDays") ? (int)ParseDecimal(GetCellValue(row.Cell(colMap["expiryAlertDays"])), 3) : 3;
+                bool trackExpiry = colMap.ContainsKey("trackExpiry") ? ParseBool(GetCellValue(row.Cell(colMap["trackExpiry"]))) : ParseBool(GetCellValue(row.Cell(16)));
+                int shelfLifeDays = colMap.ContainsKey("shelfLifeDays") ? (int)ParseDecimal(GetCellValue(row.Cell(colMap["shelfLifeDays"])), 0) : (int)ParseDecimal(GetCellValue(row.Cell(17)), 0);
+                int expiryAlertDays = colMap.ContainsKey("expiryAlertDays") ? (int)ParseDecimal(GetCellValue(row.Cell(colMap["expiryAlertDays"])), 3) : (int)ParseDecimal(GetCellValue(row.Cell(18)), 3);
 
-                string? rawImageUrl = colMap.ContainsKey("imageUrl") ? GetCellValue(row.Cell(colMap["imageUrl"]), checkHyperlink: true) : null;
-                string? description = colMap.ContainsKey("description") ? GetCellValue(row.Cell(colMap["description"])) : null;
+                string? rawImageUrl = colMap.ContainsKey("imageUrl") ? GetCellValue(row.Cell(colMap["imageUrl"]), checkHyperlink: true) : GetCellValue(row.Cell(19), checkHyperlink: true);
+                string? description = colMap.ContainsKey("description") ? GetCellValue(row.Cell(colMap["description"])) : GetCellValue(row.Cell(20));
 
                 // Fallback smart detection if header matching did not yield an image URL
                 if (string.IsNullOrWhiteSpace(rawImageUrl))

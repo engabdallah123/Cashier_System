@@ -24,5 +24,8 @@ namespace Inventory.Application.Catalog.Products.Commands.CreateProduct
         bool IsActive = true,
         bool TrackExpiry = false,
         decimal TaxRate = 0,
-        string? ImageUrl = null) : ICommand<Guid>;
+        string? ImageUrl = null,
+        Guid? Id = null,
+        decimal InitialStock = 0,
+        Guid? CreatedBy = null) : ICommand<Guid>;
 }

@@ -45,6 +45,8 @@ namespace POS.WebAPI.Controllers.Inventory
         public bool TrackExpiry { get; set; }
         public decimal TaxRate { get; set; }
         public IFormFile? ImageFile { get; set; }
+        public Guid? Id { get; set; }
+        public decimal InitialStock { get; set; } = 0;
     }
 
     [ApiController]
@@ -74,6 +76,15 @@ namespace POS.WebAPI.Controllers.Inventory
                 imageUrl = uploadResult.Value;
             }
 
+            Guid? userId = null;
+            var subClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? User.FindFirst("sub")?.Value
+                ?? User.FindFirst("uid")?.Value;
+            if (Guid.TryParse(subClaim, out var parsedUserId))
+            {
+                userId = parsedUserId;
+            }
+
             var command = new CreateProductCommand(
                 request.Barcode, request.NameAr, request.NameEn,
                 request.CategoryId, request.UnitId,
@@ -83,7 +94,8 @@ namespace POS.WebAPI.Controllers.Inventory
                 request.ShelfLifeDays, request.ExpiryAlertDays,
                 request.ReorderLevel, request.MaxStockLevel,
                 request.IsWeighable, request.IsActive, request.TrackExpiry,
-                request.TaxRate, imageUrl);
+                request.TaxRate, imageUrl, request.Id,
+                request.InitialStock, userId);
 
             var result = await _sender.Send(command, ct);
             if (result.IsFailure)

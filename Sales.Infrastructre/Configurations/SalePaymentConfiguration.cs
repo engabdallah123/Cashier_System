@@ -12,6 +12,7 @@ internal sealed class SalePaymentConfiguration : IEntityTypeConfiguration<SalePa
         builder.ToTable("SalePayments", Schemas.Sales);
 
         builder.HasKey(p => p.Id);
+        builder.Property(p => p.Id).ValueGeneratedNever();
 
         builder.Property(p => p.SaleId).IsRequired();
         builder.Property(p => p.Amount).HasPrecision(18, 2).IsRequired();

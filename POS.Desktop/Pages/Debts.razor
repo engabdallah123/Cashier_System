@@ -747,7 +747,7 @@
             selectedCustomerDebtToPay = null;
             await LoadDebts();
             CloudSync.RecordLocalChange();
-            _ = Task.Run(async () => await CloudSync.SyncNowAsync());
+            _ = Task.Run(async () => await CloudSync.SyncNowAsync(forceCatalogPush: true));
         }
         else
         {
