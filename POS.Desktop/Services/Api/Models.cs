@@ -365,6 +365,7 @@ namespace POS.Desktop.Services.Api
         string? InvoiceFooterMessage,
         bool AllowNegativeStock,
         bool AutoPrintInvoice,
+        bool EnableDepletedBatchAlert,
         string? LogoUrl,
         DateTime UpdatedAt);
 
@@ -378,7 +379,8 @@ namespace POS.Desktop.Services.Api
         string? InvoiceFooterMessage,
         bool AllowNegativeStock,
         bool AutoPrintInvoice = true,
-        string? LogoUrl = null);
+        string? LogoUrl = null,
+        bool EnableDepletedBatchAlert = true);
 
     public record AuditLogDto(
         Guid Id,

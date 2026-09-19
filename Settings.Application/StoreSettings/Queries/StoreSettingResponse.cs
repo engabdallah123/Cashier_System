@@ -11,6 +11,7 @@ namespace Settings.Application.StoreSettings.Queries
         string? InvoiceFooterMessage,
         bool AllowNegativeStock,
         bool AutoPrintInvoice,
+        bool EnableDepletedBatchAlert,
         string? LogoUrl,
         DateTime UpdatedAt);
 }

@@ -1802,8 +1802,8 @@
                     try { await CloudSync.SyncNowAsync(forceCatalogPush: true); } catch { }
                 });
 
-                // Depleted batches alert modal
-                if (saleResult.DepletedBatches != null && saleResult.DepletedBatches.Count > 0)
+                // Depleted batches alert modal (controlled via Settings - EnableDepletedBatchAlert)
+                if (StoreState.EnableDepletedBatchAlert && saleResult.DepletedBatches != null && saleResult.DepletedBatches.Count > 0)
                 {
                     ShowDepletedBatchesModal(saleResult.DepletedBatches);
                 }

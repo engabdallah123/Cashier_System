@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Settings.Infrastructre.Database;
 
@@ -11,9 +12,11 @@ using Settings.Infrastructre.Database;
 namespace Settings.Infrastructre.Migrations
 {
     [DbContext(typeof(SettingsDbContext))]
-    partial class SettingsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260919183000_AddEnableDepletedBatchAlertToStoreSettings")]
+    partial class AddEnableDepletedBatchAlertToStoreSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

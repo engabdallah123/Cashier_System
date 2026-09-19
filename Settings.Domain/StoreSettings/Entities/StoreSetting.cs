@@ -13,6 +13,7 @@ namespace Settings.Domain.StoreSettings.Entities
         public string? InvoiceFooterMessage { get; private set; }
         public bool AllowNegativeStock { get; private set; }
         public bool AutoPrintInvoice { get; private set; } = true;
+        public bool EnableDepletedBatchAlert { get; private set; } = true;
         public string? LogoUrl { get; private set; }
         public DateTime UpdatedAt { get; private set; }
 
@@ -21,7 +22,7 @@ namespace Settings.Domain.StoreSettings.Entities
         private StoreSetting(Guid id, string storeName, string? address, string? phone,
             decimal taxRate, bool isTaxIncluded, string currency,
             string? invoiceFooterMessage, bool allowNegativeStock, bool autoPrintInvoice = true,
-            string? logoUrl = null)
+            string? logoUrl = null, bool enableDepletedBatchAlert = true)
             : base(id)
         {
             StoreName = storeName;
@@ -33,6 +34,7 @@ namespace Settings.Domain.StoreSettings.Entities
             InvoiceFooterMessage = invoiceFooterMessage;
             AllowNegativeStock = allowNegativeStock;
             AutoPrintInvoice = autoPrintInvoice;
+            EnableDepletedBatchAlert = enableDepletedBatchAlert;
             LogoUrl = logoUrl;
             UpdatedAt = DateTime.UtcNow;
         }
@@ -42,7 +44,8 @@ namespace Settings.Domain.StoreSettings.Entities
             decimal taxRate = 0, bool isTaxIncluded = true,
             string? address = null, string? phone = null,
             string? invoiceFooterMessage = null, bool allowNegativeStock = false,
-            bool autoPrintInvoice = true, string? logoUrl = null)
+            bool autoPrintInvoice = true, string? logoUrl = null,
+            bool enableDepletedBatchAlert = true)
         {
             if (string.IsNullOrWhiteSpace(storeName))
                 return Result<StoreSetting>.Failure(StoreSettingErrors.StoreNameRequired);
@@ -56,7 +59,8 @@ namespace Settings.Domain.StoreSettings.Entities
             var setting = new StoreSetting(
                 Guid.NewGuid(), storeName.Trim(), address?.Trim(), phone?.Trim(),
                 taxRate, isTaxIncluded, currency.Trim().ToUpperInvariant(),
-                invoiceFooterMessage?.Trim(), allowNegativeStock, autoPrintInvoice, logoUrl?.Trim());
+                invoiceFooterMessage?.Trim(), allowNegativeStock, autoPrintInvoice, logoUrl?.Trim(),
+                enableDepletedBatchAlert);
 
             return Result<StoreSetting>.Success(setting);
         }
@@ -65,7 +69,8 @@ namespace Settings.Domain.StoreSettings.Entities
             string storeName, string? address, string? phone,
             decimal taxRate, bool isTaxIncluded, string currency,
             string? invoiceFooterMessage, bool allowNegativeStock,
-            bool autoPrintInvoice = true, string? logoUrl = null)
+            bool autoPrintInvoice = true, string? logoUrl = null,
+            bool enableDepletedBatchAlert = true)
         {
             if (string.IsNullOrWhiteSpace(storeName))
                 return Result.Failure(StoreSettingErrors.StoreNameRequired);
@@ -85,6 +90,7 @@ namespace Settings.Domain.StoreSettings.Entities
             InvoiceFooterMessage = invoiceFooterMessage?.Trim();
             AllowNegativeStock = allowNegativeStock;
             AutoPrintInvoice = autoPrintInvoice;
+            EnableDepletedBatchAlert = enableDepletedBatchAlert;
             if (logoUrl != null)
             {
                 LogoUrl = string.IsNullOrWhiteSpace(logoUrl) ? null : logoUrl.Trim();

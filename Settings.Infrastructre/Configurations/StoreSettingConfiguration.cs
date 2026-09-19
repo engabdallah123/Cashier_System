@@ -43,6 +43,9 @@ internal sealed class StoreSettingConfiguration : IEntityTypeConfiguration<Store
         builder.Property(s => s.AutoPrintInvoice)
             .HasDefaultValue(true);
 
+        builder.Property(s => s.EnableDepletedBatchAlert)
+            .HasDefaultValue(true);
+
         builder.Property(s => s.LogoUrl)
             .HasMaxLength(500);
 

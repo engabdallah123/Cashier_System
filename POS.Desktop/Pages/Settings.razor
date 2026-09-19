@@ -141,6 +141,24 @@
                         <span style="font-size: 0.8rem; color: var(--text-secondary);">عند تفعيله، يمكن للكاشير إتمام عمليات البيع حتى إن كان رصيد الصنف بالكمية صفر.</span>
                     </div>
                 </div>
+
+                <div style="background: var(--bg-primary); padding: 1rem 1.25rem; border-radius: 0.6rem; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; margin-top: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <input type="checkbox" @bind="enableDepletedBatchAlert" id="depletedBatchToggle" style="width: 20px; height: 20px; cursor: pointer;" />
+                        <div>
+                            <label for="depletedBatchToggle" style="font-size: 0.95rem; font-weight: 700; cursor: pointer; display: block;">
+                                إشعار وتنبيه نفاد كميات الدفعات بنظام (FIFO) في شاشة نقاط البيع (POS)
+                            </label>
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);">
+                                عند نفاد كمية دفعة مشتريات بالكامل أثناء البيع، تظهر نافذة تفاعلية تسألك لمطابقة الجرد الفعلي على الرف وتجديد رصيد الدفعة إن وُجد خطأ أو بقية كمية بالمخزن.
+                            </span>
+                        </div>
+                    </div>
+                    <span class="badge @(enableDepletedBatchAlert ? "badge-green" : "badge-amber")" style="font-size: 0.8rem; white-space: nowrap;">
+                        <i class="fa-solid @(enableDepletedBatchAlert ? "fa-circle-check" : "fa-ban") me-1"></i>
+                        @(enableDepletedBatchAlert ? "تنبيه الدفعات مفعل" : "تنبيه الدفعات معطل")
+                    </span>
+                </div>
             </div>
 
             <!-- Print & Invoice Options Section -->
@@ -260,6 +278,7 @@
     private string? invoiceFooterMessage;
     private bool allowNegativeStock = false;
     private bool autoPrintInvoice = true;
+    private bool enableDepletedBatchAlert = true;
     private string? logoUrl;
     private string? logoPreviewUrl;
     private bool isUploadingLogo = false;
@@ -281,6 +300,7 @@
         try
         {
             autoPrintInvoice = StoreState.AutoPrintInvoiceAfterSale;
+            enableDepletedBatchAlert = StoreState.EnableDepletedBatchAlert;
             var res = await ApiClient.GetSettingsAsync();
             if (res != null)
             {
@@ -292,6 +312,8 @@
                 currency = string.IsNullOrWhiteSpace(res.Currency) ? "EGP" : res.Currency;
                 invoiceFooterMessage = res.InvoiceFooterMessage;
                 allowNegativeStock = res.AllowNegativeStock;
+                autoPrintInvoice = res.AutoPrintInvoice;
+                enableDepletedBatchAlert = res.EnableDepletedBatchAlert;
                 logoUrl = res.LogoUrl;
             }
         }
@@ -375,7 +397,8 @@
             InvoiceFooterMessage: invoiceFooterMessage,
             AllowNegativeStock: allowNegativeStock,
             AutoPrintInvoice: autoPrintInvoice,
-            LogoUrl: logoUrl);
+            LogoUrl: logoUrl,
+            EnableDepletedBatchAlert: enableDepletedBatchAlert);
 
         var (success, error) = await ApiClient.UpdateSettingsAsync(req);
         isSaving = false;

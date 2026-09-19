@@ -12,5 +12,6 @@ namespace Settings.Application.StoreSettings.Commands.UpdateSettings
         string? InvoiceFooterMessage,
         bool AllowNegativeStock,
         bool AutoPrintInvoice = true,
-        string? LogoUrl = null) : ICommand;
+        string? LogoUrl = null,
+        bool EnableDepletedBatchAlert = true) : ICommand;
 }

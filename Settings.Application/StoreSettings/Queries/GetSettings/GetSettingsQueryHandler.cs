@@ -31,6 +31,7 @@ namespace Settings.Application.StoreSettings.Queries.GetSettings
                     InvoiceFooterMessage,
                     AllowNegativeStock,
                     ISNULL(AutoPrintInvoice, 1) AS AutoPrintInvoice,
+                    ISNULL(EnableDepletedBatchAlert, 1) AS EnableDepletedBatchAlert,
                     LogoUrl,
                     UpdatedAt
                 FROM [Settings].[StoreSettings]

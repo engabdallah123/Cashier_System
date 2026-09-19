@@ -25,6 +25,11 @@ public static class SettingsDataSeeder
                     ALTER TABLE [Settings].[StoreSettings] ADD [AutoPrintInvoice] BIT NOT NULL CONSTRAINT DF_StoreSettings_AutoPrintInvoice DEFAULT 1;
                 END
 
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[Settings].[StoreSettings]') AND name = 'EnableDepletedBatchAlert')
+                BEGIN
+                    ALTER TABLE [Settings].[StoreSettings] ADD [EnableDepletedBatchAlert] BIT NOT NULL CONSTRAINT DF_StoreSettings_EnableDepletedBatchAlert DEFAULT 1;
+                END
+
                 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID(N'[Settings].[StoreSettings]') AND name = 'LogoUrl')
                 BEGIN
                     ALTER TABLE [Settings].[StoreSettings] ADD [LogoUrl] NVARCHAR(500) NULL;
@@ -43,7 +48,9 @@ public static class SettingsDataSeeder
                 phone: null,
                 invoiceFooterMessage: "شكراً لزيارتكم!",
                 allowNegativeStock: false,
-                autoPrintInvoice: true);
+                autoPrintInvoice: true,
+                logoUrl: null,
+                enableDepletedBatchAlert: true);
 
             if (defaultSetting.IsSuccess)
             {
